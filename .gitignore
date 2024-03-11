@@ -22,9 +22,11 @@
 # Go workspace file
 go.work
 
-# binary files
+# binary files - y4.out is obsolete
 log.bin
 y4.out
+w4.out
+wut4.out
 
 # test directories
 _Test*

@@ -1,0 +1,6 @@
+#bank code
+start:
+	beq r0, r0, start
+	beq r0, r0, start
+	beq r0, r0, start
+	beq r0, r0, start

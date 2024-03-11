@@ -1,0 +1,2 @@
+#bank code
+ldw r1, r0, 0
