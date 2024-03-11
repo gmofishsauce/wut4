@@ -6,11 +6,11 @@ The content of this repo is [licensed](./LICENSE).
 
 Assembler based on [customasm](https://github.com/hlorenzi/customasm)
 
-## [dis](./dis) - wut4 disassembler
+## [dsm](./dsm) - wut4 disassembler
 
 Disassembler written in Golang
 
-## [func](./func) - wut4 emulator
+## [emul](./emul) - wut4 emulator
 
 Functional emulator written in Golang
 
