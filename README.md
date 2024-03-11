@@ -2,7 +2,7 @@
 
 The content of this repo is [licensed](./LICENSE).
 
-## [SAVE](./save) - abandoned work
+## [SAVE](./SAVE) - abandoned work
 
 The contents may be useful in the future.
 
