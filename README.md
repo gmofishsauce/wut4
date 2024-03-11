@@ -2,6 +2,10 @@
 
 The content of this repo is [licensed](./LICENSE).
 
+## [SAVE](./save) - abandoned work
+
+The contents may be useful in the future.
+
 ## [asm](./asm) - wut4 assembler
 
 Assembler based on [customasm](https://github.com/hlorenzi/customasm)
@@ -20,11 +24,7 @@ A simple test framework that assembles a test file, disassembles
 the binary, reassembles the disassembly creating a second binary,
 and checks that the first and second binaries are identical.
 
-## [yapl-0](./yapl-0) - wut4 language experimentation platform
-
-Abandoned, but the README may be useful.
-
 ## [yapl-1](./yapl-1) - wut4 compiler version 1
 
-## [save](./save) - other abandoned work
-
+The first version of the compiler for YAPL, Yet Another Programming
+Language, targeted at the WUT-4.
