@@ -86,8 +86,8 @@ type w4reg struct { // per mode
 
 type w4machine struct {
 	cyc uint64  // cycle counter
-	reg []w4reg // [0] is user space, [1] is kernel
-	io  []word  // i/o space, accesible only in kernel mode
+	reg []w4reg // [0] is kernel, [1] is user
+	io  []word  // i/o space, accessible only in kernel mode
 	pc  word
 
 	// Non-architectural state that persists beyond an instruction
