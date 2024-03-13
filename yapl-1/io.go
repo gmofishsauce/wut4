@@ -18,14 +18,14 @@ func dbg(s string, args ...any) {
 // WUT-4 has no native idea of signedness or signs, so the I/O
 // functions are coded somewhat clumsily using unsigned values.
 
-const E_EOF word = 0xFFFF
-const E_IOERR word = 0xFFFE
-const E_UNKNOWN word = 0xFFFD
+const E_EOF Word = 0xFFFF
+const E_IOERR Word = 0xFFFE
+const E_UNKNOWN Word = 0xFFFD
 
 // Get a byte from "channel" fd. If the MS byte of the return value
 // is nonzero, an error has occurred. Otherwise, the input byte is
 // in the LS byte of the return value.
-func getb(fd word) word {
+func getb(fd Word) Word {
 	b := []byte{0x00}
 	n, err := syscall.Read(int(fd), b)
 	if err != nil {
@@ -34,14 +34,14 @@ func getb(fd word) word {
 	if n == 0 {
 		return E_EOF
 	}
-	return word(b[0]) // success
+	return Word(b[0]) // success
 }
 
 // Put a byte on "channel" fd. If the MS byte of the return value
 // is nonzero, an error has occurred. Otherwise, the return value
 // is 1 indicating that the byte was written.
-func putb(fd word, val byte) word {
-	b := []byte{val}	
+func putb(fd Word, val Byte) Word {
+	b := []byte{byte(val)}
 	n, err := syscall.Write(int(fd), b)
 	if err != nil {
 		return E_IOERR

@@ -127,21 +127,21 @@ A function call is the identifier of the known function followed by a
 semicolon. A function becomes known when its declaration is seen, so
 functions may be recursive.
 
-A conditional statement consists of a conditional expression followed by
-a block followed by the keyword E followed by another block. The E and
-the second block are not optional.
+A conditional statement consists of the keyword I followed by a
+conditional expression followed by a block followed by the keyword E
+followed by another block. The E and the second block are required.
 
-A conditional expression the keyword I followed by two terms separated
-by whitespace with no ; or other punctuation.
+A conditional expression consists of two terms separated by whitespace
+with no ; or other punctuation.
 
 Every program should define a function named m. Execution begins at this
 function.
 
-The builtin variables W, X, Y, and Z may be assigned. These values are
+The builtin variables A, B, C, and D may be assigned. These values are
 displayed by the emulator when the program exits.
 
 Execution of the builtin Q causes the program to quit. In the emulator,
-this results in a state dump which displays W, X, Y, and Z among other
+this results in a state dump which displays A, B, C, and D among other
 values.
 
 ### Semantic structure of YAPL-1

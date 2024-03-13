@@ -21,11 +21,11 @@ func TestIO1(t *testing.T) {
     check(t, "creating temp file", err)
 	name := f.Name()
 	defer os.Remove(name)
-	fd := word(f.Fd())
+	fd := Word(f.Fd())
 
 	// Write the test data to the temp file using putb
 	for _, c := range testdata {
-		if putb(fd, byte(c)) != 1 {
+		if putb(fd, Byte(c)) != 1 {
 			t.Fatalf("putb failed")
 		}
 	}
@@ -37,7 +37,7 @@ func TestIO1(t *testing.T) {
 
 	// Read the data using getb
 	var text []byte
-	var w word
+	var w Word
 	for w = getb(fd); w < 0x80; w = getb(fd) {
 		text = append(text, byte(w))
 	}
