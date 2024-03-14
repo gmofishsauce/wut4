@@ -10,17 +10,18 @@ func isDigit(b Word) bool {
 	return b >= '0' && b <= '9'
 }
 
+var tokenID []Byte
+var tokenLit Word
+
 func GetToken(stdin Word) Token {
-	return TT_INVALID
-/*
 	for b := getb(stdin); b != E_EOF; b = getb(stdin) {
 		if isWhite(b) {
 			continue
 		}
 		if isDigit(b) {
-			result.T = 
-			return SymEnter(
+			tokenLit = b - Word('0')
+			return TT_EOF // XXX
 		}
 	}
-*/
+	return TT_EOF
 }

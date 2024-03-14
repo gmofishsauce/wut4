@@ -8,6 +8,7 @@ package main
 
 type Word uint16
 type Byte uint8
+type Addr Word
 
 // These are the only means of input and output, because they
 // are the only means implemented in the WUT-4 emulator for
@@ -17,34 +18,25 @@ const (
 	STDOUT Word = Word(1)
 )
 
-// Strings table. Strings are packed end to end with no terminators
-// and no lengths. Lengths are stored in the symbol table. We use a
-// Golang slice (will need a data structure for self hosting).
-var Strtab []Byte
-
-// Literals table. Literal values are stored here so they can be
-// indexed with the low 12 bits of a token.
-var Littab []Word
-
-type Token Word
-
-const ( // Token types
-	TT_INVALID Token = 0x0000  // not allowed - internal error
-	TT_ERROR Token = 0x1000    // error code in low 12 bits
-	TT_IDENT Token = 0x2000    // length in low 12 bits
-	TT_LIT Token = 0x3000      // Littab index in low 12 bits
-	TT_KEY Token = 0x4000      // keyword code in low 12 bits
-	TT_OP Token = 0x5000       // operator character in low 12 
-	TT_PUNCT Token = 0x6000    // punctuation mark in low 12
-	TT_OTHER Token = 0xF000    // currently used for EOF only
+// There are four types of tokens: user defined symbols,
+// language defined symbols ("keys"), error tokens, and
+// "alt" tokens which are reserved for anything else that
+// might be needed. The types are encoded in the high
+// order 2 bits, leaving 14 bits to be used as the token
+// type chooses.
+const (
+	TT_STR Token = 0x0000      // string valued symbols
+	TT_NUM Token = 0x8000      // numeric valued symbols
+	TT_KEY Token = 0x4000      // language defined symbols
+	TT_ERR Token = 0xC000      // error tokens
 )
 
-const ( // Defined tokens
-	TT_OP_EQ Token = TT_OP|Token('=')
-	TT_OP_PLUS Token = TT_OP|Token('+')
-	TT_PUNCT_SEMI Token = TT_PUNCT|Token(';')
-	TT_PUNCT_OPENBLK Token = TT_PUNCT|Token('{')
-	TT_PUNCT_CLOSEBLK Token = TT_PUNCT|Token('}')
+const ( // language defined tokens
+	TT_KEY_EQ Token = TT_KEY|Token('=')
+	TT_KEY_PLUS Token = TT_KEY|Token('+')
+	TT_KEY_SEMI Token = TT_KEY|Token(';')
+	TT_KEY_OPENBLK Token = TT_KEY|Token('{')
+	TT_KEY_CLOSEBLK Token = TT_KEY|Token('}')
 
 	TT_KEY_A Token = TT_KEY|Token('A') // output
 	TT_KEY_B Token = TT_KEY|Token('B') // output
@@ -55,8 +47,6 @@ const ( // Defined tokens
 	TT_KEY_I Token = TT_KEY|Token('I') // if
 	TT_KEY_Q Token = TT_KEY|Token('Q') // quit 
 	TT_KEY_V Token = TT_KEY|Token('V') // var
-
-	TT_OTHER_EOF Token = Token(E_EOF) // from io.go
 )
 
 const ( // Error subtypes
@@ -67,10 +57,12 @@ const ( // Error subtypes
 	ERR_GEN Token = 0x500     // 0x500 .. 0x5FF code gen errors
 )
 
+const TT_EOF Token = Token(E_EOF) // 0xFFFF io.go
+
 const ( // Lexer errors
-	ERR_LEX_INVAL Token = TT_ERROR|ERR_LEX|1   // 0x1101 invalid character
-	ERR_LEX_IO Token = TT_ERROR|ERR_LEX|2      // 0x1102 i/o error on input
-	ERR_LEX_UNEXP Token = TT_ERROR|ERR_LEX|3   // 0x1103 unexpected char
+	ERR_LEX_INVAL Token = TT_ERR|ERR_LEX|1   // 0x1101 invalid character
+	ERR_LEX_IO Token = TT_ERR|ERR_LEX|2      // 0x1102 i/o error on input
+	ERR_LEX_UNEXP Token = TT_ERR|ERR_LEX|3   // 0x1103 unexpected char
 )
 
 // Symbol table entry. 
@@ -90,6 +82,6 @@ var Symtab []Syment
 // its children, so the next non-child node is at its index + size.
 
 type Astnode struct { // AST node
-	Val Word          // index of symbol table entry
+	Sym Word          // index of symbol table entry
 	Size Word         // size of this node (with all subnodes)
 }
