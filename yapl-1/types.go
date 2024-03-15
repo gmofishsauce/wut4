@@ -55,26 +55,29 @@ const ( // Error subtypes
 	ERR_TYPE Token = 0x300    // 0x300 .. 0x3FF type errors
 	ERR_IR Token = 0x400      // 0x400 .. 0x4FF IR errors
 	ERR_GEN Token = 0x500     // 0x500 .. 0x5FF code gen errors
+	ERR_SYM Token = 0x600     // 0x600 .. 0x6FF symbol table errors
+	ERR_INT Token = 0x700     // 0x700 .. 0x6FF internal errors
 )
 
 const TT_EOF Token = Token(E_EOF) // 0xFFFF io.go
 
 const ( // Lexer errors
-	ERR_LEX_INVAL Token = TT_ERR|ERR_LEX|1   // 0x1101 invalid character
-	ERR_LEX_IO Token = TT_ERR|ERR_LEX|2      // 0x1102 i/o error on input
-	ERR_LEX_UNEXP Token = TT_ERR|ERR_LEX|3   // 0x1103 unexpected char
+	ERR_LEX_INVAL Token = TT_ERR|ERR_LEX|1   // 0xC101 invalid character
+	ERR_LEX_IO Token = TT_ERR|ERR_LEX|2      // 0xC102 i/o error on input
+	ERR_LEX_UNEXP Token = TT_ERR|ERR_LEX|3   // 0xC103 unexpected char
 )
 
-// Symbol table entry. 
-type Syment struct {
-	Val Word          // index of symbol in string table or lit value
-	Len Byte          // Length of name (0 for literal values)
-	Info Byte         // Type information
-}
+const ( // Symbol table errors
+	ERR_SYM_REDEF Token = TT_ERR|ERR_SYM|1   // 0xC601 symbol redefined
+	ERR_SYM_NODEF Token = TT_ERR|ERR_SYM|2   // 0xC602 symbol undefined
+)
 
-// In YAPL-1, there can only be 52 identifiers. All symbol table
-// lookup is done by linear search.
-var Symtab []Syment
+const ( // internal errors, e.g. out of space
+	ERR_INT_NOSTR Token = TT_ERR|ERR_INT|1   // 0xC701 string table full
+	ERR_INT_NOLIT Token = TT_ERR|ERR_INT|2   // 0xC702 literal table full
+	ERR_INT_NOSYM Token = TT_ERR|ERR_INT|3   // 0xC703 symbol table full
+	ERR_INT_TOOBIG Token = TT_ERR|ERR_INT|4  // 0xC704 string too long
+)
 
 // AST nodes use RJ's data oriented tree design. The code knows which
 // node types have children. If a node has children, its first child
