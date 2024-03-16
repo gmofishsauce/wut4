@@ -22,15 +22,15 @@ type Syment struct {
 
 const SYMLEN_MAX Word = 16
 const SYMTAB_MAX Word = 4096
-var Symtab [SYMTAB_MAX]Syment
-var symtabNext Word
+var symtab [SYMTAB_MAX]Syment
+var symtabNext Word = 1 // We don't use [0] to help detect bugs
 
 // Strings table. Intern strings here. The strings are packed
 // end to end with no lengths and no terminators. Offsets and
 // lengths are bit-packed elsewhere, e.g. the symbol table.
 const STRTAB_MAX Word = 8192
-var Strtab [STRTAB_MAX]Byte
-var strtabNext Word
+var strtab [STRTAB_MAX]Byte
+var strtabNext Word = 1 // We don't use [0] to help detect bugs
 
 // Allocate the remainder of the string table for token input. The
 // tokenizer uses the string table for input. If the token is not
@@ -41,6 +41,12 @@ var strtabNext Word
 // already exists in the table, and the tokenizer again Discard()s
 // the buffer. If the token is a new string, however, then there's
 // no need to copy it for interning - it's in the right place.
+//
+// For now, callers refer directly to the buffer. It would be easy
+// to add a StrtabPut() function, make the buffer private, save
+// the allocation point, and put it back on Discard(). This would
+// have the advantage of allowing us to catch reetrancy, which
+// isn't supported (but right now isn't checked for).
 func StrtabAllocate() (pos Word, len Word) {
 	if STRTAB_MAX - strtabNext < SYMLEN_MAX {
 		return Word(ERR_INT_NOSTR), 0
@@ -49,68 +55,71 @@ func StrtabAllocate() (pos Word, len Word) {
 }
 
 func StrtabDiscard() {
-	// actually there's nothing to do here
+	// nothing to do here (in the current design)
 }
 
 func StrtabCommit(len Byte) {
 	strtabNext += Word(len)
 }
 
-// Create a symbol table entry. The ultimate maximum number
-// of possible symbol table entries is 0x3FFF because this
-// would fill most of the 64k address space anyway. Negative
-// values are error returns, positive values are indices.
+// Create a symbol table entry. If the len is 0, the value is
+// an arbitrary constant value. If the len is > 0, the value
+// is an offset in the interned string table. The return value
+// is an offset in the symbol table if < 0xC000 or an error
+// if >= 0xC000. If redefOK is true, then finding a matching
+// symbol results in ERR_SYM_REDEF. If a new symbol table entry
+// is allocated, the Info field of the new entry is set to 0.
 func SymEnter(redefOK bool, val Word, len Byte) Word {
 	var symIndex Word
-	var result Word
 
 	if len == 0 {
 		symIndex = NumLookup(val)
 	} else {
 		symIndex = SymLookup(val, len)
 	}
-
 	if symIndex < symtabNext { // existing definition found
 		if redefOK {
-			result = symIndex
-		} else {
-			result = Word(ERR_SYM_REDEF)
+			return symIndex
 		}
-	} else {
-		result = symtabNext
-		symtabNext++
-		Symtab[result].Val = val
-		Symtab[result].Len = len
-		Symtab[result].Info = 0 // caller's problem
+		return  Word(ERR_SYM_REDEF)
 	}
+	if symtabNext >= SYMTAB_MAX {
+		return Word(ERR_INT_NOSYM)
+	}
+	result := symtabNext
+	symtabNext++
+	symtab[result].Val = val
+	symtab[result].Len = len
+	symtab[result].Info = 0
 	return result
 }
 
-// Look up a constant (non string) in the symbol table.
-// Return the symbol table index of the constant.
+// Look up a value (not a interned string index) in the symbol table.
+// Return the symbol table index of the constant, or NODEF.
 func NumLookup(val Word) Word {
 	for i := Word(0); i < symtabNext; i++ {
-		if Symtab[i].Len == 0 && Symtab[i].Val == val {
+		if symtab[i].Len == 0 && symtab[i].Val == val {
 			return i
 		}
 	}
-	// This constant value should be added to the symbol table
 	return Word(ERR_SYM_NODEF)
 }
 
 // Look up a symbol in the symbol table. val is index in the
-// interned string table. len is its length.
+// interned string table. len is its length. We only look at
+// symbol table entries with len != 0; their Val fields are
+// comparable string intern table indices.
 func SymLookup(val Word, len Byte) Word {
 	if Word(len) > SYMLEN_MAX {
 		// internal error
 		return Word(ERR_INT_TOOBIG)
 	}
 	for i := Word(0); i < symtabNext; i++ {
-		if Symtab[i].Len == len {
+		if symtab[i].Len == len {
 			failed := false
-			s := Symtab[i].Val // Strtab index
+			s := symtab[i].Val // strtab index
 			for j := Word(0); j < Word(len); j++ {
-				if Strtab[s+j] != Strtab[val+j] {
+				if strtab[s+j] != strtab[val+j] {
 					failed = true
 					break
 				}
