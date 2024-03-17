@@ -47,28 +47,47 @@ var strtabNext Word = 1 // We don't use [0] to help detect bugs
 // the allocation point, and put it back on Discard(). This would
 // have the advantage of allowing us to catch reetrancy, which
 // isn't supported (but right now isn't checked for).
-func StrtabAllocate() (pos Word, len Word) {
+func StrtabAllocate() Word {
 	if STRTAB_MAX - strtabNext < SYMLEN_MAX {
-		return Word(ERR_INT_NOSTR), 0
+		return Word(ERR_INT_NOSTR)
 	}
-	return strtabNext, STRTAB_MAX - strtabNext
+	return strtabNext
 }
 
+// Return the number of bytes remaining between the end of the last
+// string referenced from the symbol table and the end of the string
+// table. The caller is responsible for avoiding overrun.
+func StrtabRemaining() Word {
+	if STRTAB_MAX - strtabNext < SYMLEN_MAX {
+		return 0
+	}
+	return STRTAB_MAX - strtabNext
+}
+
+// Normally the lexer calls StrtabAllocate() and then SymEnter()
+// to commit the next token or to discard it if it already has
+// a symbol entry. But if the lexer just wants to discard the
+// last token, it can call here. In the current design, this
+// function doesn't actually have to anything; this may change.
 func StrtabDiscard() {
-	// nothing to do here (in the current design)
 }
 
-func StrtabCommit(len Byte) {
-	strtabNext += Word(len)
-}
-
-// Create a symbol table entry. If the len is 0, the value is
-// an arbitrary constant value. If the len is > 0, the value
-// is an offset in the interned string table. The return value
-// is an offset in the symbol table if < 0xC000 or an error
-// if >= 0xC000. If redefOK is true, then finding a matching
-// symbol results in ERR_SYM_REDEF. If a new symbol table entry
-// is allocated, the Info field of the new entry is set to 0.
+// Create a symbol table entry. If the len is 0, val is an
+// arbitrary constant value. If the len is > 0, then val is
+// an offset in the interned string table. The return value
+// is symbol table index if < 0xC000 or an error if >= 0xC000.
+//
+// If redefOK is true, then finding an existing defininition
+// causes that existing definition, if any, to be returned.
+// Otherwise, ERR_SYM_REDEF is returned. If a new symbol table
+// entry is allocated, the Info field of the new entry is set
+// to 0.
+//
+// If the len is nonzero (i.e. the call is to define a new
+// string symbol), then val must be the result of a preceding
+// call to StrtabAllocate(). The allocated string is committed
+// and the symbol table becomes ready to accept a new call to
+// StrtabAllocate().
 func SymEnter(redefOK bool, val Word, len Byte) Word {
 	var symIndex Word
 
@@ -88,6 +107,7 @@ func SymEnter(redefOK bool, val Word, len Byte) Word {
 	}
 	result := symtabNext
 	symtabNext++
+	strtabNext += Word(len)
 	symtab[result].Val = val
 	symtab[result].Len = len
 	symtab[result].Info = 0

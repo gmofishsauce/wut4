@@ -9,6 +9,7 @@ package main
 type Word uint16
 type Byte uint8
 type Addr Word
+type Bool bool
 
 // These are the only means of input and output, because they
 // are the only means implemented in the WUT-4 emulator for
