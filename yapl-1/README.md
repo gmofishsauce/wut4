@@ -23,7 +23,7 @@ dependencies. Every dependency must be implemented by hand in assembly
 language for the WUT-4 and debugged. Dependencies will be introduced
 grudgingly. Currently, there are three: the ability to get a byte of
 input from an externally-defined standard input, to put a byte of output
-on an externally-defined standard output, and exit with an exit code.
+on an externally-defined standard output, and to exit with an exit code.
 
 The assembler is contained in this `../asm` in this repo. It will not
 be self-hosted for now. The Go language project has shown that the
@@ -96,11 +96,11 @@ described below: { } = +
 
 ### Syntactic structure
 
-A program consists of a sequence of declarations. There are two types of
-declarations: variables and functions.
+A program consists of a sequence of declarations. There are two types
+of declarations: variables and functions.
 
-Variable declarations consist of the keyword V, a variable name, and an
-optional constant assignment.
+Variable declarations consist of the keyword V, a variable name, an
+optional constant assignment, and a semicolon.
 
 A constant assignment consists of = followed by a numeric constant as
 defined lexically.
@@ -114,18 +114,19 @@ A block consists of an opening curly brace, a sequence of 0 or more
 statements, and a closing curly brace. Variables may not be defined
 within a block.
 
-Statements consist of expressions, function calls, and conditional
-statements.
+Statements consist of expression statements, function calls, and
+conditional statements.
 
-An expression begins with an identifier and the character = It may be
-followed by either a term and a semicolon or by a term, the character +,
-another term, and a semicolon.
+An expression statement consists of an identifier, an = character, an
+expression, and a semicolon.
+
+An expression must consist of a term or a term, the + character, and
+another term.
 
 A term is a variable name or numeric constant.
 
 A function call is the identifier of the known function followed by a
-semicolon. A function becomes known when its declaration is seen, so
-functions may be recursive.
+semicolon.
 
 A conditional statement consists of the keyword I followed by a
 conditional expression followed by a block followed by the keyword E
@@ -141,8 +142,8 @@ The builtin variables A, B, C, and D may be assigned. These values are
 displayed by the emulator when the program exits.
 
 Execution of the builtin Q causes the program to quit. In the emulator,
-this results in a state dump which displays A, B, C, and D among other
-values.
+quitting results in a state dump which displays A, B, C, and D among
+other values.
 
 ### Semantic structure of YAPL-1
 
@@ -150,7 +151,18 @@ All variables have type unsigned 8-bit value, the equivalent of uint8 in
 Golang. Variables not initialized by the program are automatically
 initialized to 0.
 
-All identifiers must be defined before use in source code textual order.
+The addition operator zero-extends both operands to 16 bits, performs a
+16-bit addition, and truncates the result to 8 bits. There is no overflow
+or carry checking, so the result is modulo 256.
+
+All identifiers, including function names, must be defined before use in
+source code textual order.
+
+A function becomes known when its name is seen, prior to the definition
+of the block that forms its body, so functions may be recursive. It is not
+possible to declare two mutually recursive functions in YAPL-1, however.
+
+### Other Notes
 
 Initially, the WUT-4 input/output system supports only a single output
 stream, equivalent to the standard output. The output of the compiler is
@@ -171,15 +183,15 @@ starting with ";" in the first column.
     F m {              # function "m"
         r = a + b ;
         I r n {        # if r == m
-            W = a ;    # write some values to display variables
-            X = b ;
-            Y = r ;
-            Z = n ;
-            Q          # quit to OS
+            A = a ;    # write some values to display variables
+            B = b ;
+            C = r ;
+            D = n ;
+            Q ;        # quit to OS
         } E {          # else
-            a = b      # shift down
-            b = r
-            m          # recursively call m
+            a = b ;    # shift down
+            b = r ;
+            m ;        # recursively call m
         }
     }
 ```

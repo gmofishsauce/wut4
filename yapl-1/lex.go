@@ -2,6 +2,10 @@
 
 package main
 
+func isHash(b Word) Bool {
+	return b == Word('#')
+}
+
 func isWhite(b Word) Bool {
 	return b == Word(' ') || b == Word('\t') || b == Word('\n')
 }
@@ -23,21 +27,37 @@ func convert(b Byte) Word {
 	return Word(b - Byte('0'))
 }
 
+var lineCount Word
+
+func GetLine() Word {
+	return lineCount
+}
+
 // The YAPL-1 language was created specifically to trivialize the
 // lexer, because lexing is tedious and well understood by most
-// everyone who might ever read this. Normally, a lexer has a
-// "current state" and a next character, and the new state and
-// possible result token are a function of both. In YAPL-1, every
-// token is exactly one character long. So at entry to the following
-// function we are necessarily "between" tokens. We skip white space
-// and then one of three things happen: we have token, we have an
-// unexpected character (error), or we have EOF.
-func GetToken(stdin Word) Token {
+// everyone who might ever read this.
+func GetToken(inFD Word) Token {
 	pos := StrtabAllocate()
 	len := StrtabRemaining()
 	var b Word
+	var inComment = false
 
-	for b := getb(stdin); b != E_EOF && len > 0; b = getb(stdin) {
+	for b := Getb(inFD); b != E_EOF && len > 0; b = Getb(inFD) {
+		if b > 0xFF || b == 0 {
+			return ERR_LEX_IO
+		}
+		if b == Word('\n') {
+			inComment = false
+			lineCount++
+			continue
+		}
+		if inComment {
+			continue
+		}
+		if isHash(b) {
+			inComment = true
+			continue
+		}
 		if isWhite(b) {
 			continue
 		}
@@ -46,6 +66,9 @@ func GetToken(stdin Word) Token {
 			return TT_NUM|Token(SymEnter(true, val, 0))
 		}
 		if isLowerLetter(b) {
+			return TT_STR|Token(SymEnter(true, pos, 1))
+		}
+		if isUpperLetter(b) {
 			return TT_STR|Token(SymEnter(true, pos, 1))
 		}
 		StrtabDiscard()

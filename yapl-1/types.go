@@ -89,3 +89,60 @@ type Astnode struct { // AST node
 	Sym Word          // index of symbol table entry
 	Size Word         // size of this node (with all subnodes)
 }
+
+// All the language symbols in YAPL-1 are single bytes (characters).
+// We create a symbol table entry for each one and we check that the
+// entry has the expected constant value. The constant value is used
+// to represent the token in parser and the AST.
+func AddLangSymbol(symRaw Byte, constvalRaw Word) Word {
+	sym := Byte(symRaw)
+	constval := Word(constvalRaw)
+
+	pos := StrtabAllocate()
+	strtab[pos] = sym
+	result := SymEnter(false, pos, 1)
+	if result != constval {
+		dbg("init symbol mismatch: 0x%04X 0x%04X", sym, constval)
+		Exit(2)
+	}
+	return pos
+}
+
+const A Word = 1
+const B Word = 2
+const C Word = 3
+const D Word = 4
+
+const E Word = 5
+const F Word = 6
+const I Word = 7
+const Q Word = 8
+const V Word = 9
+
+const HASH Word = 10
+const SEMI Word = 11
+const EQU  Word = 12
+const BOPEN Word = 13
+const BCLOSE Word = 14
+const PLUS Word = 15
+
+func Init() {
+	AddLangSymbol(Byte('A'), A)
+	AddLangSymbol(Byte('B'), B)
+	AddLangSymbol(Byte('C'), C)
+	AddLangSymbol(Byte('D'), D)
+
+	AddLangSymbol(Byte('E'), E)
+	AddLangSymbol(Byte('F'), F)
+	AddLangSymbol(Byte('I'), I)
+	AddLangSymbol(Byte('Q'), Q)
+	AddLangSymbol(Byte('V'), V)
+
+	AddLangSymbol(Byte('#'), HASH)
+	AddLangSymbol(Byte(';'), SEMI)
+	AddLangSymbol(Byte('='), EQU)
+	AddLangSymbol(Byte('{'), BOPEN)
+	AddLangSymbol(Byte('}'), BCLOSE)
+	AddLangSymbol(Byte('+'), PLUS)
+}
+

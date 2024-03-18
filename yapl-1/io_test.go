@@ -23,10 +23,10 @@ func TestIO1(t *testing.T) {
 	defer os.Remove(name)
 	fd := Word(f.Fd())
 
-	// Write the test data to the temp file using putb
+	// Write the test data to the temp file using Putb
 	for _, c := range testdata {
-		if putb(fd, Byte(c)) != 1 {
-			t.Fatalf("putb failed")
+		if Putb(fd, Byte(c)) != 1 {
+			t.Fatalf("Putb failed")
 		}
 	}
 	f.Close()
@@ -35,10 +35,10 @@ func TestIO1(t *testing.T) {
 	f, err = os.Open(name)
 	check(t, "reopen temp file", err)
 
-	// Read the data using getb
+	// Read the data using Getb
 	var text []byte
 	var w Word
-	for w = getb(fd); w < 0x80; w = getb(fd) {
+	for w = Getb(fd); w < 0x80; w = Getb(fd) {
 		text = append(text, byte(w))
 	}
 	if w != E_EOF {

@@ -1,0 +1,22 @@
+# Compute the first few Fibonacci numbers
+
+V a = 0 ;     # variable "a" is fib(0)
+V b = 1 ;     # fib(1)
+V r     ;     # variable "r" result
+V n = 8 ;     # variable "n" limit (fib(6))
+
+F m {              # function "m"
+    r = a + b ;
+    I r n {        # if r == m
+        A = a ;    # write some values to display variables
+        B = b ; 
+        C = r ;
+        D = n ;
+        Q ;        # quit to OS 
+    } E {          # else
+        a = b ;    # shift down
+        b = r ;
+        m ;        # recursively call m
+    }
+}
+

@@ -6,9 +6,6 @@ package main
 // significant punctuation, and keywords, so that AST nodes can be
 // basically symbol table references.
 
-func Init() {
-}
-
 func Parse(stdin Word) {
 }
 
@@ -17,6 +14,15 @@ func Dump() {
 
 func main() {
 	Init()
-	Parse(STDIN)
+	printOops(4.669)
+	printS("bad")
+	printX(17)
+	Printf("PRINTF%n")
+
+	/*
+	for tk := GetToken(STDIN); tk != TT_EOF; tk = GetToken(STDIN) {
+		Printf("0x%x%n", GetToken(STDIN))
+	}
+	*/
 	Dump()
 }
