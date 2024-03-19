@@ -2,31 +2,7 @@
 
 package main
 
-import (
-	"syscall"
-
-	"fmt"     // only for debugging
-	"os"      // only for debugging
-	"strings" // only for debugging
-)
-
-func dbg(s string, args ...any) {
-	fmt.Fprintf(os.Stderr, s, args...)
-}
-
-func mkGoString(strIndex Word, len Byte) string {
-	var sb strings.Builder
-	for i := Word(0); i < Word(len); i++ {
-		r := rune(strtab[strIndex+i])
-		if r == ' ' {
-			r = '_'
-		}
-		sb.WriteRune(rune(strtab[strIndex+i]))
-	}
-	return sb.String()
-}
-
-// There should be no further direct use of fmt or os.
+import "syscall"
 
 // Input/output compatible with the tiny kernel on the WUT-4. The
 // WUT-4 has no native idea of signedness or signs, so the I/O

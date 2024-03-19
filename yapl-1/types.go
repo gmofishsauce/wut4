@@ -86,7 +86,7 @@ func AddLangSymbol(symRaw Byte, constvalRaw Word) Word {
 	strtab[pos] = sym
 	result := SymEnter(false, pos, 1)
 	if result != constval {
-		dbg("init symbol mismatch: 0x%04X 0x%04X", sym, constval)
+		Printf("; init symbol mismatch: 0x%04X 0x%04X", sym, constval)
 		Exit(2)
 	}
 	return pos
