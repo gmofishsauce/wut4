@@ -32,21 +32,18 @@ const STRTAB_MAX Word = 8192
 var strtab [STRTAB_MAX]Byte
 var strtabNext Word = 1 // We don't use [0] to help detect bugs
 
-// Allocate the remainder of the string table for token input. The
-// tokenizer uses the string table for input. If the token is not
-// a string, e.g. it's a bunch of digits, the tokenizer can call
-// Discard() after the converting them to a value. If token should
-// be kept as a string, the returned position becomes the value of
-// the token prototype. After lookup, it may turn out the string
-// already exists in the table, and the tokenizer again Discard()s
-// the buffer. If the token is a new string, however, then there's
-// no need to copy it for interning - it's in the right place.
+// Allocate the remainder of the string table as temporary byte
+// storage.
 //
-// For now, callers refer directly to the buffer. It would be easy
-// to add a StrtabPut() function, make the buffer private, save
-// the allocation point, and put it back on Discard(). This would
-// have the advantage of allowing us to catch reetrancy, which
-// isn't supported (but right now isn't checked for).
+// The okenizer uses the space after the end of the string table for
+// input. If the token is not a string, e.g. it's a bunch of digits,
+// the tokenizer can call Discard() after the converting them to a
+// value. If token should be kept as a string, the returned position
+// becomes the value of the token prototype. After lookup, it may
+// turn out the string already exists in the table, and the tokenizer
+// again Discard()s the buffer. If the token is a new string, however,
+// then SymEnter() commits the space. There's no need to copy the
+// token prototype because it's in the right place.
 func StrtabAllocate() Word {
 	if STRTAB_MAX - strtabNext < SYMLEN_MAX {
 		return Word(ERR_INT_NOSTR)
@@ -130,7 +127,11 @@ func NumLookup(val Word) Word {
 // symbol table entries with len != 0; their Val fields are
 // comparable string intern table indices.
 func SymLookup(val Word, len Byte) Word {
-	if Word(len) > SYMLEN_MAX {
+	wLen := Word(len)
+	if wLen == 0 {
+		return Word(ERR_INT_BUG)
+	}
+	if wLen > SYMLEN_MAX {
 		// internal error
 		return Word(ERR_INT_TOOBIG)
 	}

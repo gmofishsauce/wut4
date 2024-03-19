@@ -14,15 +14,8 @@ func Dump() {
 
 func main() {
 	Init()
-	printOops(4.669)
-	printS("bad")
-	printX(17)
-	Printf("PRINTF%n")
-
-	/*
 	for tk := GetToken(STDIN); tk != TT_EOF; tk = GetToken(STDIN) {
-		Printf("0x%x%n", GetToken(STDIN))
+		Printf("0x%x%n", Word(tk))
 	}
-	*/
 	Dump()
 }

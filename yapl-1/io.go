@@ -4,12 +4,26 @@ package main
 
 import (
 	"syscall"
-	"fmt" // only for debugging
-	"os"  // only for debugging
+
+	"fmt"     // only for debugging
+	"os"      // only for debugging
+	"strings" // only for debugging
 )
 
 func dbg(s string, args ...any) {
 	fmt.Fprintf(os.Stderr, s, args...)
+}
+
+func mkGoString(strIndex Word, len Byte) string {
+	var sb strings.Builder
+	for i := Word(0); i < Word(len); i++ {
+		r := rune(strtab[strIndex+i])
+		if r == ' ' {
+			r = '_'
+		}
+		sb.WriteRune(rune(strtab[strIndex+i]))
+	}
+	return sb.String()
 }
 
 // There should be no further direct use of fmt or os.
@@ -27,14 +41,16 @@ const E_UNKNOWN Word = 0xFFFD
 // in the LS byte of the return value.
 func Getb(fd Word) Word {
 	b := []byte{0x00}
-	n, err := syscall.Read(int(fd), b)
-	if err != nil {
-		return E_IOERR
+	for {
+		n, err := syscall.Read(int(fd), b)
+		if err != nil {
+			return E_IOERR
+		}
+		if n == 0 {
+			return E_EOF
+		}
+		return Word(b[0]) // success
 	}
-	if n == 0 {
-		return E_EOF
-	}
-	return Word(b[0]) // success
 }
 
 // Put a byte on "channel" fd. If the MS byte of the return value
@@ -104,13 +120,21 @@ func printS(arg any) {
 	}
 }
 
+const hexChars = "0123456789ABCDEF"
+
 func printX(arg any) {
-	w, ok := arg.(Word)
-	if !ok {
-		Putb(STDOUT, Byte('-'))
-		Putb(STDOUT, Byte('X'))
-		Putb(STDOUT, Byte('-'))
+	if w, ok := arg.(Word); ok {
+		Putb(STDOUT, Byte(hexChars[w>>12]))
+		Putb(STDOUT, Byte(hexChars[(w>>8)&0xF]))
+		Putb(STDOUT, Byte(hexChars[(w>>4)&0xF]))
+		Putb(STDOUT, Byte(hexChars[(w)&0xF]))
+	} else if w, ok := arg.(Byte); ok {
+		Putb(STDOUT, Byte(hexChars[(w>>4)&0xF]))
+		Putb(STDOUT, Byte(hexChars[(w)&0xF]))
 	} else {
-		Exit(w) // XXX FIXME
+		Putb(STDOUT, '?')
+		Putb(STDOUT, '?')
+		Putb(STDOUT, '?')
+		Putb(STDOUT, '?')
 	}
 }

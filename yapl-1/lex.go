@@ -22,14 +22,18 @@ func isUpperLetter(b Word) Bool {
 	return b >= 'A' && b <= 'Z'
 }
 
+func isPunctuation(b Word) Bool {
+	return b == '=' || b == '+' || b == '{' || b == '}' || b == ';'
+}
+
 // Convert the single-character numeric token to a value
 func convert(b Byte) Word {
 	return Word(b - Byte('0'))
 }
 
-var lineCount Word
+var lineCount Word = 1
 
-func GetLine() Word {
+func LineNumber() Word {
 	return lineCount
 }
 
@@ -39,13 +43,16 @@ func GetLine() Word {
 func GetToken(inFD Word) Token {
 	pos := StrtabAllocate()
 	len := StrtabRemaining()
-	var b Word
 	var inComment = false
+	var b Word
+	var n Word
 
-	for b := Getb(inFD); b != E_EOF && len > 0; b = Getb(inFD) {
-		if b > 0xFF || b == 0 {
-			return ERR_LEX_IO
+	for {
+		b = Getb(inFD)
+		if b > 0xFF || len == 0 {
+			break
 		}
+
 		if b == Word('\n') {
 			inComment = false
 			lineCount++
@@ -61,21 +68,32 @@ func GetToken(inFD Word) Token {
 		if isWhite(b) {
 			continue
 		}
+
 		if isDigit(b) {
 			val := convert(Byte(b))
 			return TT_NUM|Token(SymEnter(true, val, 0))
 		}
+
+		strtab[pos+n] = Byte(b)
+		n++
+		len--
+
 		if isLowerLetter(b) {
 			return TT_STR|Token(SymEnter(true, pos, 1))
 		}
-		if isUpperLetter(b) {
-			return TT_STR|Token(SymEnter(true, pos, 1))
+		if isUpperLetter(b) || isPunctuation(b) {
+			return TT_KEY|Token(SymEnter(true, pos, 1))
 		}
+
 		StrtabDiscard()
 		return ERR_LEX_INVAL
 	}
 	if b == E_EOF {
 		return TT_EOF
+	} else if b > 0xFF {
+		return ERR_LEX_IO
 	}
+
+	// Must be out of space
 	return ERR_INT_NOSTR
 }

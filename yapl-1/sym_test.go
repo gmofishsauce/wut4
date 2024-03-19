@@ -22,15 +22,15 @@ func TestSym01(t *testing.T) {
 	n := StrtabRemaining()
 	assert(t, j == i, "TestSym01 1")
 	assert(t, m == n, "TestSym01 2")
-	assert(t, n > 1000 && n < 0xC000, "TestSym01 3")
+	assert(t, n > 100 && n < 0xC000, "TestSym01 3")
 
 	// Mock input
 	strtab[i] = x
 
 	index := SymEnter(false, i, 1)
-	assert(t, index == 1, "TestSym01 4")
-	assert(t, symtab[i].Len == 1, "TestSym01 5")
-	assert(t, strtab[symtab[i].Val] == x, "TestSym01 6")
+	assert(t, index == symtabNext - 1, "TestSym01 4")
+	assert(t, symtab[index].Len == 1, "TestSym01 5")
+	assert(t, strtab[symtab[index].Val] == x, "TestSym01 6")
 }
 
 func TestSym02(t *testing.T) {

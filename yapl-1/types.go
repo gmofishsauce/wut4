@@ -19,37 +19,20 @@ const (
 	STDOUT Word = Word(1)
 )
 
-// There are four types of tokens: user defined symbols,
-// language defined symbols ("keys"), error tokens, and
-// "alt" tokens which are reserved for anything else that
-// might be needed. The types are encoded in the high
-// order 2 bits, leaving 14 bits to be used as the token
-// type chooses.
+// There are four types of tokens: user defined symbols like
+// variable names and constant strings, language defined symbols
+// ("keys"), numeric values, and error tokens. The types are
+// encoded in the high order 2 bits, leaving 14 bits to be used
+// for symbol table // index (TT_STR, TT_KEY, and TT_NUM) or
+// actual value (TT_ERR).
 const (
 	TT_STR Token = 0x0000      // string valued symbols
-	TT_NUM Token = 0x8000      // numeric valued symbols
 	TT_KEY Token = 0x4000      // language defined symbols
+	TT_NUM Token = 0x8000      // numeric valued symbols
 	TT_ERR Token = 0xC000      // error tokens
 )
 
-const ( // language defined tokens
-	TT_KEY_EQ Token = TT_KEY|Token('=')
-	TT_KEY_PLUS Token = TT_KEY|Token('+')
-	TT_KEY_SEMI Token = TT_KEY|Token(';')
-	TT_KEY_OPENBLK Token = TT_KEY|Token('{')
-	TT_KEY_CLOSEBLK Token = TT_KEY|Token('}')
-
-	TT_KEY_A Token = TT_KEY|Token('A') // output
-	TT_KEY_B Token = TT_KEY|Token('B') // output
-	TT_KEY_C Token = TT_KEY|Token('C') // output
-	TT_KEY_D Token = TT_KEY|Token('D') // output
-	TT_KEY_E Token = TT_KEY|Token('E') // else
-	TT_KEY_F Token = TT_KEY|Token('F') // func
-	TT_KEY_I Token = TT_KEY|Token('I') // if
-	TT_KEY_Q Token = TT_KEY|Token('Q') // quit 
-	TT_KEY_V Token = TT_KEY|Token('V') // var
-)
-
+// Error types are encoded in the low 12 bits (could be 14 bits).
 const ( // Error subtypes
 	ERR_LEX Token = 0x100     // 0x100 .. 0x1FF lexer errors
 	ERR_PARSE Token = 0x200   // 0x200 .. 0x2FF parser errors
@@ -78,6 +61,7 @@ const ( // internal errors, e.g. out of space
 	ERR_INT_NOLIT Token = TT_ERR|ERR_INT|2   // 0xC702 literal table full
 	ERR_INT_NOSYM Token = TT_ERR|ERR_INT|3   // 0xC703 symbol table full
 	ERR_INT_TOOBIG Token = TT_ERR|ERR_INT|4  // 0xC704 string too long
+	ERR_INT_BUG Token = TT_ERR|ERR_INT|5     // 0xC7FF internal error
 )
 
 // AST nodes use RJ's data oriented tree design. The code knows which
