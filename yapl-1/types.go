@@ -64,16 +64,6 @@ const ( // internal errors, e.g. out of space
 	ERR_INT_BUG Token = TT_ERR|ERR_INT|5     // 0xC7FF internal error
 )
 
-// AST nodes use RJ's data oriented tree design. The code knows which
-// node types have children. If a node has children, its first child
-// node is immediately to its right. Its size is 1 + the size of all
-// its children, so the next non-child node is at its index + size.
-
-type Astnode struct { // AST node
-	Sym Word          // index of symbol table entry
-	Size Word         // size of this node (with all subnodes)
-}
-
 // All the language symbols in YAPL-1 are single bytes (characters).
 // We create a symbol table entry for each one and we check that the
 // entry has the expected constant value. The constant value is used

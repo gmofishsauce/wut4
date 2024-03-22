@@ -37,10 +37,25 @@ func LineNumber() Word {
 	return lineCount
 }
 
+var pbt Token = 0
+
+func PushbackToken(t Token) {
+	if pbt != 0 || t == 0 {
+		panic("PushbackToken")
+	}
+	pbt = t
+}
+
 // The YAPL-1 language was created specifically to trivialize the
 // lexer, because lexing is tedious and well understood by most
 // everyone who might ever read this.
 func GetToken(inFD Word) Token {
+	if pbt != 0 {
+		result := pbt
+		pbt = 0
+		return result
+	}
+
 	pos := StrtabAllocate()
 	len := StrtabRemaining()
 	var inComment = false

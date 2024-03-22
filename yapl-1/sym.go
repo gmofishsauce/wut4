@@ -23,7 +23,7 @@ type Syment struct {
 const SYMLEN_MAX Word = 16
 const SYMTAB_MAX Word = 4096
 var symtab [SYMTAB_MAX]Syment
-var symtabNext Word = 1 // We don't use [0] to help detect bugs
+var symtabNext Word = 1 // Token value 0 is reserved; see lex.go
 
 // Strings table. Intern strings here. The strings are packed
 // end to end with no lengths and no terminators. Offsets and
