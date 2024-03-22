@@ -25,6 +25,10 @@ const SYMTAB_MAX Word = 4096
 var symtab [SYMTAB_MAX]Syment
 var symtabNext Word = 1 // Token value 0 is reserved; see lex.go
 
+// Types for Syment.Info
+const TYPE_VAR Byte = 1
+const TYPE_KEY Byte = 2
+
 // Strings table. Intern strings here. The strings are packed
 // end to end with no lengths and no terminators. Offsets and
 // lengths are bit-packed elsewhere, e.g. the symbol table.

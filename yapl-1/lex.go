@@ -94,7 +94,10 @@ func GetToken(inFD Word) Token {
 		len--
 
 		if isLowerLetter(b) {
-			return TT_USR|Token(SymEnter(true, pos, 1))
+			n := SymEnter(true, pos, 1)
+			panic("FIXME: symtab")
+			//Symtab[n].Info = TYPE_VAR
+			return TT_USR|Token(n)
 		}
 
 		// All the language-defined symbols are entered into

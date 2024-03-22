@@ -67,22 +67,24 @@ func program() AstNodeIndex {
 }
 
 func declaration() AstNodeIndex {
+	var result AstNodeIndex
 	t := GetToken(STDIN)
+
 	if t == F {
 		// function declaration
-		n := allocNode()
-		Printf("function decl seen %x%n", n)
+		panic("TODO: fixme")
+		//n := allocNode()
 	} else if t == V {
 		// variable declaration
-		n := allocNode()
-		Printf("variable decl seen %x%n", n)
+		// expect(TYPE_VAR) FIXME pick up editing here
 	} else if !isError(t) {
 		// unexpected token, but not an error token
 		// syntax error - consume and return error node
-		Error(Word(t), ERR_CONTINUE, 0, 0)
+		// TODO error message improvement
+		Printf("; Error: expected declaration, got %x%n", t)
 	} else {
 		// error token - low level error - just return it
+		return AstNodeIndex(t)
 	}
-	Exit(5)
-	return 0
+	return result
 }

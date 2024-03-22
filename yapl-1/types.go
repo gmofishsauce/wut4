@@ -98,6 +98,8 @@ func AddLangSymbol(symRaw Byte, constvalRaw Token) Word {
 	if result != constval&0xFFF {
 		Error(Word(ERR_INT_INIT), ERR_FATAL, Word(pos), Word(sym))
 	}
+	panic("TODO: fixme")
+	//Symtab[result].Info = TYPE_KEY
 	return pos
 }
 
