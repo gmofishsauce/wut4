@@ -48,6 +48,13 @@ func Exit(code Word) {
 	syscall.Exit(int(code))
 }
 
+func Error(code Word, sev Word, print1 Word, print2 Word) {
+	Printf("; Error: code %x (%x %x)%n", code, print1, print2)
+	if sev == ERR_FATAL {
+		Exit(2)
+	}
+}
+
 func Printf(s string, args ...any) {
 	fmt := false
 	argN := 0

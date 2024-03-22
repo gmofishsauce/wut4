@@ -94,8 +94,13 @@ func GetToken(inFD Word) Token {
 		len--
 
 		if isLowerLetter(b) {
-			return TT_STR|Token(SymEnter(true, pos, 1))
+			return TT_USR|Token(SymEnter(true, pos, 1))
 		}
+
+		// All the language-defined symbols are entered into
+		// the symbol table before lexing. This will work for
+		// now, but for the YAPL-2 need to identify keywords
+		// by their symbol table index < var FirstUserSymbol.
 		if isUpperLetter(b) || isPunctuation(b) {
 			return TT_KEY|Token(SymEnter(true, pos, 1))
 		}

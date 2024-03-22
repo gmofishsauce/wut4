@@ -23,19 +23,35 @@ const (
 // variable names and constant strings, language defined symbols
 // ("keys"), numeric values, and error tokens. The types are
 // encoded in the high order 2 bits, leaving 14 bits to be used
-// for symbol table // index (TT_STR, TT_KEY, and TT_NUM) or
-// actual value (TT_ERR).
+// for symbol table index (TT_STR, TT_KEY, and TT_NUM) or actual
+// value (TT_ERR).
 const (
-	TT_STR Token = 0x0000      // string valued symbols
+	TT_USR Token = 0x0000      // user symbols from the source
 	TT_KEY Token = 0x4000      // language defined symbols
 	TT_NUM Token = 0x8000      // numeric valued symbols
 	TT_ERR Token = 0xC000      // error tokens
 )
 
+func isUser(t Token) Bool {
+	return (t&TT_USR) == TT_USR
+}
+
+func isKey(t Token) Bool {
+	return (t&TT_KEY) == TT_KEY
+}
+
+func isNum(t Token) Bool {
+	return (t&TT_NUM) == TT_NUM
+}
+
+func isError(t Token) Bool {
+	return (t&TT_ERR) == TT_ERR
+}
+
 // Error types are encoded in the low 12 bits (could be 14 bits).
 const ( // Error subtypes
 	ERR_LEX Token = 0x100     // 0x100 .. 0x1FF lexer errors
-	ERR_PARSE Token = 0x200   // 0x200 .. 0x2FF parser errors
+	ERR_PARSE Token = 0x200   // 0x200 .. 0x2FF syntax errors
 	ERR_TYPE Token = 0x300    // 0x300 .. 0x3FF type errors
 	ERR_IR Token = 0x400      // 0x400 .. 0x4FF IR errors
 	ERR_GEN Token = 0x500     // 0x500 .. 0x5FF code gen errors
@@ -58,47 +74,50 @@ const ( // Symbol table errors
 
 const ( // internal errors, e.g. out of space
 	ERR_INT_NOSTR Token = TT_ERR|ERR_INT|1   // 0xC701 string table full
-	ERR_INT_NOLIT Token = TT_ERR|ERR_INT|2   // 0xC702 literal table full
-	ERR_INT_NOSYM Token = TT_ERR|ERR_INT|3   // 0xC703 symbol table full
-	ERR_INT_TOOBIG Token = TT_ERR|ERR_INT|4  // 0xC704 string too long
-	ERR_INT_BUG Token = TT_ERR|ERR_INT|5     // 0xC7FF internal error
+	ERR_INT_NOSYM Token = TT_ERR|ERR_INT|2   // 0xC702 symbol table full
+	ERR_INT_TOOBIG Token = TT_ERR|ERR_INT|3  // 0xC703 symbol or string too long
+	ERR_INT_BUG Token = TT_ERR|ERR_INT|4     // 0xC704 unspecified internal error
+	ERR_INT_INIT Token = TT_ERR|ERR_INT|5    // 0xC705 initialization error
 )
+
+// Error severities
+const ERR_CONTINUE = Word(1)
+const ERR_FATAL    = Word(2)
 
 // All the language symbols in YAPL-1 are single bytes (characters).
 // We create a symbol table entry for each one and we check that the
 // entry has the expected constant value. The constant value is used
 // to represent the token in parser and the AST.
-func AddLangSymbol(symRaw Byte, constvalRaw Word) Word {
-	sym := Byte(symRaw)
+func AddLangSymbol(symRaw Byte, constvalRaw Token) Word {
+	sym := Byte(symRaw&0xFF)
 	constval := Word(constvalRaw)
 
 	pos := StrtabAllocate()
-	strtab[pos] = sym
+	strtab[pos] = sym // Every language symbol is 1 character in yapl-1
 	result := SymEnter(false, pos, 1)
-	if result != constval {
-		Printf("; init symbol mismatch: 0x%04X 0x%04X", sym, constval)
-		Exit(2)
+	if result != constval&0xFFF {
+		Error(Word(ERR_INT_INIT), ERR_FATAL, Word(pos), Word(sym))
 	}
 	return pos
 }
 
-const A Word = 1
-const B Word = 2
-const C Word = 3
-const D Word = 4
+const A Token = TT_KEY|1
+const B Token = TT_KEY|2
+const C Token = TT_KEY|3
+const D Token = TT_KEY|4
 
-const E Word = 5
-const F Word = 6
-const I Word = 7
-const Q Word = 8
-const V Word = 9
+const E Token = TT_KEY|5
+const F Token = TT_KEY|6
+const I Token = TT_KEY|7
+const Q Token = TT_KEY|8
+const V Token = TT_KEY|9
 
-const HASH Word = 10
-const SEMI Word = 11
-const EQU  Word = 12
-const BOPEN Word = 13
-const BCLOSE Word = 14
-const PLUS Word = 15
+const HASH Token = TT_KEY|10
+const SEMI Token = TT_KEY|11
+const EQU  Token = TT_KEY|12
+const BOPEN Token = TT_KEY|13
+const BCLOSE Token = TT_KEY|14
+const PLUS Token = TT_KEY|15
 
 func Init() {
 	AddLangSymbol(Byte('A'), A)

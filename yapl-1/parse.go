@@ -16,9 +16,21 @@ type AstNode struct { // AST node
 	Size Word         // size of this node (with all subnodes)
 }
 
-const AstMaxNode = 2048
 type AstNodeIndex Word
-var ast [AstMaxNode]AstNode
+const AstMaxNode AstNodeIndex = 2048
+
+var AstNodes [AstMaxNode]AstNode
+var astNodeNext AstNodeIndex = AstMaxNode - 1
+var Ast [AstMaxNode]AstNodeIndex
+
+func allocNode() AstNodeIndex {
+	result := astNodeNext
+	if result < 0 {
+		panic("out of AST nodes")
+	}
+	astNodeNext--
+	return result
+}
 
 func Parse(in Word) AstNodeIndex {
 	input = in
@@ -27,19 +39,50 @@ func Parse(in Word) AstNodeIndex {
 
 func program() AstNodeIndex {
 	// a program is a list of declarations
-	var root AstNodeIndex = 1
+	var result AstNodeIndex
+
 	for {
-		declaration()
+		// Get a declaration. If there is a parse error,
+		// the result is an error node and the parse can
+		// continue. If there is a lower level error, we
+		// just stop.
+		if n := declaration(); n >= AstMaxNode {
+			Ast[allocNode()] = n		
+			if result == 0 {
+				result = n
+			}
+		}
+
+		// Check for EOF (or a low level error).
 		t := GetToken(input)
 		if t == TT_EOF {
-			return root
+			return result
 		} else if t >= TT_ERR {
 			return AstNodeIndex(t)
 		}
+
+		// Neither, so go around again.
 		PushbackToken(t)
 	}
 }
 
 func declaration() AstNodeIndex {
-	return AstMaxNode - 1
+	t := GetToken(STDIN)
+	if t == F {
+		// function declaration
+		n := allocNode()
+		Printf("function decl seen %x%n", n)
+	} else if t == V {
+		// variable declaration
+		n := allocNode()
+		Printf("variable decl seen %x%n", n)
+	} else if !isError(t) {
+		// unexpected token, but not an error token
+		// syntax error - consume and return error node
+		Error(Word(t), ERR_CONTINUE, 0, 0)
+	} else {
+		// error token - low level error - just return it
+	}
+	Exit(5)
+	return 0
 }
