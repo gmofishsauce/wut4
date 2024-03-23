@@ -2,37 +2,13 @@
 
 package main
 
-type Token Word
-
-// There are some maximum size constants below. The ultimate max of these
-// max sizes is 0xC000 because error codes are the values 0xC000 - 0xFFFF.
-// In fact, likely none of these can be greater than 0x8000, if even that, 
-// because the tables in this file need to be stored simultaneously in a
-// 64k address space during the first pass. The symbol length max, now 15,
-// cannot ultimately exceed 255.
-
-// Symbol table entry. Values may be string table offsets in which case
-// the length is relevant, or they maybe constant values where the length
-// is 0.
-type Syment struct {
-	Val Word          // index in string table or lit value
-	Len Byte          // Length of name or 0 for lit value
-	Info Byte         // Type information
-}
-
-const SYMLEN_MAX Word = 16
-const SYMTAB_MAX Word = 4096
+// Symbol table
 var symtab [SYMTAB_MAX]Syment
 var symtabNext Word = 1 // Token value 0 is reserved; see lex.go
-
-// Types for Syment.Info
-const TYPE_VAR Byte = 1
-const TYPE_KEY Byte = 2
 
 // Strings table. Intern strings here. The strings are packed
 // end to end with no lengths and no terminators. Offsets and
 // lengths are bit-packed elsewhere, e.g. the symbol table.
-const STRTAB_MAX Word = 8192
 var strtab [STRTAB_MAX]Byte
 var strtabNext Word = 1 // We don't use [0] to help detect bugs
 

@@ -95,8 +95,7 @@ func GetToken(inFD Word) Token {
 
 		if isLowerLetter(b) {
 			n := SymEnter(true, pos, 1)
-			panic("FIXME: symtab")
-			//Symtab[n].Info = TYPE_VAR
+			symtab[n].Info = TYPE_VAR
 			return TT_USR|Token(n)
 		}
 
@@ -109,14 +108,14 @@ func GetToken(inFD Word) Token {
 		}
 
 		StrtabDiscard()
-		return ERR_LEX_INVAL
+		return ErrorAsToken(ERR_LEX_INVAL)
 	}
 	if b == E_EOF {
 		return TT_EOF
 	} else if b > 0xFF {
-		return ERR_LEX_IO
+		return ErrorAsToken(ERR_LEX_IO)
 	}
 
 	// Must be out of space
-	return ERR_INT_NOSTR
+	return ErrorAsToken(ERR_INT_NOSTR)
 }
