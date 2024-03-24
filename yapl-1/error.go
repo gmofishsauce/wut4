@@ -26,14 +26,32 @@ const ( // Error subtypes
 	ERR_SYS Error = 0xFF00    // 0xFF00..0xFFFF system (e.g. I/O) errors
 )
 
-// This takes advantage of casting an "external" (errno) error
-// as a compiler type.
+// This takes advantage of casting an "external" (WUT-4 "errno") error
+// as a compiler type. This casting is always allowed, because the
+// entire SYS ("errno") error space is reserved in the space of compiler
+// error codes.
 const TT_EOF Token = Token(E_EOF) // 0xFFFF io.go
+
+// It would make complete sense to have a structure type holding an error
+// code and a constant message string and a two-part lookup scheme that
+// would yield the messages for an error code in constant time. But in
+// keeping with the strategy here, I expect to have support for
+// 1-dimensional arrays a long time before I have support for structures.
+// And my plan for YAPL-1 is: do everything by linear search; improve the
+// data structures lookup algorithms later. To add an error code, add it
+// to the constant definitions; then add it to the array of error codes;
+// then add a short string message to the messages in the correct position.
+//
+// This is programming for big kids. Don't screw up.
 
 const ( // Lexer errors
 	ERR_LEX_INVAL Error = ErrBase|ERR_LEX|1   // 0xC101 invalid character
 	ERR_LEX_IO Error = ErrBase|ERR_LEX|2      // 0xC102 i/o error on input
 	ERR_LEX_UNEXP Error = ErrBase|ERR_LEX|3   // 0xC103 unexpected char
+)
+
+const ( // Parse errors
+	ERR_PARSE_ERR Error = ErrBase|ERR_PARSE|1 // 0xC201 "parse error" (TBD)
 )
 
 const ( // Symbol table errors
@@ -50,13 +68,54 @@ const ( // internal errors, e.g. out of space
 	ERR_INT_CAST Error = ErrBase|ERR_INT|6    // 0xC706 bad cast
 )
 
+var errorTable []Error = []Error {
+	ERR_LEX_INVAL,
+	ERR_LEX_IO,
+	ERR_LEX_UNEXP,
+	ERR_PARSE_ERR,
+	ERR_SYM_REDEF,
+	ERR_SYM_NODEF,
+	ERR_INT_NOSTR,
+	ERR_INT_NOSYM,
+	ERR_INT_TOOBIG,
+	ERR_INT_BUG,
+	ERR_INT_INIT,
+	ERR_INT_CAST,
+}
+
+var errorMessages []string = []string {
+	"invalid character",
+	"i/o error on input",
+	"unexpected char",
+	"syntax error",
+	"symbol redefined",
+	"symbol undefined",
+	"string table full",
+	"symbol table full",
+	"symbol or string too long",
+	"unspecified internal error",
+	"initialization error",
+	"bad cast",
+}
+
+func LookupError(code Error) string {
+	for i, val := range errorTable {
+		if val == code {
+			return errorMessages[i]
+		}
+	}
+	return "internal error: unknown error code"
+}
+
 // Error severities
 const ERR_CONTINUE = Word(1)
 const ERR_FATAL    = Word(2)
 
-// TODO this is not an adequate solution to error output
-func PrintErr(code Error, sev Word, print1 Word, print2 Word) {
-	Printf("; Error: code %x (%x %x)%n", code, print1, print2)
+// This is the while point of all the fussing
+func PrintErr(fmt string, code Error, sev Word, val Word) {
+	Printf("; Error: line %x: %s: ", LineNumber(), LookupError(code))
+	Printf(fmt, val)
+	Printf("%n")
 	if sev == ERR_FATAL {
 		Exit(2)
 	}

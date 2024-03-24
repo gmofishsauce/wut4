@@ -6,7 +6,6 @@ var input Word // must be stdin for now
 
 var AstNodes [AstMaxNode]AstNode
 var astNodeNext AstNodeIndex = AstMaxNode - 1
-var Ast [AstMaxNode]AstNodeIndex
 
 func allocNode() AstNodeIndex {
 	result := astNodeNext
@@ -23,9 +22,9 @@ func Parse(in Word) AstNodeIndex {
 }
 
 // TODO protocol should (?) be: callee allocates node, fills it in,
-// returns index to caller. Caller places node in (index) in tree.
-// At end, caller allocates its own node, writes length of children,
-// and returns index to caller.
+// returns index to caller. Caller increments count of child nodes,
+// continues. When ready to return, caller writes accumulated count
+// to its own allocated node and returns index to its caller, etc.
 
 func program() AstNodeIndex {
 	for {
@@ -44,7 +43,7 @@ func declaration() AstNodeIndex {
 	} else if t == V {
 		return variable()
 	} else if !IsError(t) {
-		parseErr(ERR_PARSE, ERR_CONTINUE, 0, 0) // TODO inadequate
+		PrintErr("expected declaration, got %x", ERR_PARSE_ERR, ERR_CONTINUE, Word(t))
 		return resync()
 	} else {
 		return AstNodeIndex(t)
@@ -59,10 +58,6 @@ func variable() AstNodeIndex {
 func function() AstNodeIndex {
 	// TODO
 	return AstNodeIndex(0)
-}
-
-func parseErr(code Error, sev Word, print1 Word, print2 Word) {
-	PrintErr(code, sev, print1, print2)
 }
 
 func resync() AstNodeIndex {

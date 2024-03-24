@@ -34,7 +34,14 @@ package main
 // distinguished values in the low order 12 bits when the high 2 bits
 // are 0b11.
 
-// Basic types for self-hosting on the WUT-4.
+// Basic types for self-hosting on the WUT-4. The most basic type is Word.
+// A Word can hold a Byte, an Addr, or a Bool. Words, Addrs, and Bytes are
+// truthy: nonzero values are Bool "true" and 0 values are Bool "false".
+// Arithmetic on Words is unsigned and carries are lost; Bytes are silently
+// extended to Words by 0-extension for arithmetic with Words. Arithmetic
+// on Bools is not permitted. For now, arithmetic operations on Addrs behave
+// as Words; restrictions will be added to address arithmetic as the YAPL
+// language evolves.
 
 type Word uint16
 type Byte uint8
@@ -42,7 +49,9 @@ type Addr Word
 type Bool bool
 
 // These are the only means of input and output, because they are the only
-// means implemented in the WUT-4 emulator for eventual self hosting.
+// means implemented in the WUT-4 emulator for eventual self hosting. All
+// output from the compiler becomes part of the assembly language result,
+// so messages are prefixed with ";" making them assembler comments.
 const (
 	STDIN Word = Word(0)
 	STDOUT Word = Word(1)
@@ -64,7 +73,7 @@ type Token Word
 // is 0.
 type Syment struct {
 	Val Word          // index in string table or lit value
-	Len Byte          // Length of name or 0 for lit value
+	Len Byte          // Length of name or 0 for numeric constant
 	Info Byte         // Type information
 }
 
@@ -100,8 +109,8 @@ const AstMaxNode AstNodeIndex = 2048
 // value (TT_ERR). (We cannot in general store constants in the
 // token directly because only 14 bits are available, so we must
 // create symbol table entries for numerical constants. The value
-// of the constant is stored in the symbol table; constants do
-// not have an existence in the strings table.)
+// of the constant is stored in the symbol table; numeric
+// constants do not exist in the strings table.)
 const (
 	TT_USR Token = 0x0000      // user symbols from the source
 	TT_KEY Token = 0x4000      // language defined symbols TODO maybe TT_LANG?
@@ -109,9 +118,10 @@ const (
 	TT_ERR Token = Token(ErrBase) // error tokens
 )
 
-// The target machine (WUT-4) doesn't have a barrel shifter.
-// it's helpful to avoid multiple-bit shifts where possible.
-// We don't want e.g. (t >> 14) if we can help it.
+// The target machine (WUT-4) doesn't have a barrel shifter, so it's
+// helpful to avoid multiple-bit shifts where possible. We don't want
+// e.g. (t >> 14) if we can help it, because this will have to compile
+// to swap bytes; swap nybbles in low byte; shift right; shift right.
 func IsUserTok(t Token) Bool {
 	return (t&TT_USR) == TT_USR
 }
@@ -140,11 +150,13 @@ func AddLangSymbol(symRaw Byte, constvalRaw Token) Word {
 	strtab[pos] = sym // Every language symbol is 1 character in yapl-1
 	result := SymEnter(false, pos, 1)
 	if result != constval&0xFFF {
-		PrintErr(ERR_INT_INIT, ERR_FATAL, Word(pos), Word(sym))
+		PrintErr("defining sym %x", ERR_INT_INIT, ERR_FATAL, Word(sym))
 	}
 	symtab[result].Info = TYPE_KEY
 	return result
 }
+
+// All symbols defined by the language:
 
 const A Token = TT_KEY|1
 const B Token = TT_KEY|2

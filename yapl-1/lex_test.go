@@ -20,7 +20,6 @@ func TestLex01(t *testing.T) {
 	t2 := GetToken(fd)
 	assert(t, t1==t2, "PushbackToken")
 
-
 	var tk Token
 	for tk = GetToken(fd); tk != TT_EOF; tk = GetToken(fd) {
 		if tk >= TT_ERR {
