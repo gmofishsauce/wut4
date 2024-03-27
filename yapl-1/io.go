@@ -60,12 +60,16 @@ func Printf(s string, args ...any) {
 				printOops(0)
 			} else if c == 's' {
 				printS(args[argN])
+				argN++
 			} else if c == 'x' {
 				printX(args[argN])
+				argN++
+			} else if c == 'c' {
+				Putb(STDOUT, args[argN].(Byte))
+				argN++
 			} else {
-				printOops(args[argN])
+				printOops(0)
 			}
-			argN++
 			fmt = false
 			continue
 		}

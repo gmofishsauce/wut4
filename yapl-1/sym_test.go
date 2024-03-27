@@ -27,7 +27,7 @@ func TestSym01(t *testing.T) {
 	// Mock input
 	strtab[i] = x
 
-	index := SymEnter(false, i, 1)
+	index := SymEnter(i, 1)
 	assert(t, index == symtabNext - 1, "TestSym01 4")
 	assert(t, symtab[index].Len == 1, "TestSym01 5")
 	assert(t, strtab[symtab[index].Val] == x, "TestSym01 6")
@@ -39,10 +39,10 @@ func TestSym02(t *testing.T) {
 	strtab[i] = Byte('v')
 	strtab[i+1] = Byte('a')
 	strtab[i+2] = Byte('r')
-	s1 := SymEnter(false, i, Byte(3))
+	s1 := SymEnter(i, Byte(3))
 	assert(t, s1 == SymLookup(i, Byte(3)), "TestSym02 1")
 
-	s2 := SymEnter(false, Word(42), Byte(0))
+	s2 := SymEnter(Word(42), Byte(0))
 
 	j := StrtabAllocate()
 	assert(t, j == i+3, "TestSym02 2")
@@ -50,17 +50,17 @@ func TestSym02(t *testing.T) {
 	strtab[j] = Byte('d')
 	strtab[j+1] = Byte('e')
 	strtab[j+2] = Byte('f')
-	SymEnter(false, j, Byte(3))
+	SymEnter(j, Byte(3))
 
 	assert(t, symtab[s2].Val == symtab[NumLookup(Word(42))].Val, "TestSym02 3")
 
-	s3 := SymEnter(false, Word(43), Byte(0))
+	s3 := SymEnter(Word(43), Byte(0))
 
 	i = StrtabAllocate()
 	strtab[i] = Byte('v')
 	strtab[i+1] = Byte('a')
 	strtab[i+2] = Byte('r')
-	s4 := SymEnter(true, i, Byte(3))
+	s4 := SymEnter(i, Byte(3))
 
 	assert(t, s1==s4, "TestSym02 4")
 	assert(t, 1+symtab[s2].Val == symtab[s3].Val, "TestSym02 5")

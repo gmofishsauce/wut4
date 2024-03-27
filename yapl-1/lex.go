@@ -2,6 +2,8 @@
 
 package main
 
+var LexDebug bool = true
+
 func isHash(b Word) Bool {
 	return b == Word('#')
 }
@@ -33,6 +35,21 @@ func convert(b Byte) Word {
 
 var lineCount Word = 1
 
+var tTypes []string = []string {"TT_USR", "TT_KEY", "TT_NUM", "TT_ERR", }
+
+func PrintTok(t Token) {
+	if IsErrTok(t) {
+		Printf("; token: error %x%n", Word(t))
+	} else {
+		n := Word(t&0x3FFF)
+		if symtab[n].Len == 0 {
+			Printf("; token: number %x%n", symtab[n].Val)
+		} else {
+			Printf("; token: string %c%n", strtab[symtab[n].Val])
+		}
+	}
+}
+
 func LineNumber() Word {
 	return lineCount
 }
@@ -43,6 +60,8 @@ func PushbackToken(t Token) {
 	if pbt != 0 || t == 0 {
 		panic("PushbackToken")
 	}
+	Printf("; Pushback: ")
+	PrintTok(t)
 	pbt = t
 }
 
@@ -50,6 +69,14 @@ func PushbackToken(t Token) {
 // lexer, because lexing is tedious and well understood by most
 // everyone who might ever read this.
 func GetToken(inFD Word) Token {
+	tk := internalGetToken(inFD)
+	if LexDebug {
+		PrintTok(tk)
+	}
+	return tk
+}
+
+func internalGetToken(inFD Word) Token {
 	if pbt != 0 {
 		result := pbt
 		pbt = 0
@@ -86,7 +113,7 @@ func GetToken(inFD Word) Token {
 
 		if isDigit(b) {
 			val := convert(Byte(b))
-			return TT_NUM|Token(SymEnter(true, val, 0))
+			return TT_NUM|Token(SymEnter(val, 0))
 		}
 
 		strtab[pos+n] = Byte(b)
@@ -94,8 +121,7 @@ func GetToken(inFD Word) Token {
 		len--
 
 		if isLowerLetter(b) {
-			n := SymEnter(true, pos, 1)
-			symtab[n].Info = TYPE_VAR
+			n := SymEnter(pos, 1)
 			return TT_USR|Token(n)
 		}
 
@@ -104,7 +130,7 @@ func GetToken(inFD Word) Token {
 		// now, but for the YAPL-2 need to identify keywords
 		// by their symbol table index < var FirstUserSymbol.
 		if isUpperLetter(b) || isPunctuation(b) {
-			return TT_KEY|Token(SymEnter(true, pos, 1))
+			return TT_KEY|Token(SymEnter(pos, 1))
 		}
 
 		StrtabDiscard()

@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-var tTypes []string = []string {"TT_USR", "TT_KEY", "TT_NUM", "TT_ERR", }
 
 func TestLex01(t *testing.T) {
 	Init()

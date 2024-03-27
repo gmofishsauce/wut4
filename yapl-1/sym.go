@@ -54,18 +54,16 @@ func StrtabDiscard() {
 // an offset in the interned string table. The return value
 // is symbol table index if < 0xC000 or an error if >= 0xC000.
 //
-// If redefOK is true, then finding an existing defininition
-// causes that existing definition, if any, to be returned.
-// Otherwise, ERR_SYM_REDEF is returned. If a new symbol table
-// entry is allocated, the Info field of the new entry is set
-// to 0.
+// If the symbol is already in the table, the existing definition
+// is returned. Issues like "symbol already declared" are handled
+// a higher level.
 //
 // If the len is nonzero (i.e. the call is to define a new
 // string symbol), then val must be the result of a preceding
 // call to StrtabAllocate(). The allocated string is committed
 // and the symbol table becomes ready to accept a new call to
 // StrtabAllocate().
-func SymEnter(redefOK bool, val Word, len Byte) Word {
+func SymEnter(val Word, len Byte) Word {
 	var symIndex Word
 
 	if len == 0 {
@@ -74,10 +72,7 @@ func SymEnter(redefOK bool, val Word, len Byte) Word {
 		symIndex = SymLookup(val, len)
 	}
 	if symIndex < symtabNext { // existing definition found
-		if redefOK {
-			return symIndex
-		}
-		return  Word(ERR_SYM_REDEF)
+		return symIndex
 	}
 	if symtabNext >= SYMTAB_MAX {
 		return Word(ERR_INT_NOSYM)
@@ -132,3 +127,71 @@ func SymLookup(val Word, len Byte) Word {
 	}
 	return Word(ERR_SYM_NODEF)
 }
+
+var lastKeySymIndex Word
+
+func isKeySym(si Word) Bool {
+	return si <= lastKeySymIndex
+}
+
+// All the language symbols in YAPL-1 are single bytes (characters).
+// We create a symbol table entry for each one and we check that the
+// entry has the expected constant value. The constant value is used
+// to represent the token in parser and the AST.
+func AddLangSymbol(symRaw Byte, constvalRaw Token) Word {
+	sym := Byte(symRaw&0xFF)
+	constval := Word(constvalRaw)
+
+	pos := StrtabAllocate()
+	strtab[pos] = sym // Every language symbol is 1 character in yapl-1
+	result := SymEnter(pos, 1)
+	if result != constval&0xFFF {
+		PrintErr("defining sym %x", ERR_INT_INIT, ERR_FATAL, Word(sym))
+	}
+	lastKeySymIndex = result
+	return result
+}
+
+// All symbols defined by the language:
+
+const A Token = TT_KEY|1
+const B Token = TT_KEY|2
+const C Token = TT_KEY|3
+const D Token = TT_KEY|4
+
+const E Token = TT_KEY|5
+const F Token = TT_KEY|6
+const I Token = TT_KEY|7
+const Q Token = TT_KEY|8
+const V Token = TT_KEY|9
+
+const HASH Token = TT_KEY|10
+const SEMI Token = TT_KEY|11
+const EQU  Token = TT_KEY|12
+const BOPEN Token = TT_KEY|13
+const BCLOSE Token = TT_KEY|14
+const PLUS Token = TT_KEY|15
+const ERR Token = TT_KEY|16
+
+func Init() {
+	AddLangSymbol(Byte('A'), A)
+	AddLangSymbol(Byte('B'), B)
+	AddLangSymbol(Byte('C'), C)
+	AddLangSymbol(Byte('D'), D)
+
+	AddLangSymbol(Byte('E'), E)
+	AddLangSymbol(Byte('F'), F)
+	AddLangSymbol(Byte('I'), I)
+	AddLangSymbol(Byte('Q'), Q)
+	AddLangSymbol(Byte('V'), V)
+
+	AddLangSymbol(Byte('#'), HASH)
+	AddLangSymbol(Byte(';'), SEMI)
+	AddLangSymbol(Byte('='), EQU)
+	AddLangSymbol(Byte('{'), BOPEN)
+	AddLangSymbol(Byte('}'), BCLOSE)
+	AddLangSymbol(Byte('+'), PLUS)
+
+	AddLangSymbol(Byte('?'), ERR)
+}
+
