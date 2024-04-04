@@ -154,18 +154,18 @@ func ErrorAsWord(e Error) Word {
 	return Word(e)
 }
 
-func ErrorAsSymbolIndex(e Error) Word {
+func ErrorAsSymIndex(e Error) SymIndex {
 	if e < ErrBase {
 		e = ERR_INT_BUG
 	}
-	return ErrorAsWord(e) // TODO: SymIndex type
+	return SymIndex(e)
 }
 
-func ErrorAsStringIndex(e Error) Word {
+func ErrorAsStrIndex(e Error) StrIndex {
 	if e < ErrBase {
 		e = ERR_INT_BUG
 	}
-	return ErrorAsWord(e) // TODO: StrIndex type
+	return StrIndex(e)
 }
 
 func ErrorAsAstIndex(e Error) AstNodeIndex {
@@ -174,4 +174,3 @@ func ErrorAsAstIndex(e Error) AstNodeIndex {
 	}
 	return AstNodeIndex(e)
 }
-

@@ -4,6 +4,45 @@ package main
 
 var LexDebug bool = true
 
+// There are four types of tokens: user defined symbols like
+// variable names and constant strings, language defined symbols
+// ("keys"), numeric values, and error tokens. The types are
+// encoded in the high order 2 bits, leaving 14 bits to be used
+// for symbol table index (TT_STR, TT_KEY, and TT_NUM) or actual
+// value (TT_ERR). (We cannot in general store constants in the
+// token directly because only 14 bits are available, so we must
+// create symbol table entries for numerical constants. The value
+// of the constant is stored in the symbol table; numeric
+// constants do not exist in the strings table.)
+const (
+	TT_USR Token = 0x0000      // user symbols from the source
+	TT_KEY Token = 0x4000      // language defined symbols TODO maybe TT_LANG?
+	TT_NUM Token = 0x8000      // numeric valued symbols
+	TT_ERR Token = Token(ErrBase) // error tokens
+)
+
+// The target machine (WUT-4) doesn't have a barrel shifter, so it's
+// helpful to avoid multiple-bit shifts where possible. We don't want
+// e.g. (t >> 14) if we can help it, because this will have to compile
+// to swap bytes; swap nybbles in low byte; shift right; shift right.
+func IsUserTok(t Token) Bool {
+	return (t&TT_USR) == TT_USR
+}
+
+func IsKeyTok(t Token) Bool {
+	return (t&TT_KEY) == TT_KEY
+}
+
+func IsNumTok(t Token) Bool {
+	return (t&TT_NUM) == TT_NUM
+}
+
+func IsErrTok(t Token) Bool {
+	return (t&TT_ERR) == TT_ERR
+}
+
+// local functions
+
 func isHash(b Word) Bool {
 	return b == Word('#')
 }
@@ -33,6 +72,10 @@ func convert(b Byte) Word {
 	return Word(b - Byte('0'))
 }
 
+func TokenAsSymIndex(t Token) SymIndex {
+	return SymIndex(Word(t) & Word(^ErrBase))
+}
+
 var lineCount Word = 1
 
 var tTypes []string = []string {"TT_USR", "TT_KEY", "TT_NUM", "TT_ERR", }
@@ -41,7 +84,7 @@ func PrintTok(t Token) {
 	if IsErrTok(t) {
 		Printf("; token: error %x%n", Word(t))
 	} else {
-		n := Word(t&0x3FFF)
+		n := TokenAsSymIndex(t)
 		if symtab[n].Len == 0 {
 			Printf("; token: number %x%n", symtab[n].Val)
 		} else {
@@ -87,7 +130,7 @@ func internalGetToken(inFD Word) Token {
 	len := StrtabRemaining()
 	var inComment = false
 	var b Word
-	var n Word
+	var n StrIndex
 
 	for {
 		b = Getb(inFD)
@@ -113,7 +156,9 @@ func internalGetToken(inFD Word) Token {
 
 		if isDigit(b) {
 			val := convert(Byte(b))
-			return TT_NUM|Token(SymEnter(val, 0))
+			// Yeah, the cast from StrIndex to Word can't
+			// change any bits. Compromises must be made.
+			return TT_NUM|Token(SymEnter(Word(val), 0))
 		}
 
 		strtab[pos+n] = Byte(b)
@@ -121,7 +166,7 @@ func internalGetToken(inFD Word) Token {
 		len--
 
 		if isLowerLetter(b) {
-			n := SymEnter(pos, 1)
+			n := SymEnter(Word(pos), 1)
 			return TT_USR|Token(n)
 		}
 
@@ -130,7 +175,7 @@ func internalGetToken(inFD Word) Token {
 		// now, but for the YAPL-2 need to identify keywords
 		// by their symbol table index < var FirstUserSymbol.
 		if isUpperLetter(b) || isPunctuation(b) {
-			return TT_KEY|Token(SymEnter(pos, 1))
+			return TT_KEY|Token(SymEnter(Word(pos), 1))
 		}
 
 		StrtabDiscard()

@@ -37,7 +37,7 @@ package main
 // Basic types for self-hosting on the WUT-4. The most basic type is Word.
 // A Word can hold a Byte, an Addr, or a Bool. Words, Addrs, and Bytes are
 // truthy: nonzero values are Bool "true" and 0 values are Bool "false".
-// Arithmetic on Words is unsigned and carries are lost; Bytes are silently
+// Arithmetic on Words is unsigned and carries are lost. Bytes are silently
 // extended to Words by 0-extension for arithmetic with Words. Arithmetic
 // on Bools is not permitted. For now, arithmetic operations on Addrs behave
 // as Words; restrictions will be added to address arithmetic as the YAPL
@@ -77,10 +77,12 @@ type Syment struct {
 	Info Byte         // Type information
 }
 
+type SymIndex Word    // symbol table index
+const SYMTAB_MAX SymIndex = 4096
 const SYMLEN_MAX Word = 16
-const SYMTAB_MAX Word = 4096
 
-const STRTAB_MAX Word = 8192
+type StrIndex Word    // index in strings table
+const STRTAB_MAX StrIndex = 8192
 
 // AST nodes use RJ's data oriented tree design. The code knows which
 // node types have children. If a node has children, its first child
@@ -96,40 +98,3 @@ type AstNode struct { // AST node
 
 type AstNodeIndex Word
 const AstMaxNode AstNodeIndex = 2048
-
-// There are four types of tokens: user defined symbols like
-// variable names and constant strings, language defined symbols
-// ("keys"), numeric values, and error tokens. The types are
-// encoded in the high order 2 bits, leaving 14 bits to be used
-// for symbol table index (TT_STR, TT_KEY, and TT_NUM) or actual
-// value (TT_ERR). (We cannot in general store constants in the
-// token directly because only 14 bits are available, so we must
-// create symbol table entries for numerical constants. The value
-// of the constant is stored in the symbol table; numeric
-// constants do not exist in the strings table.)
-const (
-	TT_USR Token = 0x0000      // user symbols from the source
-	TT_KEY Token = 0x4000      // language defined symbols TODO maybe TT_LANG?
-	TT_NUM Token = 0x8000      // numeric valued symbols
-	TT_ERR Token = Token(ErrBase) // error tokens
-)
-
-// The target machine (WUT-4) doesn't have a barrel shifter, so it's
-// helpful to avoid multiple-bit shifts where possible. We don't want
-// e.g. (t >> 14) if we can help it, because this will have to compile
-// to swap bytes; swap nybbles in low byte; shift right; shift right.
-func IsUserTok(t Token) Bool {
-	return (t&TT_USR) == TT_USR
-}
-
-func IsKeyTok(t Token) Bool {
-	return (t&TT_KEY) == TT_KEY
-}
-
-func IsNumTok(t Token) Bool {
-	return (t&TT_NUM) == TT_NUM
-}
-
-func IsErrTok(t Token) Bool {
-	return (t&TT_ERR) == TT_ERR
-}
