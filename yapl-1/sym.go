@@ -149,7 +149,7 @@ func AddLangSymbol(symRaw Byte, t Token) SymIndex {
 	pos := StrtabAllocate()
 	strtab[pos] = sym
 	result := SymEnter(Word(pos), 1)
-	if IsError(result) {
+	if Word(result) >= ErrBase {
 		PrintErr("defining sym %x", ERR_INT_INIT, ERR_FATAL, Word(sym))
 	}
 	if result != constval {

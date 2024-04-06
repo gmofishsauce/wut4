@@ -6,16 +6,9 @@ package main
 // significant punctuation, and keywords, so that AST nodes can be
 // basically symbol table references.
 
-func Dump() {
-}
-
 func main() {
 	Init()
-	Parse(STDIN)
-	/*
-	for tk := GetToken(STDIN); tk != TT_EOF; tk = GetToken(STDIN) {
-		Printf("0x%x%n", Word(tk))
+	for a := Parse(STDIN); a < AstMaxNode; a++ {
+		Printf("AstNode %x%n", Word(a))
 	}
-	*/
-	Dump()
 }

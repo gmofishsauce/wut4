@@ -9,21 +9,20 @@ package main
 // distinguished values in the low order 12 bits when the high 2 bits
 // are 0b11.
 
-type Error Word
-const ErrBase Error = 0xC000
+const ErrBase Word = 0xC000
 
 // Error types defined in the compiler are encoded in the low 12 bits.
 // A few error codes are in the range 0xFFFn; these are compatible with
 // the error encoding convention and can be returned directly as errors.
 const ( // Error subtypes
-	ERR_LEX Error = 0x100     // 0x100 .. 0x1FF lexer errors
-	ERR_PARSE Error = 0x200   // 0x200 .. 0x2FF syntax errors
-	ERR_TYPE Error = 0x300    // 0x300 .. 0x3FF type errors
-	ERR_IR Error = 0x400      // 0x400 .. 0x4FF IR errors
-	ERR_GEN Error = 0x500     // 0x500 .. 0x5FF code gen errors
-	ERR_SYM Error = 0x600     // 0x600 .. 0x6FF symbol table errors
-	ERR_INT Error = 0x700     // 0x700 .. 0x6FF internal errors
-	ERR_SYS Error = 0xFF00    // 0xFF00..0xFFFF system (e.g. I/O) errors
+	ERR_LEX Word = 0x100     // 0x100 .. 0x1FF lexer errors
+	ERR_PARSE Word = 0x200   // 0x200 .. 0x2FF syntax errors
+	ERR_TYPE Word = 0x300    // 0x300 .. 0x3FF type errors
+	ERR_IR Word = 0x400      // 0x400 .. 0x4FF IR errors
+	ERR_GEN Word = 0x500     // 0x500 .. 0x5FF code gen errors
+	ERR_SYM Word = 0x600     // 0x600 .. 0x6FF symbol table errors
+	ERR_INT Word = 0x700     // 0x700 .. 0x6FF internal errors
+	ERR_SYS Word = 0xFF00    // 0xFF00..0xFFFF system (e.g. I/O) errors
 )
 
 // This takes advantage of casting an "external" (WUT-4 "errno") error
@@ -45,30 +44,30 @@ const TT_EOF Token = Token(E_EOF) // 0xFFFF io.go
 // This is programming for big kids. Don't screw up.
 
 const ( // Lexer errors
-	ERR_LEX_INVAL Error = ErrBase|ERR_LEX|1   // 0xC101 invalid character
-	ERR_LEX_IO Error = ErrBase|ERR_LEX|2      // 0xC102 i/o error on input
-	ERR_LEX_UNEXP Error = ErrBase|ERR_LEX|3   // 0xC103 unexpected char
+	ERR_LEX_INVAL Word = ErrBase|ERR_LEX|1   // 0xC101 invalid character
+	ERR_LEX_IO Word = ErrBase|ERR_LEX|2      // 0xC102 i/o error on input
+	ERR_LEX_UNEXP Word = ErrBase|ERR_LEX|3   // 0xC103 unexpected char
 )
 
 const ( // Parse errors
-	ERR_PARSE_ERR Error = ErrBase|ERR_PARSE|1 // 0xC201 "parse error" (TBD)
+	ERR_PARSE_ERR Word = ErrBase|ERR_PARSE|1 // 0xC201 "parse error" (TBD)
 )
 
 const ( // Symbol table errors
-	ERR_SYM_REDEF Error = ErrBase|ERR_SYM|1   // 0xC601 symbol redefined
-	ERR_SYM_NODEF Error = ErrBase|ERR_SYM|2   // 0xC602 symbol undefined
+	ERR_SYM_REDEF Word = ErrBase|ERR_SYM|1   // 0xC601 symbol redefined
+	ERR_SYM_NODEF Word = ErrBase|ERR_SYM|2   // 0xC602 symbol undefined
 )
 
 const ( // internal errors, e.g. out of space
-	ERR_INT_NOSTR Error = ErrBase|ERR_INT|1   // 0xC701 string table full
-	ERR_INT_NOSYM Error = ErrBase|ERR_INT|2   // 0xC702 symbol table full
-	ERR_INT_TOOBIG Error = ErrBase|ERR_INT|3  // 0xC703 symbol or string too long
-	ERR_INT_BUG Error = ErrBase|ERR_INT|4     // 0xC704 unspecified internal error
-	ERR_INT_INIT Error = ErrBase|ERR_INT|5    // 0xC705 initialization error
-	ERR_INT_CAST Error = ErrBase|ERR_INT|6    // 0xC706 bad cast
+	ERR_INT_NOSTR Word = ErrBase|ERR_INT|1   // 0xC701 string table full
+	ERR_INT_NOSYM Word = ErrBase|ERR_INT|2   // 0xC702 symbol table full
+	ERR_INT_TOOBIG Word = ErrBase|ERR_INT|3  // 0xC703 symbol or string too long
+	ERR_INT_BUG Word = ErrBase|ERR_INT|4     // 0xC704 unspecified internal error
+	ERR_INT_INIT Word = ErrBase|ERR_INT|5    // 0xC705 initialization error
+	ERR_INT_CAST Word = ErrBase|ERR_INT|6    // 0xC706 bad cast
 )
 
-var errorTable []Error = []Error {
+var errorTable []Word = []Word {
 	ERR_LEX_INVAL,
 	ERR_LEX_IO,
 	ERR_LEX_UNEXP,
@@ -98,7 +97,7 @@ var errorMessages []string = []string {
 	"bad cast",
 }
 
-func LookupError(code Error) string {
+func LookupError(code Word) string {
 	for i, val := range errorTable {
 		if val == code {
 			return errorMessages[i]
@@ -112,7 +111,7 @@ const ERR_CONTINUE = Word(1)
 const ERR_FATAL    = Word(2)
 
 // This is the while point of all the fussing
-func PrintErr(fmt string, code Error, sev Word, val Word) {
+func PrintErr(fmt string, code Word, sev Word, val Word) {
 	Printf("; Error: line %x: %s: ", LineNumber(), LookupError(code))
 	Printf(fmt, val)
 	Printf("%n")
@@ -121,54 +120,32 @@ func PrintErr(fmt string, code Error, sev Word, val Word) {
 	}
 }
 
-func IsError(n any) Bool {
-	w, ok := n.(Error)
-	if !ok {
-		return false
-	}
+func IsError(w Word) Bool {
 	return w >= ErrBase
 }
 
-func AsError(n any) Error {
-	w, ok := n.(Error)
-	if !ok {
-		return ERR_INT_CAST
-	}
-	if w < ErrBase {
-		return ERR_INT_BUG
-	}
-	return w
-}
-
-func ErrorAsToken(e Error) Token {
+func ErrorAsToken(e Word) Token {
 	if e < ErrBase {
 		e = ERR_INT_BUG
 	}
 	return Token(e)
 }
 
-func ErrorAsWord(e Error) Word {
-	if e < ErrBase {
-		e = ERR_INT_BUG
-	}
-	return Word(e)
-}
-
-func ErrorAsSymIndex(e Error) SymIndex {
+func ErrorAsSymIndex(e Word) SymIndex {
 	if e < ErrBase {
 		e = ERR_INT_BUG
 	}
 	return SymIndex(e)
 }
 
-func ErrorAsStrIndex(e Error) StrIndex {
+func ErrorAsStrIndex(e Word) StrIndex {
 	if e < ErrBase {
 		e = ERR_INT_BUG
 	}
 	return StrIndex(e)
 }
 
-func ErrorAsAstIndex(e Error) AstNodeIndex {
+func ErrorAsAstIndex(e Word) AstNodeIndex {
 	if e < ErrBase {
 		e = ERR_INT_BUG
 	}

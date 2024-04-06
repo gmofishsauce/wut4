@@ -21,34 +21,49 @@ func Parse(in Word) AstNodeIndex {
 	return program()
 }
 
-// TODO protocol should (?) be: callee allocates node, fills it in,
-// returns index to caller. Caller increments count of child nodes,
-// continues. When ready to return, caller writes accumulated count
-// to its own allocated node and returns index to its caller, etc.
+// Protocol: callee evaluates children, keeps count of directs, at
+// the end allocates a node for itself, fills in N, and returns index
+// to caller. Which adds callee to its count continues, allocates
+// its own node, returns, etc.
+
+// Syntax errors cause the result to be an Error node of some type.
+// Error nodes are legal AST nodes and do not cause IsError() to
+// return true, so the parse may continue. Errors are typically
+// returned for non-syntax type errors,
 
 func program() AstNodeIndex {
-	var result AstNodeIndex
-
-/*
-	for {
-		t := GetToken(input)
-		PrintTok(t)
-		if t == TT_EOF {
-			break
-		}
+	var n Word;
+	for result := declaration(); !IsError(Word(result)); result = declaration() {
+		n++;
 	}
-*/
-
-	// Syntax errors cause the result to be an Error node of some type.
-	// Error nodes are legal AST nodes and do not cause IsError() to
-	// return true, so the parse may continue. Errors are typically
-	// returned for non-syntax type errors,
-	for result = declaration(); !IsError(result); result = declaration() {
-		; // nothing
-	}
-	return result
+	a := allocAstNode()
+	AstNodes[a].Sym = 0
+	AstNodes[a].Size = n
+	return a
 }
 
+func declaration() AstNodeIndex {
+	var t Token
+	var n Word
+	for t = GetToken(input); !IsError(Word(t)) && t != SEMI; t = GetToken(input) {
+		n++
+		a := allocAstNode()
+		AstNodes[a].Sym = TokenAsSymIndex(t)
+		AstNodes[a].Size = 1
+		AstNodes[a].Info = Word(t)&0xC000 // XXX placeholder
+	}
+	if IsError(Word(t)) {
+		return AstNodeIndex(t)
+	}
+	// ourselves:
+	a := allocAstNode() 
+	AstNodes[a].Sym = TokenAsSymIndex(V)
+	AstNodes[a].Size = 1 + n
+	AstNodes[a].Info = Word(V)&0xC000
+	return a
+}
+
+/*
 func declaration() AstNodeIndex {
 	t := GetToken(input)
 
@@ -63,7 +78,9 @@ func declaration() AstNodeIndex {
 		return AstNodeIndex(t)
 	}
 }
+*/
 
+/*
 func variable() AstNodeIndex {
 	t := GetToken(input)
 	var result AstNodeIndex
@@ -110,3 +127,4 @@ func resync() {
 		PushbackToken(t)
 	}
 }
+*/

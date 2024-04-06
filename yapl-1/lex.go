@@ -103,8 +103,6 @@ func PushbackToken(t Token) {
 	if pbt != 0 || t == 0 {
 		panic("PushbackToken")
 	}
-	Printf("; Pushback: ")
-	PrintTok(t)
 	pbt = t
 }
 

@@ -92,8 +92,9 @@ const STRTAB_MAX StrIndex = 8192
 // a Block may have more than 255 Statement-like children. So it goes.
 
 type AstNode struct { // AST node
-	Sym Word          // index of symbol table entry
+	Sym SymIndex      // index of symbol table entry
 	Size Word         // size of this node (with all subnodes)
+	Info Word         // TBD
 }
 
 type AstNodeIndex Word
