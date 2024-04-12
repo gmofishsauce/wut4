@@ -2,21 +2,26 @@
 
 package main
 
+// XXX this is stupid, hide this in lexer
 var input Word // must be stdin for now
 
 var AstNodes [AstMaxNode]AstNode
-var astNodeNext AstNodeIndex = AstMaxNode - 1
+var astNodeNext AstIndex = AstMaxNode - 1
 
-func allocAstNode() AstNodeIndex {
+const NO_NODE Word = 0
+
+// Return the next AstNode, allocating from the end of the array toward
+// the start. 0 is reserved to mean "no error and also no node".
+func allocAstNode() AstIndex {
 	result := astNodeNext
-	if result < 0 {
+	if result < 1 {
 		panic("out of AST nodes")
 	}
 	astNodeNext--
 	return result
 }
 
-func Parse(in Word) AstNodeIndex {
+func Parse(in Word) AstIndex {
 	input = in
 	return program()
 }
@@ -31,86 +36,98 @@ func Parse(in Word) AstNodeIndex {
 // return true, so the parse may continue. Errors are typically
 // returned for non-syntax type errors,
 
-func program() AstNodeIndex {
+func program() AstIndex {
 	var n Word;
-	for result := declaration(); !IsError(Word(result)); result = declaration() {
+	for result := declaration(); !IsError(result); result = declaration() {
 		n++;
 	}
 	a := allocAstNode()
-	AstNodes[a].Sym = 0
+	AstNodes[a].Sym = StrLookup('P')
 	AstNodes[a].Size = n
 	return a
 }
 
-func declaration() AstNodeIndex {
-	var t Token
-	var n Word
-	for t = GetToken(input); !IsError(Word(t)) && t != SEMI; t = GetToken(input) {
-		n++
-		a := allocAstNode()
-		AstNodes[a].Sym = TokenAsSymIndex(t)
-		AstNodes[a].Size = 1
-		AstNodes[a].Info = Word(t)&0xC000 // XXX placeholder
+func declaration() AstIndex {
+	t := GetToken(input)
+
+	if IsError(t) {
+		return ErrorAsAstIndex(t)
+	} else if t == V {
+		return variable()
+	} else if t == F {
+		return function()
 	}
-	if IsError(Word(t)) {
-		return AstNodeIndex(t)
+
+	return syntaxError("declaration", t)
+}
+
+// Variable declaration is parsed as a "var" token (already consumed
+// by our caller) followed by an optional assignment expression. If
+// the assignment is not there, parser injects " = 0".
+func variable() AstIndex {
+	v := GetToken(input)
+	if IsError(v) {
+		return ErrorAsAstIndex(v)
 	}
-	// ourselves:
-	a := allocAstNode() 
-	AstNodes[a].Sym = TokenAsSymIndex(V)
-	AstNodes[a].Size = 1 + n
-	AstNodes[a].Info = Word(V)&0xC000
-	return a
+	if !IsUsrTok(v) {
+		return syntaxError("variable", v)
+	}
+
+	// We have the variable name in v
+	t := GetToken(input)
+	if IsError(t) {
+		return ErrorAsAstIndex(t)
+	} else if t == SEMI {
+		// inject "= 0" for initialization
+	} else if t == EQU {
+		a := expr()
+		if IsError(a) {
+			return ErrorAsAstIndex(a)
+		}
+	}
+	return 0 // TODO
+}
+
+func function() AstIndex {
+	return 0 // TODO
+}
+
+func expr() AstIndex {
+	return 0 // TODO
+}
+
+func IsAstError(a AstIndex) Bool {
+	return IsError(a) || IsSyntaxErrorNode(a)
+}
+
+func IsSyntaxErrorNode(a AstIndex) Bool {
+	return AstNodes[a].Kind == AstKindError
 }
 
 /*
-func declaration() AstNodeIndex {
-	t := GetToken(input)
-
-	if t == F {
-		return function()
-	} else if t == V {
-		return variable()
-	} else if !IsError(t) {
-		PrintErr("expected declaration, got %x", ERR_PARSE_ERR, ERR_CONTINUE, Word(t))
-		return syntaxError(t) // creates error AST node, also calls resync()
-	} else {
-		return AstNodeIndex(t)
+// Consume the token. If it matches, don't create an AST node for it.
+// Return an error token for errors, 0 for success (because no node
+// was created) or 1 to indicate we allocated a syntax error node. In
+// the latter case, we resynchronize so the caller doesn't have to.
+func expect(exp Token) Word {
+	t := GetToken(inFD)	
+	if IsError(t) {
+		return Word(t)
+	} else if IsMatch(exp, t) {
+		return 0
 	}
+	return syntaxError(TokenToString(exp), t)
 }
 */
 
-/*
-func variable() AstNodeIndex {
-	t := GetToken(input)
-	var result AstNodeIndex
+func syntaxError(msg string, bad Token) AstIndex {
+	Printf("; syntax error: line %x: expected %s but got %s%n",
+		LineNumber(), msg, TokenToString(bad))
 
-	if IsError(t) {
-		result = ErrorAsAstIndex(AsError(t))
-	} else if IsUserTok(t) {
-		result := allocAstNode()
-		AstNodes[result].Sym = Word(t&0x0FFF) // XXX correct, but needs a better way
-		AstNodes[result].Size = 1
-		t = GetToken(input)
-		if t == SEMI {
-			// we're done here
-		} else if t == EQU {
-		}
-	} else {
-		result = syntaxError(t)
-	}
-	return result
-}
-
-func function() AstNodeIndex {
-	// TODO
-	return AstNodeIndex(0)
-}
-
-func syntaxError(t Token) AstNodeIndex {
 	result := allocAstNode()
-	AstNodes[result].Sym = Word(ERR&0x0FFF) // XXX correct, but needs a better way
+	AstNodes[result].Sym = ErrorAsSymIndex(TT_ERR)
 	AstNodes[result].Size = 1
+	AstNodes[result].Kind = AstKindError
 	resync()
 	return result
 }
@@ -127,4 +144,3 @@ func resync() {
 		PushbackToken(t)
 	}
 }
-*/

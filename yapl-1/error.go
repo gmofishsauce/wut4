@@ -120,34 +120,36 @@ func PrintErr(fmt string, code Word, sev Word, val Word) {
 	}
 }
 
-func IsError(w Word) Bool {
-	return w >= ErrBase
+func Assert(mustBeTrue bool, msg string) {
+	if !mustBeTrue {
+		panic(msg)
+	}
 }
 
-func ErrorAsToken(e Word) Token {
-	if e < ErrBase {
-		e = ERR_INT_BUG
-	}
+func IsError(q any) Bool {
+	return AsWord(q) >= ErrBase
+}
+
+func ErrorAsToken(q any) Token {
+	e := AsWord(q)
+	Assert(e >= ErrBase, "ErrorAsToken(): not an error")
 	return Token(e)
 }
 
-func ErrorAsSymIndex(e Word) SymIndex {
-	if e < ErrBase {
-		e = ERR_INT_BUG
-	}
+func ErrorAsSymIndex(q any) SymIndex {
+	e := AsWord(q)
+	Assert(e >= ErrBase, "ErrorAsSymIndex(): not an error")
 	return SymIndex(e)
 }
 
-func ErrorAsStrIndex(e Word) StrIndex {
-	if e < ErrBase {
-		e = ERR_INT_BUG
-	}
+func ErrorAsStrIndex(q any) StrIndex {
+	e := AsWord(q)
+	Assert(e >= ErrBase, "ErrorAsStrIndex(): not an error")
 	return StrIndex(e)
 }
 
-func ErrorAsAstIndex(e Word) AstNodeIndex {
-	if e < ErrBase {
-		e = ERR_INT_BUG
-	}
-	return AstNodeIndex(e)
+func ErrorAsAstIndex(q any) AstIndex {
+	e := AsWord(q)
+	Assert(e >= ErrBase, "ErrorAsAstIndex(): not an error")
+	return AstIndex(e)
 }

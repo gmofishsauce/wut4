@@ -15,7 +15,7 @@ var strtabNext StrIndex = 1 // We don't use [0] to help detect bugs
 // Allocate the remainder of the string table as temporary byte
 // storage.
 //
-// The okenizer uses the space after the end of the string table for
+// The tokenizer uses the space after the end of the string table for
 // input. If the token is not a string, e.g. it's a bunch of digits,
 // the tokenizer can call Discard() after the converting them to a
 // value. If token should be kept as a string, the returned position
@@ -100,6 +100,13 @@ func NumLookup(val Word) SymIndex {
 	return ErrorAsSymIndex(ERR_SYM_NODEF)
 }
 
+// Experimental interface
+func StrLookup(b Byte) SymIndex {
+	n := StrtabAllocate()
+	strtab[n] = b
+	return SymLookup(n, 1)
+}
+
 // Look up a symbol in the symbol table. val is index in the
 // interned string table. len is its length. We only look at
 // symbol table entries with len != 0; their Val fields are
@@ -129,6 +136,24 @@ func SymLookup(val StrIndex, len Byte) SymIndex {
 		}
 	}
 	return ErrorAsSymIndex(ERR_SYM_NODEF)
+}
+
+// The argument can be a token (the caller doesn't have to mask
+// off the high order 2 bits). If the argument is an error we
+// say so.
+func PrintSym(n SymIndex) {
+	if IsError(n) {
+		Printf("; SymIndex TT_ERR %x%n", n)
+	} else {
+		n &^= SymIndex(ErrBase)
+		Printf("; SymIndex %x ", n)
+		if symtab[n].Len == 0 {
+			Printf("num %x%n", symtab[n].Val)
+		} else {
+			r := symtab[n].Val
+			Printf("sym %c%n", strtab[r])
+		}
+	}
 }
 
 var lastKeySymIndex SymIndex
@@ -161,24 +186,25 @@ func AddLangSymbol(symRaw Byte, t Token) SymIndex {
 
 // All symbols defined by the language:
 
-const A Token = TT_KEY|1
-const B Token = TT_KEY|2
-const C Token = TT_KEY|3
-const D Token = TT_KEY|4
+const A Token = Token(TT_KEY|1) // Result variables displayed by emulator
+const B Token = Token(TT_KEY|2)
+const C Token = Token(TT_KEY|3)
+const D Token = Token(TT_KEY|4)
 
-const E Token = TT_KEY|5
-const F Token = TT_KEY|6
-const I Token = TT_KEY|7
-const Q Token = TT_KEY|8
-const V Token = TT_KEY|9
+const E Token = Token(TT_KEY|5) // Keywords
+const F Token = Token(TT_KEY|6)
+const I Token = Token(TT_KEY|7)
+const P Token = Token(TT_KEY|8)
+const Q Token = Token(TT_KEY|9)
+const V Token = Token(TT_KEY|10)
 
-const HASH Token = TT_KEY|10
-const SEMI Token = TT_KEY|11
-const EQU  Token = TT_KEY|12
-const BOPEN Token = TT_KEY|13
-const BCLOSE Token = TT_KEY|14
-const PLUS Token = TT_KEY|15
-const ERR Token = TT_KEY|16
+const HASH Token = Token(TT_KEY|11)	// Punctuation
+const SEMI Token = Token(TT_KEY|12)
+const EQU  Token = Token(TT_KEY|13)
+const BOPEN Token = Token(TT_KEY|14)
+const BCLOSE Token = Token(TT_KEY|15)
+const PLUS Token = Token(TT_KEY|16)
+const ERR Token = Token(TT_KEY|17)
 
 func Init() {
 	AddLangSymbol(Byte('A'), A)
@@ -189,6 +215,7 @@ func Init() {
 	AddLangSymbol(Byte('E'), E)
 	AddLangSymbol(Byte('F'), F)
 	AddLangSymbol(Byte('I'), I)
+	AddLangSymbol(Byte('P'), P)
 	AddLangSymbol(Byte('Q'), Q)
 	AddLangSymbol(Byte('V'), V)
 

@@ -9,6 +9,7 @@ package main
 func main() {
 	Init()
 	for a := Parse(STDIN); a < AstMaxNode; a++ {
-		Printf("AstNode %x%n", Word(a))
+		Printf("AstNode %x Sym ", Word(a))
+		PrintSym(AstNodes[a].Sym)
 	}
 }

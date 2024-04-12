@@ -94,8 +94,37 @@ const STRTAB_MAX StrIndex = 8192
 type AstNode struct { // AST node
 	Sym SymIndex      // index of symbol table entry
 	Size Word         // size of this node (with all subnodes)
-	Info Word         // TBD
+	Kind Byte
+	Xtra Byte
 }
 
-type AstNodeIndex Word
-const AstMaxNode AstNodeIndex = 2048
+type AstIndex Word
+const AstMaxNode AstIndex = 2048
+
+const (
+	AstKindNone = iota  // reserved
+	AstKindError        // Error placeholder node
+	AstKindUsr          // user defined symbol
+)
+
+const (
+	AstXtraDecl = iota  // this node is a declaration
+)
+
+func AsWord(q any) Word {
+	var w Word
+	switch q.(type) {
+	case Word:
+		w = q.(Word)
+	case StrIndex:
+		w = q.(Word)
+	case SymIndex:
+		w = q.(Word)
+	case AstIndex:
+		w = q.(Word)
+	default:
+		panic("AsWord(): unknown type")
+	}
+	return w
+}
+
