@@ -100,12 +100,15 @@ func NumLookup(val Word) SymIndex {
 	return ErrorAsSymIndex(ERR_SYM_NODEF)
 }
 
-// Experimental interface
+/*
+// Experimental interface - look up something that is expected to be
+// present.
 func StrLookup(b Byte) SymIndex {
 	n := StrtabAllocate()
 	strtab[n] = b
 	return SymLookup(n, 1)
 }
+*/
 
 // Look up a symbol in the symbol table. val is index in the
 // interned string table. len is its length. We only look at

@@ -108,22 +108,24 @@ const (
 )
 
 const (
-	AstXtraDecl = iota  // this node is a declaration
+	AstXtraDecl Byte = 1 // bitflag 1 this is a declaration
 )
 
 func AsWord(q any) Word {
 	var w Word
 	switch q.(type) {
+	case AstIndex:
+		w = Word(q.(AstIndex))
+	case StrIndex:
+		w = Word(q.(StrIndex))
+	case SymIndex:
+		w = Word(q.(SymIndex))
+	case Token:
+		w = Word(q.(Token))
 	case Word:
 		w = q.(Word)
-	case StrIndex:
-		w = q.(Word)
-	case SymIndex:
-		w = q.(Word)
-	case AstIndex:
-		w = q.(Word)
 	default:
-		panic("AsWord(): unknown type")
+		Assert(false, "AsWord(): unknown type")
 	}
 	return w
 }

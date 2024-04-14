@@ -67,7 +67,8 @@ func IsMatch(m Token, t Token) Bool {
 	case TT_ERR:
 		return false
 	}
-	panic("invalid TT_TYPE")
+	Assert(false, "invalid TT_TYPE")
+	return false // not reachable
 }
 
 // local functions
@@ -133,9 +134,7 @@ func LineNumber() Word {
 var pbt Token = 0
 
 func PushbackToken(t Token) {
-	if pbt != 0 || t == 0 {
-		panic("PushbackToken")
-	}
+	Assert(pbt == 0 && t != 0, "PushbackToken()")
 	pbt = t
 }
 

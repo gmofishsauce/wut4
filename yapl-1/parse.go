@@ -14,10 +14,31 @@ const NO_NODE Word = 0
 // the start. 0 is reserved to mean "no error and also no node".
 func allocAstNode() AstIndex {
 	result := astNodeNext
-	if result < 1 {
-		panic("out of AST nodes")
-	}
+	Assert(result >= 1, "out of AST nodes")
 	astNodeNext--
+	return result
+}
+
+// Return a ("conceptually abstract") snapshot of the node allocation
+// offset that can be passed to AllocatedSince() in the future to find
+// the number of nodes allocated.
+func Snapshot() AstIndex {
+	return astNodeNext
+}
+
+// Return the number of nodes allocated since the argument snapshot.
+func AllocatedSince(snapshot AstIndex) Word {
+	result := snapshot - astNodeNext
+	Assert(result < AstMaxNode, "bad snapshot in AllocatedSince()")
+	return Word(result)
+}
+
+func MakeAstNode(sym SymIndex, size Word, kind Byte, xtra Byte) AstIndex {
+	result := allocAstNode()
+	AstNodes[result].Sym = sym
+	AstNodes[result].Size = size
+	AstNodes[result].Kind = kind
+	AstNodes[result].Xtra = xtra
 	return result
 }
 
@@ -26,25 +47,26 @@ func Parse(in Word) AstIndex {
 	return program()
 }
 
-// Protocol: callee evaluates children, keeps count of directs, at
-// the end allocates a node for itself, fills in N, and returns index
-// to caller. Which adds callee to its count continues, allocates
-// its own node, returns, etc.
+// Protocol: some callee evaluates children. It determines count of
+// children, adds 1 for itself and a node for itself, and returns to
+// its caller, repeat.
 
 // Syntax errors cause the result to be an Error node of some type.
 // Error nodes are legal AST nodes and do not cause IsError() to
-// return true, so the parse may continue. Errors are typically
-// returned for non-syntax type errors,
+// return true, so the parse may continue. Error returns indicate
+// something non-continuable like EOF or an I/O error.
 
 func program() AstIndex {
-	var n Word;
+	var result AstIndex
+
+	pos := Snapshot()
 	for result := declaration(); !IsError(result); result = declaration() {
-		n++;
+		// nothing
 	}
-	a := allocAstNode()
-	AstNodes[a].Sym = StrLookup('P')
-	AstNodes[a].Size = n
-	return a
+	if IsError(result) {
+		return result
+	}
+	return MakeAstNode(TokenAsSymIndex(P), 1+AllocatedSince(pos), 0, 0)
 }
 
 func declaration() AstIndex {
@@ -57,7 +79,6 @@ func declaration() AstIndex {
 	} else if t == F {
 		return function()
 	}
-
 	return syntaxError("declaration", t)
 }
 
@@ -73,26 +94,30 @@ func variable() AstIndex {
 		return syntaxError("variable", v)
 	}
 
-	// We have the variable name in v
+	// We have the variable decl in v. We could shape this AST subtree
+	// with the assignment operator at the top, the newly declared
+	// variable as the left child, and the expression as the right
+	// child. But this is a bit messy to implement, so we create a
+	// node for v, a node for the assignment operation, and finally
+	// a node for the expression. We may end up revisiting this.
+
+	decl := MakeAstNode(TokenAsSymIndex(v), 1, AstKindUsr, AstXtraDecl)
 	t := GetToken(input)
 	if IsError(t) {
 		return ErrorAsAstIndex(t)
 	} else if t == SEMI {
-		// inject "= 0" for initialization
+		return decl
 	} else if t == EQU {
-		a := expr()
-		if IsError(a) {
-			return ErrorAsAstIndex(a)
-		}
+		return assign()
 	}
-	return 0 // TODO
+	return syntaxError("semicolon or assignment", t)
 }
 
 func function() AstIndex {
 	return 0 // TODO
 }
 
-func expr() AstIndex {
+func assign() AstIndex {
 	return 0 // TODO
 }
 
@@ -103,22 +128,6 @@ func IsAstError(a AstIndex) Bool {
 func IsSyntaxErrorNode(a AstIndex) Bool {
 	return AstNodes[a].Kind == AstKindError
 }
-
-/*
-// Consume the token. If it matches, don't create an AST node for it.
-// Return an error token for errors, 0 for success (because no node
-// was created) or 1 to indicate we allocated a syntax error node. In
-// the latter case, we resynchronize so the caller doesn't have to.
-func expect(exp Token) Word {
-	t := GetToken(inFD)	
-	if IsError(t) {
-		return Word(t)
-	} else if IsMatch(exp, t) {
-		return 0
-	}
-	return syntaxError(TokenToString(exp), t)
-}
-*/
 
 func syntaxError(msg string, bad Token) AstIndex {
 	Printf("; syntax error: line %x: expected %s but got %s%n",
