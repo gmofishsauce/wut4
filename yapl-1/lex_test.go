@@ -9,18 +9,18 @@ import (
 
 
 func TestLex01(t *testing.T) {
-	Init()
 	f, err := os.Open("t1.yapl-1")
 	check(t, "opening test file t1.yapl-1", err)
 	fd := Word(f.Fd())
+	Init(fd)
 
-	t1 := GetToken(fd)
+	t1 := GetToken()
 	PushbackToken(t1)
-	t2 := GetToken(fd)
+	t2 := GetToken()
 	assert(t, t1==t2, "PushbackToken")
 
 	var tk Token
-	for tk = GetToken(fd); tk != TT_EOF; tk = GetToken(fd) {
+	for tk = GetToken(); tk != TT_EOF; tk = GetToken() {
 		if tk >= TT_ERR {
 			break
 		}

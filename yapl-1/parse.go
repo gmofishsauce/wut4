@@ -2,9 +2,6 @@
 
 package main
 
-// XXX this is stupid, hide this in lexer
-var input Word // must be stdin for now
-
 var AstNodes [AstMaxNode]AstNode
 var astNodeNext AstIndex = AstMaxNode - 1
 
@@ -42,8 +39,7 @@ func MakeAstNode(sym SymIndex, size Word, kind Byte, xtra Byte) AstIndex {
 	return result
 }
 
-func Parse(in Word) AstIndex {
-	input = in
+func Parse() AstIndex {
 	return program()
 }
 
@@ -70,7 +66,7 @@ func program() AstIndex {
 }
 
 func declaration() AstIndex {
-	t := GetToken(input)
+	t := GetToken()
 
 	if IsError(t) {
 		return ErrorAsAstIndex(t)
@@ -86,7 +82,7 @@ func declaration() AstIndex {
 // by our caller) followed by an optional assignment expression. If
 // the assignment is not there, parser injects " = 0".
 func variable() AstIndex {
-	v := GetToken(input)
+	v := GetToken()
 	if IsError(v) {
 		return ErrorAsAstIndex(v)
 	}
@@ -102,7 +98,7 @@ func variable() AstIndex {
 	// a node for the expression. We may end up revisiting this.
 
 	decl := MakeAstNode(TokenAsSymIndex(v), 1, AstKindUsr, AstXtraDecl)
-	t := GetToken(input)
+	t := GetToken()
 	if IsError(t) {
 		return ErrorAsAstIndex(t)
 	} else if t == SEMI {
@@ -145,7 +141,7 @@ func syntaxError(msg string, bad Token) AstIndex {
 // If we hit EOF, push it back so our caller(s) will see it.
 func resync() {
 	var t Token
-	for t = GetToken(input); t != SEMI && t != BCLOSE && t != TT_EOF; t = GetToken(input) {
+	for t = GetToken(); t != SEMI && t != BCLOSE && t != TT_EOF; t = GetToken() {
 		; // nothing
 	}
 	if t == TT_EOF {

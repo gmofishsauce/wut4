@@ -3,6 +3,11 @@
 package main
 
 var LexDebug bool = true
+var inFD Word = 0
+
+func LexInit(fd Word) {
+	inFD = fd
+}
 
 // There are four types of tokens: user defined symbols like
 // variable names and constant strings, language defined symbols
@@ -141,15 +146,15 @@ func PushbackToken(t Token) {
 // The YAPL-1 language was created specifically to trivialize the
 // lexer, because lexing is tedious and well understood by most
 // everyone who might ever read this.
-func GetToken(inFD Word) Token {
-	tk := internalGetToken(inFD)
+func GetToken() Token {
+	tk := internalGetToken()
 	if LexDebug {
 		PrintTok(tk)
 	}
 	return tk
 }
 
-func internalGetToken(inFD Word) Token {
+func internalGetToken() Token {
 	if pbt != 0 {
 		result := pbt
 		pbt = 0

@@ -209,7 +209,7 @@ const BCLOSE Token = Token(TT_KEY|15)
 const PLUS Token = Token(TT_KEY|16)
 const ERR Token = Token(TT_KEY|17)
 
-func Init() {
+func SymInit() {
 	AddLangSymbol(Byte('A'), A)
 	AddLangSymbol(Byte('B'), B)
 	AddLangSymbol(Byte('C'), C)

@@ -6,9 +6,14 @@ package main
 // significant punctuation, and keywords, so that AST nodes can be
 // basically symbol table references.
 
+func Init(fd Word) {
+	LexInit(fd)
+	SymInit()
+}
+
 func main() {
-	Init()
-	for a := Parse(STDIN); a < AstMaxNode; a++ {
+	Init(STDIN)
+	for a := Parse(); a < AstMaxNode; a++ {
 		Printf("AstNode %x Sym ", Word(a))
 		PrintSym(AstNodes[a].Sym)
 	}
