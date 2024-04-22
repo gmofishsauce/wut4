@@ -28,6 +28,9 @@ y4.out
 w4.out
 wut4.out
 
+# KiCad backup zips
+ki/hs_pcb/hs_pcb-backups
+
 # test directories
 _Test*
 
