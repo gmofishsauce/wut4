@@ -30,6 +30,7 @@ wut4.out
 
 # KiCad backup zips
 ki/hs_pcb/hs_pcb-backups
+exer/ki/exer/exer-backups
 
 # test directories
 _Test*
