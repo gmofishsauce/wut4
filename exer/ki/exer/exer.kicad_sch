@@ -3867,16 +3867,6 @@
 	)
 	(wire
 		(pts
-			(xy 218.44 129.54) (xy 228.6 129.54)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "3aecb7ca-494f-4d56-80fb-391ae920a40c")
-	)
-	(wire
-		(pts
 			(xy 76.2 165.1) (xy 99.06 165.1)
 		)
 		(stroke
@@ -3924,16 +3914,6 @@
 			(type default)
 		)
 		(uuid "3dee6479-3603-4531-953a-f917b7f15137")
-	)
-	(wire
-		(pts
-			(xy 228.6 15.24) (xy 228.6 129.54)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "3e529255-8231-4239-a78e-4a1afe7b61c5")
 	)
 	(bus
 		(pts
@@ -5827,7 +5807,7 @@
 	)
 	(wire
 		(pts
-			(xy 228.6 15.24) (xy 210.82 15.24)
+			(xy 215.9 15.24) (xy 210.82 15.24)
 		)
 		(stroke
 			(width 0)
@@ -6406,9 +6386,9 @@
 		(uuid "fec25192-4fba-41b8-8840-fec33acfd182")
 	)
 	(arc
-		(start 231.14 129.54)
-		(mid 233.3372 135.89)
-		(end 231.14 142.24)
+		(start 228.6 127)
+		(mid 231.236 134.62)
+		(end 228.6 142.24)
 		(stroke
 			(width 0)
 			(type default)
@@ -6420,7 +6400,7 @@
 	)
 	(text "Page 2"
 		(exclude_from_sim no)
-		(at 238.76 137.16 0)
+		(at 236.22 134.62 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6471,6 +6451,7 @@
 	)
 	(label "B7_2"
 		(at 205.74 50.8 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6481,6 +6462,7 @@
 	)
 	(label "B7_1"
 		(at 205.74 53.34 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6491,6 +6473,7 @@
 	)
 	(label "B3_3"
 		(at 17.78 170.18 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6501,6 +6484,7 @@
 	)
 	(label "B8_1"
 		(at 205.74 76.2 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6533,6 +6517,7 @@
 	)
 	(label "B4_4"
 		(at 91.44 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6565,6 +6550,7 @@
 	)
 	(label "B4_0"
 		(at 101.6 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6575,6 +6561,7 @@
 	)
 	(label "B5_6"
 		(at 132.08 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6585,6 +6572,7 @@
 	)
 	(label "B1_1"
 		(at 17.78 68.58 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6595,6 +6583,7 @@
 	)
 	(label "B5_3"
 		(at 139.7 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6616,6 +6605,7 @@
 	)
 	(label "B7_0"
 		(at 205.74 55.88 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6670,6 +6660,7 @@
 	)
 	(label "B1_0"
 		(at 17.78 66.04 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6680,6 +6671,7 @@
 	)
 	(label "B1_2"
 		(at 17.78 71.12 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6723,6 +6715,7 @@
 	)
 	(label "B5_0"
 		(at 147.32 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6744,6 +6737,7 @@
 	)
 	(label "B4_7"
 		(at 83.82 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6765,6 +6759,7 @@
 	)
 	(label "B8_6"
 		(at 205.74 88.9 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6797,6 +6792,7 @@
 	)
 	(label "B3_6"
 		(at 17.78 177.8 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6807,6 +6803,7 @@
 	)
 	(label "B3_7"
 		(at 17.78 180.34 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6839,6 +6836,7 @@
 	)
 	(label "B4_6"
 		(at 86.36 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6849,6 +6847,7 @@
 	)
 	(label "B2_2"
 		(at 17.78 119.38 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6881,6 +6880,7 @@
 	)
 	(label "B2_0"
 		(at 17.78 114.3 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6902,6 +6902,7 @@
 	)
 	(label "B2_7"
 		(at 17.78 132.08 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6923,6 +6924,7 @@
 	)
 	(label "B7_5"
 		(at 205.74 43.18 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6955,6 +6957,7 @@
 	)
 	(label "B5_1"
 		(at 144.78 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6965,6 +6968,7 @@
 	)
 	(label "B2_1"
 		(at 17.78 116.84 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6975,6 +6979,7 @@
 	)
 	(label "B1_3"
 		(at 17.78 73.66 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6996,6 +7001,7 @@
 	)
 	(label "B7_4"
 		(at 205.74 45.72 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7017,6 +7023,7 @@
 	)
 	(label "B2_4"
 		(at 17.78 124.46 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7027,6 +7034,7 @@
 	)
 	(label "B4_3"
 		(at 93.98 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7048,6 +7056,7 @@
 	)
 	(label "B2_5"
 		(at 17.78 127 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7091,6 +7100,7 @@
 	)
 	(label "B3_1"
 		(at 17.78 165.1 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7123,6 +7133,7 @@
 	)
 	(label "B4_5"
 		(at 88.9 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7133,6 +7144,7 @@
 	)
 	(label "B3_0"
 		(at 17.78 162.56 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7154,6 +7166,7 @@
 	)
 	(label "B7_6"
 		(at 205.74 40.64 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7219,6 +7232,7 @@
 	)
 	(label "B8_2"
 		(at 205.74 78.74 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7262,6 +7276,7 @@
 	)
 	(label "B1_4"
 		(at 17.78 76.2 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7272,6 +7287,7 @@
 	)
 	(label "B3_2"
 		(at 17.78 167.64 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7282,6 +7298,7 @@
 	)
 	(label "B4_2"
 		(at 96.52 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7347,6 +7364,7 @@
 	)
 	(label "B1_7"
 		(at 17.78 83.82 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7368,6 +7386,7 @@
 	)
 	(label "B5_5"
 		(at 134.62 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7378,6 +7397,7 @@
 	)
 	(label "B8_5"
 		(at 205.74 86.36 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7388,6 +7408,7 @@
 	)
 	(label "B3_4"
 		(at 17.78 172.72 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7398,6 +7419,7 @@
 	)
 	(label "B2_3"
 		(at 17.78 121.92 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7408,6 +7430,7 @@
 	)
 	(label "B5_7"
 		(at 129.54 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7418,6 +7441,7 @@
 	)
 	(label "B8_0"
 		(at 205.74 73.66 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7428,6 +7452,7 @@
 	)
 	(label "B5_2"
 		(at 142.24 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7449,6 +7474,7 @@
 	)
 	(label "B8_3"
 		(at 205.74 81.28 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7459,6 +7485,7 @@
 	)
 	(label "B8_7"
 		(at 205.74 91.44 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7491,6 +7518,7 @@
 	)
 	(label "B7_7"
 		(at 205.74 38.1 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7556,6 +7584,7 @@
 	)
 	(label "B8_4"
 		(at 205.74 83.82 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7588,6 +7617,7 @@
 	)
 	(label "B5_4"
 		(at 137.16 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7664,6 +7694,7 @@
 	)
 	(label "B4_1"
 		(at 99.06 22.86 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7674,6 +7705,7 @@
 	)
 	(label "B2_6"
 		(at 17.78 129.54 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7706,6 +7738,7 @@
 	)
 	(label "B3_5"
 		(at 17.78 175.26 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7716,6 +7749,7 @@
 	)
 	(label "B1_5"
 		(at 17.78 78.74 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7726,6 +7760,7 @@
 	)
 	(label "B1_6"
 		(at 17.78 81.28 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7736,6 +7771,7 @@
 	)
 	(label "B7_3"
 		(at 205.74 48.26 0)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -7779,6 +7815,28 @@
 		(uuid "0e3de516-393d-45c8-8f5d-ce89d4109654")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 32.0743 58.42 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "U7_OE"
+		(shape input)
+		(at 215.9 15.24 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "143ebdd9-c31d-41af-8aac-8132ffc2c634")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 224.8723 15.24 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7850,6 +7908,28 @@
 					(size 1.27 1.27)
 				)
 				(justify right)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "TSTCLK"
+		(shape input)
+		(at 218.44 129.54 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "5cd87de3-5506-4f64-ae9d-dc2d78c08e16")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 228.138 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
 				(hide yes)
 			)
 		)
@@ -7986,28 +8066,6 @@
 			)
 		)
 	)
-	(global_label "TSTCLK"
-		(shape input)
-		(at 218.44 147.32 0)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "ec909486-2cb3-4e29-95d6-c40e86ba991c")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 228.138 147.32 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-				(hide yes)
-			)
-		)
-	)
 	(global_label "B2_[0..7]"
 		(shape input)
 		(at 20.32 106.68 0)
@@ -8065,6 +8123,28 @@
 		(uuid "fb48f189-821a-4b23-9b35-3677e068fde7")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 218.44 21.2657 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "U7_OE"
+		(shape input)
+		(at 218.44 147.32 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "fcca6766-2c18-4828-8ec0-050c74e10224")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 227.4123 147.32 0)
 			(effects
 				(font
 					(size 1.27 1.27)
