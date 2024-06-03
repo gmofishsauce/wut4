@@ -318,70 +318,6 @@ namespace SerialPrivate {
     return stBadCmd(r, b); // for now    
   }
 
-  State stGetMcr(RING* const r, byte b) {
-    consume(r, 1);
-    sendAck(b);
-    send(GetMCR());
-    return state;
-  }
-
-  State stRun(RING* const r, byte b) {
-    byte cmd[8];
-    copy(r, cmd, 8);
-    consume(r, 8);
-
-    byte clkCtrl;
-    unsigned short r0, r1, r2;
-    clkCtrl = cmd[1];
-    r0 = BtoS(cmd[2], cmd[3]);
-    r1 = BtoS(cmd[4], cmd[5]);
-    r2 = BtoS(cmd[6], cmd[7]);
-    RunYARC(r0, r1, r2);
-    SetClockControl(clkCtrl);
-    sendAck(b);
-    return state;
-  }
-
-  State stStop(RING* const r, byte b) {
-    consume(r, 1);
-    StopYARC();
-    sendAck(b);
-    return state;
-  }
-
-  // This implementation is maximally decoupled - we just set
-  // the clock control byte to a value, and the runtime task
-  // eventually notices and does something about it. All values
-  // are treated as meaningful.
-  //
-  // The spec says the MCR is returned. Unfortunately we have no
-  // way to know when the command will take effect, so we return
-  // the MCR from -before- we change any state. This might be
-  // marginally useful.
-  State stClockCtl(RING* const r, byte b) {
-    byte cmd[2];
-    copy(r, cmd, 2);
-    consume(r, 2);
-    byte result = GetMCR();
-    SetClockControl(cmd[1]);
-    sendAck(b);
-    send(result);
-    return state;
-  }
-
-  // Callback to log a bad debug command
-  byte badDebugValue = 0;
-
-  int badDebug(char* bp, int bmax) {
-    int result = snprintf_P(bp, bmax, PSTR("serial: debug: bad command %d"), badDebugValue);
-    if (result > bmax) result = bmax;
-    return result;
-  }
-
-  // Handling for debug command 1. We call this function,
-  // defined below, which needs a forward.
-  State rdMemInProgress(void);
-
   // In-progress handler for transmitting buffered
   // messages from the poll buffer to the host. Transmit
   // as much of the poll buffer as possible. If finished,
@@ -417,11 +353,6 @@ namespace SerialPrivate {
     return pollResponseInProgress();
   }
 
-  // Process an inbound system call response from the host.
-  State stResp(RING* const r, byte b) {
-    return stBadCmd(r, b);
-  }
-
   // GetVer command - when we can send, consume the command
   // byte and send the ack and version. Does not change state.
   State stGetVer(RING* const r, byte b) {
@@ -439,22 +370,6 @@ namespace SerialPrivate {
     return STATE_READY;
   }
 
-  State stSetAH(RING* const r, byte b) {
-    return stBadCmd(r, b);
-  }
-
-  State stSetAL(RING* const r, byte b) {
-    return stBadCmd(r, b);
-  }
-
-  State stSetDH(RING* const r, byte b) {
-    return stBadCmd(r, b);
-  }
-
-  State stSetDL(RING* const r, byte b) {
-    return stBadCmd(r, b);
-  }
-
   State stOneClk(RING* const r, byte b) {
     consume(r, 1);
     SingleClock();
@@ -470,16 +385,6 @@ namespace SerialPrivate {
     return state;
   }
   
-  // Set the MCR. This is a change in philosophy added December 2022.
-  State stSetMCR(RING* const r, byte b) {
-    consume(r, 1);
-    byte mcr = peek(r);
-    consume(r, 1);
-    SetMCR(mcr);
-    sendAck(b);
-    return state;
-  }
-
   typedef struct commandData {
     CommandHandler handler;     // handler function
     byte length;                // length of fixed part of command, 1 or more
@@ -490,18 +395,18 @@ namespace SerialPrivate {
   
   const PROGMEM CommandData handlers[] = {
     { stBadCmd,     1 },
-    { stGetMcr,     1 },
+    { stUndef,      1 },
     { stUndef,      1 },
     { stUndef,      1 },
 
-    { stClockCtl,   2 },
     { stUndef,      1 },
     { stUndef,      1 },
-    { stRun,        8 }, // cmd, clock_ctrl, r0 msb, lsb, r1 msb, lsb, r2 msb, lsb
+    { stUndef,      1 },
+    { stUndef,      1 },
 
-    { stStop,       1 },
+    { stUndef,      1 },
     { stPoll,       1 },
-    { stResp,       2 },
+    { stUndef,      1 },
     { stUndef,      1 },
 
     { stUndef,      1 },
@@ -509,10 +414,10 @@ namespace SerialPrivate {
     { stGetVer,     1 },
     { stSync,       1 },
   
-    { stSetAH,      2 },
-    { stSetAL,      2 },
-    { stSetDH,      2 },
-    { stSetDL,      2 },
+    { stUndef,      1 },
+    { stUndef,      1 },
+    { stUndef,      1 },
+    { stUndef,      1 },
 
     { stOneClk,     1 },
     { stGetBir,     1 },
@@ -524,7 +429,7 @@ namespace SerialPrivate {
     { stUndef,      1 },
     { stUndef,      1 },
     
-    { stSetMCR,     2 },
+    { stUndef,      1 },
     { stUndef,      1 },
     { stUndef,      1 },
     { stBadCmd,     1 },
