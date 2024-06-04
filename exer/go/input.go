@@ -1,6 +1,6 @@
 // Copyright (c) Jeff Berkowitz 2021. All rights reserved.
 
-package host
+package main
 
 // Nonblocking handler for standard input, with specific concessions
 // for interactive terminal use.

@@ -29,7 +29,7 @@
 // this code to do everything from the main thread (Goroutine). The struct
 // arduino remains, holding just a single field (it used to have more).
 
-package arduino
+package main
 
 import (
 	"fmt"
@@ -63,7 +63,7 @@ func (nre NoResponseError) Error() string {
 
 // Public interface
 
-func New(deviceName string, baudRate int) (*Arduino, error) {
+func NewArduino(deviceName string, baudRate int) (*Arduino, error) {
 	var arduino Arduino
 	var err error
 

@@ -1,6 +1,6 @@
 // Copyright (c) Jeff Berkowitz 2021, 2022. All rights reserved.
 
-package host
+package main
 
 // Serial port communications for Arduino Nano.
 // This program implements a simple byte-oriented protocol used to
@@ -14,8 +14,6 @@ package host
 // the Golang-level select statement to multiplex input and output.
 
 import (
-	"github.com/gmofishsauce/yarc/pkg/arduino"
-
 	"fmt"
 	"io"
 	"log"
@@ -46,7 +44,7 @@ var nanoLog *log.Logger
 // delays imposed by code in this file. As of March 2022, the only millisecond
 // sleep is in the terminal input code.
 
-func Main() {
+func main() {
 	log.SetFlags(log.Lmsgprefix | log.Lmicroseconds)
 	log.SetPrefix("host: ")
 	log.Println("firing up")
@@ -61,7 +59,7 @@ func Main() {
 
 	for {
 		log.Println("starting a session")
-		nano, err := arduino.New(arduinoNanoDevice, baudRate)
+		nano, err := NewArduino(arduinoNanoDevice, baudRate)
 		if err == nil {
 			err = session(input, nano)
 			if err == io.EOF {
@@ -112,7 +110,7 @@ func Main() {
 // (The USB device doesn't exist in /dev unless Nano is connected.)
 //
 // Connection not established: device open, but protocol broke down
-func session(input *Input, nano *arduino.Arduino) error {
+func session(input *Input, nano *Arduino) error {
 	var err error
 	tries := 3
 	for i := 0; i < tries; i++ {
@@ -145,6 +143,10 @@ func session(input *Input, nano *arduino.Arduino) error {
 			}
 		}
 	}
+}
+
+func process(line string, nano *Arduino) error {
+	return nil
 }
 
 func nanoSyscall(req string) error {
