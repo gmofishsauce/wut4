@@ -394,22 +394,22 @@ namespace SerialPrivate {
   // PROGMEM (ROM) so requires special access, below.
   
   const PROGMEM CommandData handlers[] = {
-    { stBadCmd,     1 },
+    { stBadCmd,     1 }, // 0xE0
     { stUndef,      1 },
     { stUndef,      1 },
     { stUndef,      1 },
 
-    { stUndef,      1 },
+    { stUndef,      1 }, // 0xE4
     { stUndef,      1 },
     { stUndef,      1 },
     { stUndef,      1 },
 
-    { stUndef,      1 },
+    { stUndef,      1 }, // 0xE8
     { stPoll,       1 },
     { stUndef,      1 },
     { stUndef,      1 },
 
-    { stUndef,      1 },
+    { stUndef,      1 }, // 0xEC
     { stUndef,      1 },
     { stGetVer,     1 },
     { stSync,       1 },
