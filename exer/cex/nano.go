@@ -4,10 +4,6 @@ package main
 
 // Serial port communications for Arduino Nano.
 
-// About calls to time.Sleep(): sleeps occur only during connection
-// establishment, and they are long, like 1 - 3 seconds. There are
-// no millisecond delays imposed by code in this file.
-
 import (
 	"fmt"
 	"log"
@@ -103,11 +99,8 @@ func doPoll(nano *Arduino) error {
 	if len(msg) != 0 {
 		if isLogRequest(msg) {
 			nanoLog.Printf(msg)
-		} else {
-			if trouble := nanoSyscall(msg); trouble != nil {
-				fmt.Printf("session: handling Nano sycall: %v\n", trouble)
-			}
 		}
+		// else handle other types of requests here
 	}
 	return nil
 }

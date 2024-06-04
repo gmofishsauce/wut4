@@ -3,18 +3,8 @@
 package main
 
 // Serial port communications for Arduino Nano.
-// This program implements a simple byte-oriented protocol used to
-// communicate with an Arduino Nano. The Nano runs firmware that
-// implements the downloader for the YARC sort-of-retro-computer.
-
-// Consider this if it turns out to be useful to have nonblocking
-// I/O on the serial port:
-// "github.com/albenik/go-serial"
-// This implementation uses blocking serial I/O, goroutines, and
-// the Golang-level select statement to multiplex input and output.
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -33,11 +23,6 @@ var nanoLog *log.Logger
 
 // When the Arduino (the "Nano") is connected by USB-serial, opening the port
 // from the Mac side forces a hard reset to the device (the Arduino restarts).
-// If the Nano is connected by two-wire serial, it doesn't. Both possibilities
-// have pros and cons. During the first part of development of the YARC, USB-
-// serial was used. But changing to 2-wire serial is contemplated. (The 2-wire
-// connection would also be USB at the host, but would not connect the DTR line
-// to the Nano so would not cause a reset when opened.)
 
 // About calls to time.Sleep() in this code: sleeps occur only during session
 // setup and teardown, and they are long (seconds). There are no millisecond
@@ -46,7 +31,7 @@ var nanoLog *log.Logger
 
 func main() {
 	log.SetFlags(log.Lmsgprefix | log.Lmicroseconds)
-	log.SetPrefix("host: ")
+	log.SetPrefix("cex: ")
 	log.Println("firing up")
 
 	// The Nano's log is opened first and remains open always.
@@ -145,10 +130,7 @@ func session(input *Input, nano *Arduino) error {
 	}
 }
 
+// Process a line of user input. Details TBD.
 func process(line string, nano *Arduino) error {
 	return nil
-}
-
-func nanoSyscall(req string) error {
-	return fmt.Errorf("unexpected syscall from Nano: %s", req)
 }
