@@ -1,33 +1,9 @@
 // Copyright (c) Jeff Berkowitz 2021. All rights reserved.
 
-// Package arduino provides a synchronous byte I/O interface to an Arduino.
-// The initial implementation uses the default USB serial port provided by
-// an Arduino Nano. Opening a standard USB serial port activates the DTR signal
-// which resets the Arduino, necessitating a full reconnect. The code in this
-// package  is (necessarily) aware of this. A future version of the hardware
-// may support a second serial connection that is USB at the host but Tx/Rx
-// only at the Nano, allowing the host to reopen a connection without causing
-// a reset. The code in this package will need to change when and if that
-// hardware is implemented.
-
-// Originally, the code in this file provided an _asynchronous_ interface
-// to the Nano by using channels and select statements for read and write.
-// When I ran Golang's data race detector, however, it fired, and the race(s)
-// were in the serial port object itself - between port.Read() and port.Close(),
-// for example. The Read() was by design a blocking read, meaning the Goroutine
-// that issued the Read() spent all its time blocked there waiting for bytes to
-// arrive from the Nano, putting them on the read channel, and then blocking
-// again. So I couldn't just throw a mutex around the call; it would have been
-// held all the time except for a moment each time a byte arrived. This would
-// have deadlocked with the need to write on the port (since the Nano only
-// responds to requests from the Mac). Bottom line, the serial port object
-// isn't threadsafe and it's hard to work around it.
-//
-// Fortunately, when I discovered this, v1.4 of the of go.bug.st/serial.v1
-// had appeared. It offers a read timeout. So it's no longer the case that
-// all reads must block indefinitely. I ripped out the Goroutines and changed
-// this code to do everything from the main thread (Goroutine). The struct
-// arduino remains, holding just a single field (it used to have more).
+// Type arduino provides a synchronous byte I/O interface to an Arduino. This
+// implementation uses the default USB serial port provided by an Arduino Nano.
+// Opening a standard USB serial port activates the DTR signal which resets the
+// Arduino, necessitating a full reconnect.
 
 package main
 
@@ -39,14 +15,9 @@ import (
 	"time"
 )
 
-// Naming this package was hard. The functionality is fairly general and could
-// be used (or easily adapted for use) with serial devices other than Arduino.
-// Also, it's only being tested with a single Arduino model (a Nano) so it's
-// a bit of an overreach to assert that this is for "Arduino". But in the end
-// it's the answer that provides the most clarity.
-
-// TODO generate shared code for Arduino specifics e.g. baud rate
-
+// The Nano snoops the serial line during the first few seconds of a reset,
+// looking for a byte pattern that identifiers a download from the IDE. It's
+// safest to just wait for this snoop period to end. This value works.
 const resetDelay time.Duration = 4 * time.Second
 
 // Types
@@ -67,21 +38,19 @@ func NewArduino(deviceName string, baudRate int) (*Arduino, error) {
 	var arduino Arduino
 	var err error
 
-	mode := &serial.Mode{BaudRate: baudRate, DataBits: 8, Parity: serial.NoParity, StopBits: serial.OneStopBit}
+	mode := &serial.Mode{BaudRate: baudRate, DataBits: 8,
+			Parity: serial.NoParity, StopBits: serial.OneStopBit}
 	arduino.port, err = serial.Open(deviceName, mode)
 	if err != nil {
 		return nil, err
 	}
 
-	// Here, the time delay is important because otherwise the Nano
-	// will consume the first few bytes in an attempt to see if this
-	// reset is a programming device trying to flash new firmware.
 	log.Printf("serial port is open - delaying %.0f seconds for Nano reset", resetDelay.Seconds())
 	time.Sleep(resetDelay)
 	return &arduino, nil
 }
 
-// Read the Nano until a byte is received or a timeout occurs
+// Read the Arduino until a byte is received or a timeout occurs
 func (arduino *Arduino) ReadFor(timeout time.Duration) (byte, error) {
 	return arduino.readByte(timeout)
 }
@@ -91,7 +60,7 @@ func (arduino *Arduino) Write(b []byte) error {
 	return arduino.writeBytes(b)
 }
 
-// Close the connection to the Nano.
+// Close the connection to the Arduino.
 func (arduino *Arduino) Close() error {
 	return arduino.closeSerialPort()
 }

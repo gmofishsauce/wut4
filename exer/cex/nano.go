@@ -99,24 +99,23 @@ func doPoll(nano *Arduino) error {
 	if len(msg) != 0 {
 		if isLogRequest(msg) {
 			nanoLog.Printf(msg)
+		} else {
+		    return fmt.Errorf("unsupported request type")
 		}
-		// else handle other types of requests here
 	}
 	return nil
 }
 
-// There are two general kinds of requests from the Nano: "log a message" and
-// "everything else". Everything else is system call requests, etc. Requests
-// other than log messages have a punctuation mark in the first column, while
-// log requests never do. This is all somewhat historical; originally, the Nano
-// was going to return log messages only, and the system call mechanism was
-// added only later.
+// There are two general kinds of requests from the Nano: log requests and
+// other requests. Other requests are identified by a punctuation mark ('#',
+// '$', '%', or '&') in column 1. Log requests are everything else. No "other"
+// requests are currently defined.
 func isLogRequest(req string) bool {
 	if req[0] >= '#' && req[0] <= '&' {
 		// syscall request of some type: '#', '$', '%', and '&' reserved
 		return false
 	}
-	// anything else we just log
+	// anything else is a log request
 	return true
 }
 
@@ -150,7 +149,7 @@ func getAck(nano *Arduino, cmd byte) error {
 // Do the fixed part of a command, which may be the entire command, and optionally
 // return the fixed response if any.
 //
-// Every command has a command byte optional fixed argument bytes specified
+// Every command has a command byte and may have fixed argument bytes specified
 // by the protocol spec, the last of which may be a count. After receipt of the
 // fixed bytes, the Nano is supposed to ack or nak. If the protocol specifies a
 // fixed response, it immediately follows the ack. The fixed response is not sent
@@ -166,7 +165,7 @@ func getAck(nano *Arduino, cmd byte) error {
 // state of the returned byte slice is undefined. Otherwise, the error is nil
 // and the returned byte slice contains the fixed response. If the command includes
 // counted bytes, the caller must then read or write them if the error return from
-// this function is nil but must not if the error return is non-nil.
+// this function is nil but must not try if the error return is non-nil.
 func doFixedCommand(nano *Arduino, fixed []byte, expected int) ([]byte, error) {
 	var response []byte
 
