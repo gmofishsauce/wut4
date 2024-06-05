@@ -371,17 +371,17 @@ namespace SerialPrivate {
   }
 
   State stOneClk(RING* const r, byte b) {
-    consume(r, 1);
-    SingleClock();
-    sendAck(b);
-    send(GetBIR());
+    // consume(r, 1);
+    // SingleClock();
+    // sendAck(b);
+    // send(GetBIR());
     return state;
   }
 
   State stGetBir(RING* const r, byte b) {
-    consume(r, 1);
-    sendAck(b);
-    send(GetBIR());
+    // consume(r, 1);
+    // sendAck(b);
+    // send(GetBIR());
     return state;
   }
   

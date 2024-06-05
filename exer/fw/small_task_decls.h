@@ -48,6 +48,3 @@ byte logQueueCallback(logCallback callback);
 // next queued callback is called from this function.
 int logGetPending(char *next, int maxCount);
 
-// Clock control API (consumed by runtime task)
-
-void SetClockControl(byte b);

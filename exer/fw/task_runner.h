@@ -17,13 +17,7 @@ namespace TaskPrivate {
   // for the include files in the main yarc_fw.ino, InitTasks()
   // does run the xxxInit() functions in order from first to last.
   // So  initialization imposes an ordering dependencies on this
-  // array; ports must be initialied before use, etc. When this
-  // is a power-on reset (POR), it may be important that portInit()
-  // is entered while YARC is still suspended by the POR# signal.
-  // The portInit() function may, at its option, wait for YARC to
-  // come out of the POR# state (which may take seconds). Other
-  // init functions should not touch YARC state (but there may be
-  // violations of this guideline in existing code).
+  // array; ports must be initialied before use, etc.
 
   // Note: PROGMEM - requires pgm_ functions to read.
   
@@ -33,7 +27,6 @@ namespace TaskPrivate {
     {0,              heartbeatTask },
     {logInit,        0             },
     {serialTaskInit, serialTaskBody},
-    {runtimeInit,    runtimeTask   },
   };
 
   const int N_TASKS = (sizeof(Tasks) / sizeof(TaskInfo));

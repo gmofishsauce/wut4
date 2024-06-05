@@ -8,32 +8,21 @@
 
 namespace PortPrivate {
 
-  // Initialization: I've never been able to make up my mind about how it
-  // should work. This much is clear: yarc_fw.ino::setup() calls InitTasks()
-  // which calls the init functions of all the tasks, in the order specified
-  // in the static task definition table in task_runner.h. At this point all
-  // the system facilities are usable. Then InitTasks() calls postInit() which
-  // just calls PortPrivate::internalPostInit() near line 270 in this file.
-  // If postInit() returns false, InitTasks() calls panic(). internalPostInit()
-  // has some built-in functionality and calls out to the following three
-  // functions.
+  // Initialization: yarc_fw.ino::setup() calls InitTasks() which calls the
+  // init functions of all the tasks, in the order specified in the static
+  // task definition table in task_runner.h. At this point all the system
+  // facilities are usable. Then InitTasks() calls postInit() which
+  // just calls PortPrivate::internalPostInit() in this file. If postInit()
+  // returns false, InitTasks() calls panic(). internalPostInit() has some
+  // built-in functionality and calls out to the following three functions.
 
   void callWhenAnyReset(void);      // Called from the top of postInit() always
   void callWhenPowerOnReset(void);  // Called only when power-on reset occurring
   void callAfterPostInit(void);     // Called from the end of postInit() always
   
-  // Ahem. The internal bus that connects the system data bus to the
-  // four slice busses is wired backwards. So all the bits written to
-  // the K register or to microcode memory are reversed, LSB for MSB,
-  // etc. Rewiring is possible but messy. Instead, we reverse all bits
-  // written to K or microcode RAM when we write them and reverse them
-  // back when we read microcode RAM (K is not directly readable). The
-  // read and write functions are messy, pretty much guaranteeing there
-  // is no other way to get at the memory that would go "around" the
-  // bit reversal function. The table is in program memory, which we
-  // have plenty of, and performance isn't particularly critical because
-  // writes only happen during system initialization. The code came
-  // from StackOverflow and probably cannot be covered by copyright.
+  // For convenience, some buses may be wired backwards. This function allows
+  // us to reverse bits. The table is in program memory, which we have plenty of.
+  // The code came from StackOverflow and probably cannot be covered by copyright.
   
   byte reverse_byte(byte b) {
     static const PROGMEM byte table[] = {
@@ -74,89 +63,6 @@ namespace PortPrivate {
       return pgm_read_ptr_near(&table[b]);
   }
 
-  // Formerly, to disable the microcode RAM outputs (i.e.
-  // to raise the OE# signal high) required giving 64 clocks.
-  // The RAM output enable was (literally) wired to the 7th
-  // bit (bit :6) of the microcode cycle counter. This worked,
-  // but was very slow. In June 2023, I cut the wire from the
-  // cycle counter and replaced it with the output of an S/R
-  // flip-flop actually located in "south" central although
-  // it's documented in the kludge space schematic in KiCad.
-  // The flop is set and cleared by two of the Nano's remaining
-  // toggle outputs, which required long wires. The other half
-  // of the flip-flip (a 74HC74) is used to solve an unrelated
-  // timing issue associated with resetting the counters when
-  // a new instruction is loaded.
-  void disableMicrocodeRamOutputs() {
-    nanoTogglePulse(DisableUCRamOut);
-  }
-
-  void enableMicrocodeRamOutputs() {
-    nanoTogglePulse(EnableUCRamOut);
-  }
-
-  // Write the K register. The arguments follow the big-endian
-  // convention (bytes 3, 2, 1, 0) we have for microcode.
-  void internalWriteK(byte k3, byte k2, byte k1, byte k0) {
-    disableMicrocodeRamOutputs();
-
-    ucrSetDirectionWrite();
-    ucrEnableSliceTransceiver();
-    ucrSetKRegWrite();
-
-    ucrSetSlice(3);
-    syncUCR();
-    SetMCR(McrEnableWcs(MCR_SAFE));
-    setAH(0x7F); setAL(0xFF);
-    setDH(0x00); setDL(reverse_byte(k3));
-    singleClock();
-    SetMCR(MCR_SAFE);
-
-    ucrSetSlice(2);
-    syncUCR();
-    SetMCR(McrEnableWcs(MCR_SAFE));
-    setAH(0x7F); setAL(0xFF);
-    setDH(0x00); setDL(reverse_byte(k2));
-    singleClock();
-    SetMCR(MCR_SAFE);
-
-    ucrSetSlice(1);
-    syncUCR();
-    SetMCR(McrEnableWcs(MCR_SAFE));
-    setAH(0x7F); setAL(0xFF);
-    setDH(0x00); setDL(reverse_byte(k1));
-    singleClock();
-    SetMCR(MCR_SAFE);
-
-    ucrSetSlice(0);
-    syncUCR();
-    SetMCR(McrEnableWcs(MCR_SAFE));
-    setAH(0x7F); setAL(0xFF);
-    setDH(0x00); setDL(reverse_byte(k0));
-    singleClock();
-    SetMCR(MCR_SAFE);
-
-    ucrMakeSafe();
-    enableMicrocodeRamOutputs();
-    setAH(0xFF); 
-    McrMakeSafe();
-  }
-
-  // Set the four K (microcode) registers to their "safe" value.
-  void kRegMakeSafe() {
-    internalWriteK(0xFF, 0xFF, 0xFF, 0xFF);
-    ucrMakeSafe();
-  }
-
-  void internalMakeSafe() {
-    kRegMakeSafe();
-    ucrMakeSafe();
-    AcrMakeSafe();
-    setAH(0xFF); 
-    setAL(0xFF);
-    McrMakeSafe();
-  }
-
   // Because of the order of initialization, this is basically
   // the very first code executed on either a hard or soft reset.
   // This (and all the init() functions) should be fast.
@@ -173,8 +79,6 @@ namespace PortPrivate {
     
     nanoSetMode(portData,   OUTPUT);
     nanoSetMode(portSelect, OUTPUT);
-
-    internalMakeSafe();
   }
 
   // PostInit() is called from setup after the init() functions are called for all the firmware tasks.
@@ -196,36 +100,17 @@ namespace PortPrivate {
 
     callWhenAnyReset();
 
-    if (YarcIsPowerOnReset()) {
-      callWhenPowerOnReset();
-    }
+    // Not clear if there will be an equivalent to YARC's power
+    // on reset circuitry in the chip exerciser.
+    // if (YarcIsPowerOnReset()) {
+    //   callWhenPowerOnReset();
+    // }
                 
-    // Now reset the "request service" flip-flop from the YARC
-    // so we don't later see a false service request.
-    nanoTogglePulse(ResetService);
-    if (YarcRequestsService()) {
-      panic(PANIC_POST, 3);
-    }
-
-    // The following section of the code exercises some historial
-    // and some still-existing startup time problems in the hardware.
-    // Turn on the LED solid and loop until the behavior is reliable.
-    // The flags problem (third loop below) was fixed, I think, on
-    // 2023-09-24. Memory read and write are still [often] unreliable
-    // at power on and this unreliability disappears as the parts
-    // warm up over a period of less than a minute. This makes the
-    // problem(s) very difficult to troubleshoot.
-
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, HIGH);
 
-    SetDisplay(0x66);
-    pinMode(LED_PIN, OUTPUT);
-    digitalWrite(LED_PIN, LOW);
-    
     // Now do some other tests, which can panic.
     callAfterPostInit();
-    internalMakeSafe();
     return true;
   }
 } // End of PortPrivate section
@@ -244,70 +129,11 @@ bool postInit() {
   return PortPrivate::internalPostInit();
 }
 
-// Interface to the 4 write-only bus registers: setAH
-// (address high), AL, DH (data high), DL.
-  
-void SetAH(byte b) {
-  PortPrivate::setAH(b);
-}
-
-void SetAL(byte b) {
-  PortPrivate::setAL(b);
-}
-  
-void SetDH(byte b) {
-  PortPrivate::setDH(b);
-}
-
-void SetDL(byte b) {
-  PortPrivate::setDL(b);
-}
-
-// Public interface to the read registers: Bus Input Register
-// and the readback value of the MCR.
-
-byte GetBIR() {
-  return PortPrivate::getBIR();
-}
-
-byte GetMCR() {
-  return PortPrivate::getMCR();
-}
-
-// Change of philosophy: direct set of MCR
-
-void SetMCR(byte b) {
-  PortPrivate::setMCR(b);
-}
-
-void SingleClock() {
-  PortPrivate::singleClock();
-}
-
 // Public interface to the write-only 8-bit Display Register (DR)
 
 void SetDisplay(byte b) {
-  PortPrivate::nanoSetRegister(PortPrivate::DisplayRegister, b);
-}
-
-void MakeSafe() {
-  PortPrivate::internalMakeSafe();
-}
-
-// Set the bus registers (AH, AL, DH, DL)
-void SetADHL(byte ah, byte al, byte dh, byte dl) {
-  SetAH(ah);
-  SetAL(al);
-  SetDH(dh);
-  SetDL(dl);  
-}
-
-// Set the YARC to RUN mode. Do not alter the clock settings, i.e.
-// don't start the clock running.
-void RunYARC(unsigned short r0, unsigned short r1, unsigned short r2) {
-}
-
-void StopYARC() {
+  // There's no display register in the chip exerciser (may need one)
+  // PortPrivate::nanoSetRegister(PortPrivate::DisplayRegister, b);
 }
 
 // These are convenience functions. Making them functions allows me to stash them
