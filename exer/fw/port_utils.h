@@ -36,7 +36,7 @@
 // both read and write mode. It drives (or receives from) the internal
 // Nano I/O bus to all the external registers. The select port is used
 // to clock and/or enable these registers and to directly control the
-// YARC. The mapping from internal ATmega control registers to "port" bits:
+// IC under test. Here are the mappings:
 //
 // Internal register  Port Name     Physical pin on Nano (1..30)
 // ~~~~~~~~~~~~~~~~~  ~~~~~~~~~     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -58,7 +58,7 @@
 // Read is similar, except the port must be set to input and the actual read
 // of the port must occur while the enable line is low, since the enable line
 // is connected to output enable pin on register or transceiver that drives
-// the internal bus (the Nano's I/O bus, not the YARC system bus).
+// the Nano's internal bus.
 //
 // We don't manage the LED port here, because its port assignment (pin 13)
 // is pretty standard across all Arduinos and clones. We leave that to a
@@ -89,14 +89,13 @@ namespace PortPrivate {
   PinList portSelect = {};
 
   // Outside the Nano there are two 3-to-8 decoder chips, providing a total
-  // of 16 pulse outputs. The pulse outputs are used to clock output registers,
-  // enable input registers to the Nano's I/O bus, and as direct controls to
-  // the YARC.
+  // of 16 pulse outputs. The pulse outputs are used to clock input and output
+  // registers, enable input registers to the Nano's I/O bus, and as direct
+  // controls to the IC under test.
   //
   // The three bit address on the decoders is bused from the Nano to both
   // decoders. But there are two distinct select pins, one for each decoder,
-  // allowing for a 17th state where none of the 16 pulse outputs are active
-  // (and in theory additional states where two outputs are active, etc.)
+  // allowing for a 17th state where none of the 16 pulse outputs are active.
   //
   // As a result there are two ways of representing the "address" of one of
   // the pulse outputs. In both representations, bits 2:0 go to the address
@@ -120,44 +119,41 @@ namespace PortPrivate {
   typedef byte REGISTER_ID;
 
   // Addresses on low decoder
-  // constexpr byte DATA_INPUT = 0;              // Read the data (bus) input register, the BIR
-  // constexpr byte DATAHI = 1;                  // Clock the high data output register
-  // constexpr byte DATALO = 2;                  // Clock the low data output register
-  // constexpr byte ADDRHI = 3;                  // Clock the high address register
-  // constexpr byte ADDRLO = 4;                  // Clock the low address register
-  // constexpr byte MCR_INPUT = 5;               // Read the MCR
-  // constexpr byte LOW_UNUSED_6 = 6;
-  // constexpr byte LOW_UNUSED_7 = 7;
+  constexpr byte B3_CLK = 0;              // Input port
+  constexpr byte B3_OE = 1;               // Read input
+  constexpr byte B2_CLK = 2;              // B2_OE is a port bit
+  constexpr byte B1_CLK = 3;              // B1_OE is a port bit
+  constexpr byte B4_CLK = 4;              // Output is always enabled
+  constexpr byte B5_CLK = 5;              // Output is always enabled
+  constexpr byte B8_CLK = 6;              // B8_OE is a port bit
+  constexpr byte B7_CLK = 7;              // Input port
 
   // Addresses on high decoder
-  // constexpr byte WCS_CLK = 0;                 // Clock the microcode control register
-  // constexpr byte ACR_CLK = 1;                 // Clock the ALU control register (ACR)
-  // constexpr byte UC_RAM_DIS_OUT = 2;          // Disables outputs of microcode RAMs for write
-  // constexpr byte UC_RAM_EN_OUT = 3;           // Enable outputs of microcode RAMs when write complete
-  // constexpr byte RESET_SERVICE = 4;           // Reset service request bit;  PULSE_EXT connector pin 2
-  // constexpr byte RAW_NANO_CLK = 5;            // Generate one YARC clock;    PULSE_EXT connector pin 3
-  // constexpr byte DISP_CLK = 6;                // Clock the display register; PULSE_EXT connector pin 4
-  // constexpr byte MCR_OUTPUT = 7;              // Clock the MCR
+  constexpr byte TSTCLK = 0;              // Clock the unit under test
+  constexpr byte B7_OE = 1;               // Read input
+  constexpr byte U10_CLK = 2;             // Output is always enabled
+  constexpr byte U11_CLK = 3;             // Input port
+  constexpr byte U11_OE = 4;              // Read input
+  constexpr byte UN_UP_5 = 5;             // unused        
+  constexpr byte UN_UP_6 = 6;             // unused          
+  constexpr byte UN_UP_7 = 7;             // unused          
 
   // Register IDs on low decoder are just their address
-  // constexpr REGISTER_ID BusInputRegister      = DATA_INPUT;
-  // constexpr REGISTER_ID DataRegisterHigh      = DATAHI;
-  // constexpr REGISTER_ID DataRegisterLow       = DATALO;
-  // constexpr REGISTER_ID AddrRegisterHigh      = ADDRHI;
-  // constexpr REGISTER_ID AddrRegisterLow       = ADDRLO;
-  // constexpr REGISTER_ID MachineControlRegisterInput = MCR_INPUT;
-  // constexpr REGISTER_ID LowUnused6            = LOW_UNUSED_6;
-  // constexpr REGISTER_ID LowUnused7            = LOW_UNUSED_7;
+  constexpr byte RI_B3_CLK = 0;
+  constexpr byte RI_B3_OE = 1;
+  constexpr byte RI_B2_CLK = 2;
+  constexpr byte RI_B1_CLK = 3;
+  constexpr byte RI_B4_CLK = 4;
+  constexpr byte RI_B5_CLK = 5;
+  constexpr byte RI_B8_CLK = 6;
+  constexpr byte RI_B7_CLK = 7;
 
   // Register IDs on high decoder need bit 3 set
-  // constexpr REGISTER_ID WcsControlClock = (DECODER_SELECT_MASK|WCS_CLK);
-  // constexpr REGISTER_ID AcrControlClock = (DECODER_SELECT_MASK|ACR_CLK);
-  // constexpr REGISTER_ID DisableUCRamOut = (DECODER_SELECT_MASK|UC_RAM_DIS_OUT);
-  // constexpr REGISTER_ID EnableUCRamOut = (DECODER_SELECT_MASK|UC_RAM_EN_OUT);
-  // constexpr REGISTER_ID ResetService = (DECODER_SELECT_MASK|RESET_SERVICE);
-  // constexpr REGISTER_ID RawNanoClock = (DECODER_SELECT_MASK|RAW_NANO_CLK);
-  // constexpr REGISTER_ID DisplayRegister = (DECODER_SELECT_MASK|DISP_CLK);
-  // constexpr REGISTER_ID MachineControlRegister = (DECODER_SELECT_MASK|MCR_OUTPUT);
+  constexpr byte RI_TSTCLK = DECODER_SELECT_MASK|0;
+  constexpr byte RI_B7_OE = DECODER_SELECT_MASK|1;
+  constexpr byte RI_U10_CLK = DECODER_SELECT_MASK|2;
+  constexpr byte RI_U11_CLK = DECODER_SELECT_MASK|3;
+  constexpr byte RI_U11_OE = DECODER_SELECT_MASK|4;
 
   constexpr byte getAddressFromRegisterID(REGISTER_ID reg) {
     return reg & DECODER_ADDRESS_MASK;

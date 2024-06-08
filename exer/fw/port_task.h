@@ -140,9 +140,6 @@ void SetDisplay(byte b) {
 // at the very bottom of the file.
 namespace PortPrivate {
 
-  void callWhenPowerOnReset() {
-  }
-
   void callWhenAnyReset() {
     SerialReset();
   }
