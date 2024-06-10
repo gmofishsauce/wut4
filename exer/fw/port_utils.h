@@ -64,241 +64,238 @@
 // is pretty standard across all Arduinos and clones. We leave that to a
 // separate purpose-built LED task that can play various patterns.
 
-namespace PortPrivate {
 
-  const byte NOT_PIN = 0;
-  typedef const byte PinList[];
+const byte NOT_PIN = 0;
+typedef const byte PinList[];
 
-  // Identifiers for the data port (Arduino logical pins 5, 6, ... 12) and the
-  // select port (Arduino logical pins 14, 15, 16, plus 17 and 18 as explained
-  // below).
-  //
-  // In the original version of this code which used digitalWrite(), the pin
-  // values were were essential and were stored in these two arrays:
-  //
-  // PinList portData   = {5, 6, 7, 8, 9, 10, 11, 12, NOT_PIN};
-  // PinList portSelect = {14, 15, 16, NOT_PIN};
-  //
-  // In the new Nano-specific version of this code which writes directly to
-  // the ATmega's PORTB, PORTC, and PORTD registers, the Nano pin numbers
-  // no longer referenced; but there is still code that requires portData
-  // and portSelect be defined as -something- for logical tests. So we use
-  // empty arrays to save a little space.
+// Identifiers for the data port (Arduino logical pins 5, 6, ... 12) and the
+// select port (Arduino logical pins 14, 15, 16, plus 17 and 18 as explained
+// below).
+//
+// In the original version of this code which used digitalWrite(), the pin
+// values were were essential and were stored in these two arrays:
+//
+// PinList portData   = {5, 6, 7, 8, 9, 10, 11, 12, NOT_PIN};
+// PinList portSelect = {14, 15, 16, NOT_PIN};
+//
+// In the new Nano-specific version of this code which writes directly to
+// the ATmega's PORTB, PORTC, and PORTD registers, the Nano pin numbers
+// no longer referenced; but there is still code that requires portData
+// and portSelect be defined as -something- for logical tests. So we use
+// empty arrays to save a little space.
 
-  PinList portData = {};
-  PinList portSelect = {};
+PinList portData = {};
+PinList portSelect = {};
 
-  // Outside the Nano there are two 3-to-8 decoder chips, providing a total
-  // of 16 pulse outputs. The pulse outputs are used to clock input and output
-  // registers, enable input registers to the Nano's I/O bus, and as direct
-  // controls to the IC under test.
-  //
-  // The three bit address on the decoders is bused from the Nano to both
-  // decoders. But there are two distinct select pins, one for each decoder,
-  // allowing for a 17th state where none of the 16 pulse outputs are active.
-  //
-  // As a result there are two ways of representing the "address" of one of
-  // the pulse outputs. In both representations, bits 2:0 go to the address
-  // input lines (A-lines) of both decoders. But in the REGISTER_ID, bit 3
-  // is 0 for the "low" (0-7) decoder and 1 for the "high" (8-15) decoder.
-  // Later, which doing the actual I/O operation, we need to either toggle
-  // PORTC:3 for the low decoder, or PORTC:4 for the high decoder.
-  //
-  // Finally, note that the two toggles run to the active HIGH enable inputs
-  // of the decoder chips. This was done because the Nano initializes output
-  // pins to LOW by default. But the active HIGH enables cause negative-going
-  // pulses on the decoder outputs, because that's how 74XX138s work, always.
+// Outside the Nano there are two 3-to-8 decoder chips, providing a total
+// of 16 pulse outputs. The pulse outputs are used to clock input and output
+// registers, enable input registers to the Nano's I/O bus, and as direct
+// controls to the IC under test.
+//
+// The three bit address on the decoders is bused from the Nano to both
+// decoders. But there are two distinct select pins, one for each decoder,
+// allowing for a 17th state where none of the 16 pulse outputs are active.
+//
+// As a result there are two ways of representing the "address" of one of
+// the pulse outputs. In both representations, bits 2:0 go to the address
+// input lines (A-lines) of both decoders. But in the REGISTER_ID, bit 3
+// is 0 for the "low" (0-7) decoder and 1 for the "high" (8-15) decoder.
+// Later, which doing the actual I/O operation, we need to either toggle
+// PORTC:3 for the low decoder, or PORTC:4 for the high decoder.
+//
+// Finally, note that the two toggles run to the active HIGH enable inputs
+// of the decoder chips. This was done because the Nano initializes output
+// pins to LOW by default. But the active HIGH enables cause negative-going
+// pulses on the decoder outputs, because that's how 74XX138s work, always.
 
-  constexpr int PIN_SELECT_0_7 = _BV(PORTC3);
-  constexpr int PIN_SELECT_8_15 = _BV(PORTC4);
-  constexpr int BOTH_DECODERS = (PIN_SELECT_0_7 | PIN_SELECT_8_15);
-        
-  constexpr byte DECODER_ADDRESS_MASK = 7;
-  constexpr byte DECODER_SELECT_MASK  = 8;
+constexpr int PIN_SELECT_0_7 = _BV(PORTC3);
+constexpr int PIN_SELECT_8_15 = _BV(PORTC4);
+constexpr int BOTH_DECODERS = (PIN_SELECT_0_7 | PIN_SELECT_8_15);
+      
+constexpr byte DECODER_ADDRESS_MASK = 7;
+constexpr byte DECODER_SELECT_MASK  = 8;
 
-  typedef byte REGISTER_ID;
+typedef byte REGISTER_ID;
 
-  // Addresses on low decoder
-  constexpr byte B3_CLK = 0;              // Input port
-  constexpr byte B3_OE = 1;               // Read input
-  constexpr byte B2_CLK = 2;              // B2_OE is a port bit
-  constexpr byte B1_CLK = 3;              // B1_OE is a port bit
-  constexpr byte B4_CLK = 4;              // Output is always enabled
-  constexpr byte B5_CLK = 5;              // Output is always enabled
-  constexpr byte B8_CLK = 6;              // B8_OE is a port bit
-  constexpr byte B7_CLK = 7;              // Input port
+// Addresses on low decoder
+constexpr byte B3_CLK = 0;              // Input port
+constexpr byte B3_OE = 1;               // Read input
+constexpr byte B2_CLK = 2;              // B2_OE is a port bit
+constexpr byte B1_CLK = 3;              // B1_OE is a port bit
+constexpr byte B4_CLK = 4;              // Output is always enabled
+constexpr byte B5_CLK = 5;              // Output is always enabled
+constexpr byte B8_CLK = 6;              // B8_OE is a port bit
+constexpr byte B7_CLK = 7;              // Input port
 
-  // Addresses on high decoder
-  constexpr byte TSTCLK = 0;              // Clock the unit under test
-  constexpr byte B7_OE = 1;               // Read input
-  constexpr byte U10_CLK = 2;             // Output is always enabled
-  constexpr byte U11_CLK = 3;             // Input port
-  constexpr byte U11_OE = 4;              // Read input
-  constexpr byte UN_UP_5 = 5;             // unused        
-  constexpr byte UN_UP_6 = 6;             // unused          
-  constexpr byte UN_UP_7 = 7;             // unused          
+// Addresses on high decoder
+constexpr byte TSTCLK = 0;              // Clock the unit under test
+constexpr byte B7_OE = 1;               // Read input
+constexpr byte B10_CLK = 2;             // Output is always enabled
+constexpr byte B11_CLK = 3;             // Input port
+constexpr byte B11_OE = 4;              // Read input
+constexpr byte UN_HI_5 = 5;             // unused        
+constexpr byte UN_HI_6 = 6;             // unused          
+constexpr byte UN_HI_7 = 7;             // unused          
 
-  // Register IDs on low decoder are just their address
-  constexpr byte RI_B3_CLK = 0;
-  constexpr byte RI_B3_OE = 1;
-  constexpr byte RI_B2_CLK = 2;
-  constexpr byte RI_B1_CLK = 3;
-  constexpr byte RI_B4_CLK = 4;
-  constexpr byte RI_B5_CLK = 5;
-  constexpr byte RI_B8_CLK = 6;
-  constexpr byte RI_B7_CLK = 7;
+// Register IDs on low decoder are just their address
+constexpr REGISTER_ID RI_B3_CLK = B3_CLK;
+constexpr REGISTER_ID RI_B3_OE = B3_OE;
+constexpr REGISTER_ID RI_B2_CLK = B2_CLK;
+constexpr REGISTER_ID RI_B1_CLK = B1_CLK;
+constexpr REGISTER_ID RI_B4_CLK = B4_CLK;
+constexpr REGISTER_ID RI_B5_CLK = B5_CLK;
+constexpr REGISTER_ID RI_B8_CLK = B8_CLK;
+constexpr REGISTER_ID RI_B7_CLK = B7_CLK;
 
-  // Register IDs on high decoder need bit 3 set
-  constexpr byte RI_TSTCLK = DECODER_SELECT_MASK|0;
-  constexpr byte RI_B7_OE = DECODER_SELECT_MASK|1;
-  constexpr byte RI_U10_CLK = DECODER_SELECT_MASK|2;
-  constexpr byte RI_U11_CLK = DECODER_SELECT_MASK|3;
-  constexpr byte RI_U11_OE = DECODER_SELECT_MASK|4;
+// Register IDs on high decoder need bit 3 set
+constexpr REGISTER_ID RI_TSTCLK = DECODER_SELECT_MASK|TSTCLK;
+constexpr REGISTER_ID RI_B7_OE = DECODER_SELECT_MASK|B7_OE;
+constexpr REGISTER_ID RI_U10_CLK = DECODER_SELECT_MASK|B10_CLK;
+constexpr REGISTER_ID RI_U11_CLK = DECODER_SELECT_MASK|B11_CLK;
+constexpr REGISTER_ID RI_U11_OE = DECODER_SELECT_MASK|B11_OE;
 
-  constexpr byte getAddressFromRegisterID(REGISTER_ID reg) {
-    return reg & DECODER_ADDRESS_MASK;
-  }
+constexpr byte getAddressFromRegisterID(REGISTER_ID reg) {
+  return reg & DECODER_ADDRESS_MASK;
+}
 
-  // This function returns the select pin for a register ID as above.
-  constexpr int getDecoderSelectPinFromRegisterID(REGISTER_ID reg) {
-    return (reg & DECODER_SELECT_MASK) ? PIN_SELECT_8_15 : PIN_SELECT_0_7;
-  }
+// This function returns the select pin for a register ID as above.
+constexpr int getDecoderSelectPinFromRegisterID(REGISTER_ID reg) {
+  return (reg & DECODER_SELECT_MASK) ? PIN_SELECT_8_15 : PIN_SELECT_0_7;
+}
 
-  // === start of lowest level code for writing to ports ===
-  
-  // Set the data port to the byte b. The data port is made from pieces of
-  // the Nano's internal PORTB and PORTD.
-  void nanoPutDataPort(byte b) {
-    // The "data port" is made of Nano physical pins 8 through 15. The
-    // three low order bits are in Nano PORTD. The five higher order are
-    // in the low-order bits of PORTB.
-    // First set PD5, PD6, and PD7 to the three low order bits of b.
-    int portDlowOrderBits = PORTD & 0x1F; // note: may sign extend
-    PORTD = byte(portDlowOrderBits | ((b & 0x07) << 5));
+// === start of lowest level code for writing to ports ===
 
-    // Now set the low order 5 bits of PORTB to the high 5 bits of b.
-    // These PORTB outputs appear on pins 11 through 15 inclusive.
-    int portBhighOrderBits = PORTB & 0xE0; // note: may sign extend
-    PORTB = byte(portBhighOrderBits | ((b & 0xF8) >> 3));
-  }
+// Set the data port to the byte b. The data port is made from pieces of
+// the Nano's internal PORTB and PORTD.
+void nanoPutDataPort(byte b) {
+  // The "data port" is made of Nano physical pins 8 through 15. The
+  // three low order bits are in Nano PORTD. The five higher order are
+  // in the low-order bits of PORTB.
+  // First set PD5, PD6, and PD7 to the three low order bits of b.
+  int portDlowOrderBits = PORTD & 0x1F; // note: may sign extend
+  PORTD = byte(portDlowOrderBits | ((b & 0x07) << 5));
 
-  // Set PORTC bits 0, 1, and 2 to the three-bit address of one of eight
-  // outputs on a 74HC138 decoder. Do not change the 5 high order bits of
-  // PORTC. The choice of which decoder is made seprately in nanoTogglePort().
-  void nanoPutSelectPort(byte b) {
-      int portChighOrder5bits = PORTC & 0xF8; // note: may sign extend
-      PORTC = byte(portChighOrder5bits | (b & 0x07));
-  }
-  
-  void nanoPutPort(PinList port, int value) {
-    if (port == portData) {
-      nanoPutDataPort(value);
-    } else {
-      nanoPutSelectPort(value);
-    }
-  }
-  
-  // We take advantage of the fact that we only ever call get()
-  // on the data port.
-  byte nanoGetPort(PinList port) {
-    // The "data port" is made of Nano physical pins 8..15. The three
-    // low order bits are in ATmega PORTD. The five higher order, PORTB.
-    // First get PD7:5 and put them in the low order bits of the result.
-    byte portDbits = (PIND >> 5) & 0x07;
-    byte portBbits = (PINB & 0x1F) << 3;
-    return byte(portDbits | portBbits);
-  }
+  // Now set the low order 5 bits of PORTB to the high 5 bits of b.
+  // These PORTB outputs appear on pins 11 through 15 inclusive.
+  int portBhighOrderBits = PORTB & 0xE0; // note: may sign extend
+  PORTB = byte(portBhighOrderBits | ((b & 0xF8) >> 3));
+}
 
-  // Set the data port to be output or input. Delays in this file are
-  // critical and must not be altered; some of them handle documented
-  // issues with the ATmega, and some handle registrictions imposed by
-  // the design of the external registers. This one is the first kind.
-  void nanoSetDataPortMode(int mode) {
-      if (mode == OUTPUT) {
-        DDRD = DDRD | 0xE0;
-        DDRB = DDRB | 0x1F;
-      } else {
-        DDRD = DDRD & ~0xE0;
-        DDRB = DDRB & ~0x1F;
-      }
-      delayMicroseconds(2);
-  }
+// Set PORTC bits 0, 1, and 2 to the three-bit address of one of eight
+// outputs on a 74HC138 decoder. Do not change the 5 high order bits of
+// PORTC. The choice of which decoder is made seprately in nanoTogglePort().
+void nanoPutSelectPort(byte b) {
+    int portChighOrder5bits = PORTC & 0xF8; // note: may sign extend
+    PORTC = byte(portChighOrder5bits | (b & 0x07));
+}
 
-  // Set the select port to be output (it's always output). Again,
-  // delays in this file are critical and must not be altered.
-  void nanoSetSelectPortMode(int mode) {
-    DDRC |= DDRC | 0x07;
-    delayMicroseconds(2);
-  }
-  
-  void nanoSetMode(PinList port, int mode) {
-    if (port == portData) {
-      nanoSetDataPortMode(mode);
-    } else {
-      nanoSetSelectPortMode(mode);
-    }
-  }
-
-  // This is a critical function that serves to pulse one of the 16
-  // decoder outputs. To do this, it has to put the 3-bit address of
-  // one of 8 data ports on to the 3-bit select port which is bussed
-  // to the address (A) lines of the decoders. Then it has to enable
-  // the correct decoder by togging either PORTC:3 or PORTC:4. One
-  // of these values is returned by getDecoderSelectPinFromRegisterID().
-  void nanoTogglePulse(REGISTER_ID reg) {
-    // Bug fix (although no symptoms were ever seen): to prevent glitches
-    // and overlap on busses, we must disable both decoders before enabling
-    // either one.
-    PORTC &= ~BOTH_DECODERS;
-    
-    byte decoderAddress = getAddressFromRegisterID(reg);
-    nanoPutPort(portSelect, decoderAddress);
-    
-    byte decoderEnablePin = getDecoderSelectPinFromRegisterID(reg);
-    PORTC = PORTC | decoderEnablePin;
-    PORTC = PORTC & ~decoderEnablePin;
-  }
-
- #if 0 
-  // This function is only for use during debugging. It causes a toggle
-  // to instead go low and stay that way.
-  void nanoStartToggle(REGISTER_ID reg) {
-    PORTC &= ~BOTH_DECODERS;
-    
-    byte decoderAddress = getAddressFromRegisterID(reg);
-    nanoPutPort(portSelect, decoderAddress);
-    
-    byte decoderEnablePin = getDecoderSelectPinFromRegisterID(reg);
-    PORTC = PORTC | decoderEnablePin;    
-  }
- #endif
-  
-  // Enable the specified register for input and call getPort() to read
-  // the value. We cannot use nanoTogglePulse() here because we have to
-  // read the value after setting the enable line low and before setting
-  // it high again. As always, the delays are the result of careful
-  // experimentation and are absolutely required.
-  byte nanoGetRegister(REGISTER_ID reg) {    
-    byte decoderAddress = getAddressFromRegisterID(reg);
-    nanoPutPort(portSelect, decoderAddress);
-    
-    nanoSetMode(portData, INPUT);
-    
-    byte result;
-    byte decoderEnablePin = getDecoderSelectPinFromRegisterID(reg);
-    PORTC |= decoderEnablePin;
-    delayMicroseconds(2);
-    result = nanoGetPort(portData);
-    PORTC &= ~decoderEnablePin;
-    
-    nanoSetMode(portData, OUTPUT);
-    return result;
-  }
-  
-  void nanoSetRegister(REGISTER_ID reg, byte data) {
-    nanoSetMode(portData, OUTPUT);
-    nanoPutPort(portData, data);    
-    nanoTogglePulse(reg);
+void nanoPutPort(PinList port, int value) {
+  if (port == portData) {
+    nanoPutDataPort(value);
+  } else {
+    nanoPutSelectPort(value);
   }
 }
 
+// We take advantage of the fact that we only ever call get()
+// on the data port.
+byte nanoGetPort(PinList port) {
+  // The "data port" is made of Nano physical pins 8..15. The three
+  // low order bits are in ATmega PORTD. The five higher order, PORTB.
+  // First get PD7:5 and put them in the low order bits of the result.
+  byte portDbits = (PIND >> 5) & 0x07;
+  byte portBbits = (PINB & 0x1F) << 3;
+  return byte(portDbits | portBbits);
+}
+
+// Set the data port to be output or input. Delays in this file are
+// critical and must not be altered; some of them handle documented
+// issues with the ATmega, and some handle registrictions imposed by
+// the design of the external registers. This one is the first kind.
+void nanoSetDataPortMode(int mode) {
+    if (mode == OUTPUT) {
+      DDRD = DDRD | 0xE0;
+      DDRB = DDRB | 0x1F;
+    } else {
+      DDRD = DDRD & ~0xE0;
+      DDRB = DDRB & ~0x1F;
+    }
+    delayMicroseconds(2);
+}
+
+// Set the select port to be output (it's always output). Again,
+// delays in this file are critical and must not be altered.
+void nanoSetSelectPortMode(int mode) {
+  DDRC |= DDRC | 0x07;
+  delayMicroseconds(2);
+}
+
+void nanoSetMode(PinList port, int mode) {
+  if (port == portData) {
+    nanoSetDataPortMode(mode);
+  } else {
+    nanoSetSelectPortMode(mode);
+  }
+}
+
+// This is a critical function that serves to pulse one of the 16
+// decoder outputs. To do this, it has to put the 3-bit address of
+// one of 8 data ports on to the 3-bit select port which is bussed
+// to the address (A) lines of the decoders. Then it has to enable
+// the correct decoder by togging either PORTC:3 or PORTC:4. One
+// of these values is returned by getDecoderSelectPinFromRegisterID().
+void nanoTogglePulse(REGISTER_ID reg) {
+  // Bug fix (although no symptoms were ever seen): to prevent glitches
+  // and overlap on busses, we must disable both decoders before enabling
+  // either one.
+  PORTC &= ~BOTH_DECODERS;
+  
+  byte decoderAddress = getAddressFromRegisterID(reg);
+  nanoPutPort(portSelect, decoderAddress);
+  
+  byte decoderEnablePin = getDecoderSelectPinFromRegisterID(reg);
+  PORTC = PORTC | decoderEnablePin;
+  PORTC = PORTC & ~decoderEnablePin;
+}
+
+#if 0 
+// This function is only for use during debugging. It causes a toggle
+// to instead go low and stay that way.
+void nanoStartToggle(REGISTER_ID reg) {
+  PORTC &= ~BOTH_DECODERS;
+  
+  byte decoderAddress = getAddressFromRegisterID(reg);
+  nanoPutPort(portSelect, decoderAddress);
+  
+  byte decoderEnablePin = getDecoderSelectPinFromRegisterID(reg);
+  PORTC = PORTC | decoderEnablePin;    
+}
+#endif
+
+// Enable the specified register for input and call getPort() to read
+// the value. We cannot use nanoTogglePulse() here because we have to
+// read the value after setting the enable line low and before setting
+// it high again. As always, the delays are the result of careful
+// experimentation and are absolutely required.
+byte nanoGetRegister(REGISTER_ID reg) {    
+  byte decoderAddress = getAddressFromRegisterID(reg);
+  nanoPutPort(portSelect, decoderAddress);
+  
+  nanoSetMode(portData, INPUT);
+  
+  byte result;
+  byte decoderEnablePin = getDecoderSelectPinFromRegisterID(reg);
+  PORTC |= decoderEnablePin;
+  delayMicroseconds(2);
+  result = nanoGetPort(portData);
+  PORTC &= ~decoderEnablePin;
+  
+  nanoSetMode(portData, OUTPUT);
+  return result;
+}
+
+void nanoSetRegister(REGISTER_ID reg, byte data) {
+  nanoSetMode(portData, OUTPUT);
+  nanoPutPort(portData, data);    
+  nanoTogglePulse(reg);
+}

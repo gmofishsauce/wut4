@@ -5,6 +5,7 @@ package main
 // Serial port communications for Arduino Nano.
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -130,7 +131,24 @@ func session(input *Input, nano *Arduino) error {
 	}
 }
 
-// Process a line of user input. Details TBD.
+// Process a line of user input. Returning error is fatal,
+// so we don't do that for typos, etc. We just print messages.
 func process(line string, nano *Arduino) error {
+	switch line[0] {
+	case 't':
+		var cmd []byte = make([]byte, 3, 3)
+		n, err := fmt.Sscanf(line[2:], "%d %d", &cmd[1], &cmd[2])
+		fmt.Printf("ret %d %v (%d %d)\n", n, err, cmd[1], cmd[2])
+		if n != 2 {
+			fmt.Printf("usage: t ct id\n")
+			return nil
+		}
+		cmd[0] = CmdPulse
+		if _, err := doFixedCommand(nano, cmd, 0); err != nil {
+			fmt.Printf("cmd t 0x%02X 0x%02X: %v\n", cmd[1], cmd[2], err);
+		}
+	default:
+		fmt.Printf("%s: unknown command\n", line)
+	}
 	return nil
 }

@@ -3,22 +3,19 @@
 
 package main
 
-const ProtocolVersion = 11
+const ProtocolVersion = 12
 
 func Ack(b byte) byte {
 	return ^b
 }
 
-const CmdBase              = 0xE0
-const CmdSync              = 0xEF
-const CmdGetVer            = 0xEE
-const CmdPoll              = 0xE9
+const CmdBase     = 0xE0
+const CmdSync     = 0xE1
+const CmdGetVer   = 0xE2
+const CmdPoll     = 0xE3
 
-const ErrNosync            = 0x80
-const ErrPassive           = 0x81
-const ErrOneclock          = 0x82
-const ErrCantSs            = 0x83
-const ErrCantPg            = 0x84
-const ErrInternal          = 0x85
-const ErrBadcmd            = 0x86
+const CmdPulse    = 0xF0
+const CmdSee      = 0xF4
+const CmdGee      = 0xF8
 
+const ErrBadcmd   = 0x81
