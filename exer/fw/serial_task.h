@@ -321,8 +321,30 @@ namespace SerialPrivate {
     }
   }
 
+  // A wrapper for undefined commands in case we ever want to handle
+  // them differently from bad command bytes and other more serious
+  // errors.
   State stUndef(RING* const r, byte b) {
     return stBadCmd(r, b); // for now    
+  }
+
+  // *** Protocol setup commands including poll() implementation ***
+
+  // Sync command - just ack it and set the display register
+  State stSync(RING* const r, byte b) {
+    consume(r, 1);
+    sendAck(b);
+    SetDisplay(0xC2);
+    return STATE_READY;
+  }
+
+  // GetVer command - when we can send, consume the command
+  // byte and send the ack and version. Does not change state.
+  State stGetVer(RING* const r, byte b) {
+    consume(r, 1);
+    sendAck(b);
+    send(PROTOCOL_VERSION);
+    return state;
   }
 
   // In-progress handler for transmitting buffered
@@ -360,31 +382,15 @@ namespace SerialPrivate {
     return pollResponseInProgress();
   }
 
-  // GetVer command - when we can send, consume the command
-  // byte and send the ack and version. Does not change state.
-  State stGetVer(RING* const r, byte b) {
-    consume(r, 1);
-    sendAck(b);
-    send(PROTOCOL_VERSION);
-    return state;
-  }
+  // *** Chip exerciser commands. ***
 
-  // Sync command - just ack it and set the display register
-  State stSync(RING* const r, byte b) {
-    consume(r, 1);
-    sendAck(b);
-    SetDisplay(0xC2);
-    return STATE_READY;
-  }
+  // All the toggles and registers that make up the exerciser are simply
+  // indexed, 0..15. The host is completely responsible for knowing which
+  // control lines go to which ports and which ports run to which sockets.
 
-  static byte pulseCmd[3];
-
-  int logStPulse(char *bp, int bmax) {
-    int n = snprintf_P(bp, bmax, PSTR("stPulse %d %d"), pulseCmd[1], pulseCmd[2]);
-    return (n > bmax) ? bmax : n;
-  }
-
+  // Toggle the control output cmd[2] low then high again cmd[1] times.
   State stPulse(RING* const r, byte b) {
+    byte pulseCmd[3];
     copy(r, pulseCmd, 3);
     consume(r, 3);
     // cmd[0] == b; cmd[1] == count;
@@ -393,24 +399,50 @@ namespace SerialPrivate {
       stBadCmd(r, b);
     }
 
-    logQueueCallback(logStPulse);
-
     for (int i = 0; i < pulseCmd[1]; ++i) {
       nanoTogglePulse(pulseCmd[2]);
     }
     sendAck(b);
-
     return state;
   }
 
+  // Set the register specified by the first byte of the command
+  // to the value in the second byte. The Nano does not know if the
+  // register specifier actually corresponds to an output register.
   State stSet(RING* const r, byte b) {
+    byte setCmd[3];
+    copy(r, setCmd, 3);
+    consume(r, 3);
+    // cmd[0] == b; cmd[1] == id;
+    // cmd[2] == data to output
+    if (setCmd[1] > 15) {
+      stBadCmd(r, b);
+    }
+
+    nanoSetRegister(setCmd[1], setCmd[2]);
+    sendAck(b);
     return state;
   }
-  
+
+  // An input register must be clocked via stPulse() before
+  // stGet() is called. It will retain its value until the
+  // next clock.  
   State stGet(RING* const r, byte b) {
+    byte getCmd[2];
+    copy(r, getCmd, 2);
+    consume(r, 2);
+    // cmd[0] == b; cmd[1] == id
+    if (getCmd[1] > 15) {
+      stBadCmd(r, b);
+    }
+    byte result = nanoGetRegister(getCmd[1]);
+    sendAck(b);
+    send(result);
     return state;
   }
   
+  // *** End of command implementations ***
+
   typedef struct commandData {
     CommandHandler handler;     // handler function
     byte length;                // length of fixed part of command, 1..MAX_CMD_SIZE
@@ -445,12 +477,12 @@ namespace SerialPrivate {
     { stUndef,      1 },
     { stUndef,      1 },
 
-    { stSet,        1 }, // 0xF4
+    { stSet,        3 }, // 0xF4
     { stUndef,      1 },
     { stUndef,      1 },
     { stUndef,      1 },
 
-    { stGet,        1 }, // 0xF8
+    { stGet,        2 }, // 0xF8
     { stUndef,      1 },
     { stUndef,      1 },
     { stUndef,      1 },

@@ -135,8 +135,9 @@ func session(input *Input, nano *Arduino) error {
 // so we don't do that for typos, etc. We just print messages.
 func process(line string, nano *Arduino) error {
 	switch line[0] {
-	case 't':
+	case 't': // toggle a control line, e.g. a clock
 		var cmd []byte = make([]byte, 3, 3)
+		// t id count
 		n, err := fmt.Sscanf(line[2:], "%d %d", &cmd[1], &cmd[2])
 		fmt.Printf("ret %d %v (%d %d)\n", n, err, cmd[1], cmd[2])
 		if n != 2 {
@@ -147,6 +148,38 @@ func process(line string, nano *Arduino) error {
 		if _, err := doFixedCommand(nano, cmd, 0); err != nil {
 			fmt.Printf("cmd t 0x%02X 0x%02X: %v\n", cmd[1], cmd[2], err);
 		}
+	case 's': // set a register
+		var cmd []byte = make([]byte, 3, 3)
+		// s id data
+        n, err := fmt.Sscanf(line[2:], "%d %d", &cmd[1], &cmd[2])
+        fmt.Printf("ret %d %v (%d %d)\n", n, err, cmd[1], cmd[2])
+        if n != 2 {
+            fmt.Printf("usage: s id data\n")
+            return nil
+        }
+        cmd[0] = CmdSet
+        if _, err := doFixedCommand(nano, cmd, 0); err != nil {
+            fmt.Printf("cmd s 0x%02X 0x%02X: %v\n", cmd[1], cmd[2], err);
+        }
+	case 'g': // get a register
+		// Note: this just reads the reads the input register.
+		// It must be separately clocked using a "t" command.
+		var cmd []byte = make([]byte, 2, 2)
+		// g id
+        n, err := fmt.Sscanf(line[2:], "%d", &cmd[1])
+        fmt.Printf("ret %d %v (%d)\n", n, err, cmd[1])
+        if n != 1 {
+            fmt.Printf("usage: g id\n")
+            return nil
+        }
+        cmd[0] = CmdGet
+        sl, err := doFixedCommand(nano, cmd, 0)
+		if err != nil {
+            fmt.Printf("cmd g 0x%02X 0x%02X: %v\n", cmd[1], cmd[2], err);
+			break
+        }
+		fmt.Printf("in(0x%02X) = 0x%02X\n", cmd[1], sl[0])
+
 	default:
 		fmt.Printf("%s: unknown command\n", line)
 	}
