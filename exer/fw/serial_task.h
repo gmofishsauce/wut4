@@ -408,7 +408,8 @@ namespace SerialPrivate {
 
   // Set the register specified by the first byte of the command
   // to the value in the second byte. The Nano does not know if the
-  // register specifier actually corresponds to an output register.
+  // first byte (register specifier) actually corresponds to an output
+  // register. If the command value b is 
   State stSet(RING* const r, byte b) {
     byte setCmd[3];
     copy(r, setCmd, 3);
@@ -419,7 +420,11 @@ namespace SerialPrivate {
       stBadCmd(r, b);
     }
 
-    nanoSetRegister(setCmd[1], setCmd[2]);
+    byte data = setCmd[2];
+    if (b == STCMD_SETR) {
+      data = reverse_byte(setCmd[2]);
+    }
+    nanoSetRegister(setCmd[1], data);
     sendAck(b);
     return state;
   }
@@ -436,6 +441,9 @@ namespace SerialPrivate {
       stBadCmd(r, b);
     }
     byte result = nanoGetRegister(getCmd[1]);
+    if (b == STCMD_GETR) {
+      result = reverse_byte(result);
+    }
     sendAck(b);
     send(result);
     return state;
@@ -478,12 +486,12 @@ namespace SerialPrivate {
     { stUndef,      1 },
 
     { stSet,        3 }, // 0xF4
-    { stUndef,      1 },
+    { stSet,        3 }, // 0xF5 set bit reversed
     { stUndef,      1 },
     { stUndef,      1 },
 
     { stGet,        2 }, // 0xF8
-    { stUndef,      1 },
+    { stGet,        2 }, // 0xF9 get bit reversed
     { stUndef,      1 },
     { stUndef,      1 },
     

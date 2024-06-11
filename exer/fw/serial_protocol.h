@@ -1,7 +1,7 @@
 // Copyright (c) Jeff Berkowitz 2021, 2023. All Rights Reserved
 // This must be kept in sync with serial_protocol.h in the Go code
 
-#define PROTOCOL_VERSION 12
+#define PROTOCOL_VERSION 13
 #define ACK(CMD) ((byte)~CMD)
 
 #define STCMD_BASE      0xE0
@@ -11,6 +11,8 @@
 
 #define STCMD_PULSE     0xF0
 #define STCMD_SET       0xF4
+#define STCMD_SETR      0xF5  // bit-reversed set
 #define STCMD_GET       0xF8
+#define STCMD_GETR      0xF9  // bit-reversed get
 
 #define STERR_BADCMD    0x81  // bad command byte

@@ -138,44 +138,62 @@ func process(line string, nano *Arduino) error {
 	case 't': // toggle a control line, e.g. a clock
 		var cmd []byte = make([]byte, 3, 3)
 		// t id count
-		n, err := fmt.Sscanf(line[2:], "%d %d", &cmd[1], &cmd[2])
-		fmt.Printf("ret %d %v (%d %d)\n", n, err, cmd[1], cmd[2])
+		n, err := fmt.Sscanf(line[2:], "%x %x", &cmd[1], &cmd[2])
+		if debug {
+			log.Printf("ret %d %v (%d %d)\n", n, err, cmd[1], cmd[2])
+		}
 		if n != 2 {
-			fmt.Printf("usage: t ct id\n")
+			fmt.Printf("usage: t hexct hexid\n")
 			return nil
 		}
 		cmd[0] = CmdPulse
 		if _, err := doFixedCommand(nano, cmd, 0); err != nil {
 			fmt.Printf("cmd t 0x%02X 0x%02X: %v\n", cmd[1], cmd[2], err);
 		}
-	case 's': // set a register
+	case 's': // set a register - 'sr' reverses the bits
 		var cmd []byte = make([]byte, 3, 3)
-		// s id data
-        n, err := fmt.Sscanf(line[2:], "%d %d", &cmd[1], &cmd[2])
-        fmt.Printf("ret %d %v (%d %d)\n", n, err, cmd[1], cmd[2])
+		// s id data or sr id data for bit-reversed set
+		var cmdByte byte = CmdSet
+		offset := 2
+		if line[1] == 'r' {
+			cmdByte = CmdSetR
+			offset = 3
+		}
+        n, err := fmt.Sscanf(line[offset:], "%x %x", &cmd[1], &cmd[2])
+		if debug {
+			log.Printf("ret %d %v (%x %x)\n", n, err, cmd[1], cmd[2])
+		}
         if n != 2 {
-            fmt.Printf("usage: s id data\n")
+            fmt.Printf("usage: s hexid hexdata or sr hexid hexdata\n")
             return nil
         }
-        cmd[0] = CmdSet
+        cmd[0] = cmdByte
         if _, err := doFixedCommand(nano, cmd, 0); err != nil {
-            fmt.Printf("cmd s 0x%02X 0x%02X: %v\n", cmd[1], cmd[2], err);
+            fmt.Printf("error: cmd s 0x%02X 0x%02X: %v\n", cmd[1], cmd[2], err);
         }
-	case 'g': // get a register
+	case 'g': // get a register - 'gr' reverses the bits
 		// Note: this just reads the reads the input register.
 		// It must be separately clocked using a "t" command.
 		var cmd []byte = make([]byte, 2, 2)
-		// g id
-        n, err := fmt.Sscanf(line[2:], "%d", &cmd[1])
-        fmt.Printf("ret %d %v (%d)\n", n, err, cmd[1])
+		// g id or gr id for bit-reversed get
+		var cmdByte byte = CmdGet
+		offset := 2
+		if line[1] == 'r' {
+			cmdByte = CmdGetR
+			offset = 3
+		}
+        n, err := fmt.Sscanf(line[offset:], "%x", &cmd[1])
+		if debug {
+			log.Printf("ret %d %v (%d)\n", n, err, cmd[1])
+		}
         if n != 1 {
-            fmt.Printf("usage: g id\n")
+            fmt.Printf("usage: g hexid or gr hexid\n")
             return nil
         }
-        cmd[0] = CmdGet
-        sl, err := doFixedCommand(nano, cmd, 0)
+        cmd[0] = cmdByte
+        sl, err := doFixedCommand(nano, cmd, 1)
 		if err != nil {
-            fmt.Printf("cmd g 0x%02X 0x%02X: %v\n", cmd[1], cmd[2], err);
+            fmt.Printf("cmd g 0x%02X: %v\n", cmd[1], err);
 			break
         }
 		fmt.Printf("in(0x%02X) = 0x%02X\n", cmd[1], sl[0])
