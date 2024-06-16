@@ -35,6 +35,9 @@ func main() {
 	log.SetPrefix("cex: ")
 	log.Println("firing up")
 
+	DoVectorFile("./t.tv")
+	os.Exit(5)
+
 	// The Nano's log is opened first and remains open always.
 	nanoLogFile, err := os.OpenFile("Nano.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {

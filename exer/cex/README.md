@@ -45,15 +45,27 @@ The first non-empty non-comment line must contain the keyword **socket** followe
 
 The rest of the files lines are vector lines. Each vector line specifies one test case. The test case may be combinational or clocked.
 
-### Combinational circuits
+### Combinational test cases
 
-Combinational test cases use the values 0 or 1 to specify inputs and the symbols H, L, or X to specify outputs. All inputs and outputs must be specified. The exerciser is incapable of verifying three-state or open collector outputs. If the component has a clock pin (i.e. supports both combinational and clocked behaviors), specify 0 for the clock input. Ground and power should be specified using G and V, respectively.
+Combinational test cases use the values 0 or 1 to specify inputs and the symbols H, L, or X to specify outputs. All inputs and outputs must be specified. The exerciser is incapable of verifying three-state or open collector outputs. Ground and power should be specified using G and V, respectively, as placeholders.
 
 If the file contains `socket PLCC` there must be exactly 68 such values in the line. For `socket ZIF` there must be exactly 24. Each 0 or 1 specifies the value of an input. Each H, L, or X specifies the value of an output. The G and V serve only a placeholders, e.g. for human readers.
 
 Values must be separated by spaces.
 
-Multiple bits may be specified using the shorthand value [N]hexval. Example: [16]AAAA specifies the next 16 inputs as 1 0 1 0 1 ... The [N]hexval construct is a value and must be separated from its neighbors within the line by spaces. The least-significant bits of hexval are used if more than N bits are given, so [2]D sets the 2 bits to 0b01. The maximum value of N is 16.
+The 68 pin PLCC socket, which is hardwired for the L4C381 16-bit ALU chip, has three 16-bit ports. Input ports A and B are in normal bit order (higher numbered pins correspond to more significant bits), but the 16-bit output port F is bit reversed.
+
+The vector language supports a feature specific to these ports. The value `%HHHH` where H are hex digits specifies a value to be output to a 16-bit input port on the device under test, and the value `@HHHH` specifies a hex value to be checked at the 16-bit output port. The value specified with `@` is bit reversed, so the result F value of `%0002` and `%0002` is `@0004`, not `2000`.
+
+Example
+
+```
+# Add 0xFFFF to 0xFFFF combinationally
+# 16       19        24    27    43 44              52 68
+# A-in CLK G C P G Z V ENF OE F-out Cin S1  OSA FTA ENA
+#        Vcc             FTF          S0  S2  OSB ENB B-in
+%FFFF  1 V G H X X L L 1 1 0  @FFFE 0 1 1 0 1 1 1 1 1 %FFFF
+```
 
 ### Clocked circuits
 

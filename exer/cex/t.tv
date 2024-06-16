@@ -1,0 +1,9 @@
+# TestVector (.tv) file for testing the file scanner
+
+socket PLCC
+
+# Add 0xFFFF to 0xFFFF combinationally
+# 16       19        24    27    43 44              52 68
+# A-in CLK G C P G Z V ENF OE F-out Cin S1  OSA FTA ENA
+#        Vcc             FTF          S0  S2  OSB ENB B-in
+%FFFF  1 V G H X X L L 1 1 0  @FFFE 0 1 1 0 1 1 1 1 1 %FFFF

@@ -14,10 +14,9 @@ namespace PortPrivate {
   // facilities are usable. Then InitTasks() calls postInit() which
   // just calls PortPrivate::internalPostInit() in this file. If postInit()
   // returns false, InitTasks() calls panic(). internalPostInit() has some
-  // built-in functionality and calls out to the following three functions.
+  // built-in functionality and calls out to the following two functions.
 
   void callWhenAnyReset(void);      // Called from the top of postInit() always
-  void callWhenPowerOnReset(void);  // Called only when power-on reset occurring
   void callAfterPostInit(void);     // Called from the end of postInit() always
   
   // Because of the order of initialization, this is basically
@@ -102,6 +101,16 @@ namespace PortPrivate {
   }
 
   void callAfterPostInit() {
+    // Three output enables in the chip exerciser (output enables of U2, U3,
+    // and U8) are controlled by setting bits low in the exerciser's output
+    // register U10. This is intended to allow some of pins on the ZIF socket
+    // to conditionally become inputs to the chip under test, but it's not
+    // fully implemented. So for now we always want these bits low to enable
+    // the outputs of U2, U3, and U8. The nanoSetRegister() function does
+    // this, but it needs to be called once to ensure the pins get set. The
+    // other bits of U10 (B10) run to some control lines on the PLCC-68 that
+    // are active low, so we force them high.
+    nanoSetRegister(RI_U10_CLK, 0xFF);
   }
 }
 

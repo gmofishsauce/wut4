@@ -8008,7 +8008,7 @@
 			)
 		)
 	)
-	(global_label "~{U3_OE}"
+	(global_label "~{U1_OE}"
 		(shape input)
 		(at 55.88 91.44 0)
 		(fields_autoplaced yes)
