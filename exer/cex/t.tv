@@ -7,3 +7,5 @@ socket PLCC
 # A-in CLK G C P G Z V ENF OE F-out Cin S1  OSA FTA ENA
 #        Vcc             FTF          S0  S2  OSB ENB B-in
 %FFFF  1 V G H X X L L 1 1 0  @FFFE 0 1 1 0 1 1 1 1 1 %FFFF
+%AAAA  1 0 1 0 1 0 1 0 1 0 1  @5555 0 1 0 1 0 1 0 1 0 %5555
+%FFFF  1 1 1 1 1 1 1 1 1 1 1  @FFFF 1 1 1 1 1 1 1 1 1 %FFFF

@@ -53,9 +53,9 @@ If the file contains `socket PLCC` there must be exactly 68 such values in the l
 
 Values must be separated by spaces.
 
-The 68 pin PLCC socket, which is hardwired for the L4C381 16-bit ALU chip, has three 16-bit ports. Input ports A and B are in normal bit order (higher numbered pins correspond to more significant bits), but the 16-bit output port F is bit reversed.
+The 68 pin PLCC socket, which is hardwired for the L4C381 16-bit ALU chip, has three 16-bit ports. Input ports A and B are in normal bit order (higher numbered pins correspond to more significant bits), but the 16-bit output port F is bit reversed (bit 0 of the result is at the higher-numbered pin).
 
-The vector language supports a feature specific to these ports. The value `%HHHH` where H are hex digits specifies a value to be output to a 16-bit input port on the device under test, and the value `@HHHH` specifies a hex value to be checked at the 16-bit output port. The value specified with `@` is bit reversed, so the result F value of `%0002` and `%0002` is `@0004`, not `2000`.
+The vector language supports a feature specific to these ports. The value `%HHHH` where H are hex digits specifies a value to be output to a 16-bit input port on the device under test, and the value `@HHHH` specifies a hex value to be checked at the 16-bit output port. The value specified with `@` is bit reversed, so the result F value of A = `%0002` and B = `%0002` is `@0004`, not `@2000`.
 
 Example
 

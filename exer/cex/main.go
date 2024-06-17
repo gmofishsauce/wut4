@@ -35,7 +35,15 @@ func main() {
 	log.SetPrefix("cex: ")
 	log.Println("firing up")
 
-	DoVectorFile("./t.tv")
+	tf, err := ParseVectorFile("./t.tv")
+	if err != nil {
+		fmt.Printf("PVF: %v\n", err)
+		os.Exit(5)
+	}
+	if tf == nil {
+		fmt.Printf("PVF: no error but nil\n")
+	}
+	fmt.Printf("%v\n", tf)
 	os.Exit(5)
 
 	// The Nano's log is opened first and remains open always.
