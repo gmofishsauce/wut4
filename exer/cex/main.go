@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-var debug = false
+var debug = true
 
 const responseDelay = 5000 * time.Millisecond
 const interSessionDelay = 3000 * time.Millisecond
@@ -35,15 +35,13 @@ func main() {
 	log.SetPrefix("cex: ")
 	log.Println("firing up")
 
-	tf, err := ParseVectorFile("./t.tv")
+	// Temporary
+	err := DoVectorFile("./t.tv")
 	if err != nil {
-		fmt.Printf("PVF: %v\n", err)
+		log.Printf("DoVectorFile(./t.tv): %s\n", err)
 		os.Exit(5)
 	}
-	if tf == nil {
-		fmt.Printf("PVF: no error but nil\n")
-	}
-	fmt.Printf("%v\n", tf)
+	log.Println("success")
 	os.Exit(5)
 
 	// The Nano's log is opened first and remains open always.
