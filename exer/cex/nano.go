@@ -10,6 +10,33 @@ import (
 	"time"
 )
 
+// Create a session with the Nano. The session need not be interactive.
+//
+// Errors:
+// No such file or directory: the Nano is probably not plugged in
+// (The USB device doesn't exist in /dev unless Nano is connected.)
+//
+// Connection not established: device open, but protocol broke down
+func CreateSession(nano *Arduino) error {
+	var err error
+	tries := 3
+	for i := 0; i < tries; i++ {
+		log.Println("creating connection")
+		if err = establishConnection(nano, i == 0); err == nil {
+			return nil
+		}
+
+		log.Printf("connection setup failed: %v: sync retry %d\n", err, i+1)
+		time.Sleep(interSessionDelay)
+	}
+	if err != nil {
+		return err
+	}
+
+	log.Println("session in progress with Arduino")
+	return nil
+}
+
 func establishConnection(nano *Arduino, wasReset bool) error {
 	if wasReset {
 		time.Sleep(3 * time.Second)

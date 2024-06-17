@@ -19,7 +19,9 @@ import (
 const SPACE = ' '
 
 // Process one vector file. The file format and structure
-// are described in the README in this directory.
+// are described in the README in this directory. Processing
+// involves parsing the file, applying each vector to the
+// hardware, and reporting the results.
 //
 // TODO track line numbers else troubleshooting bad vectors
 // will be next to impossible.
@@ -29,14 +31,16 @@ func DoVectorFile(filePath string) error {
 		return err
     }
     defer file.Close()
+    return scan(bufio.NewScanner(file))
+}
 
-    scanner := bufio.NewScanner(file)
+// Scan one vector file.
+func scan(scanner *bufio.Scanner) error {
 	var tf *TestFile
     for scanner.Scan() {
 		// First check for empty lines, comments, 'socket' statement
 		line := scanner.Text()
 		if len(line) == 0 || line[0] == '#' || line[0] == SPACE {
-			// Note: we don't support tab as whitespace.
 			continue
 		}
 
@@ -149,6 +153,21 @@ func parseVector(tf *TestFile, tokens []string) error {
 // Apply the vector stored in the tf structure to the hardware.
 
 func applyVector(tf *TestFile) error {
-	fmt.Printf("TODO: apply\n")
+	if tf.socket == "PLCC" {
+		return applyPLCC(tf)
+	} else if tf.socket == "ZIF" {
+		return applyZIF(tf)
+	} else {
+		return fmt.Errorf("unknown socket type %s", tf.socket)
+	}
+}
+
+func applyPLCC(tf *TestFile) error {
+	fmt.Println("applyPLCC()")
+	return nil
+}
+
+func applyZIF(tf *TestFile) error {
+	fmt.Println("applyZIF()")
 	return nil
 }

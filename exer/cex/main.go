@@ -5,22 +5,12 @@ package main
 // Serial port communications for Arduino Nano.
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"time"
 )
-
-var debug = true
-
-const responseDelay = 5000 * time.Millisecond
-const interSessionDelay = 3000 * time.Millisecond
-
-const arduinoNanoDevice = "/dev/cu.usbserial-AQ0169PT"
-const baudRate = 115200 // Note: change requires updating the Arduino firmware
-
-var nanoLog *log.Logger
 
 // When the Arduino (the "Nano") is connected by USB-serial, opening the port
 // from the Mac side forces a hard reset to the device (the Arduino restarts).
@@ -31,100 +21,79 @@ var nanoLog *log.Logger
 // sleep is in the terminal input code.
 
 func main() {
+	os.Exit(submain())
+}
+
+func submain() int { // return exit code
+	// User logger to standard output for rough timing
 	log.SetFlags(log.Lmsgprefix | log.Lmicroseconds)
 	log.SetPrefix("cex: ")
 	log.Println("firing up")
 
-	// Temporary
-	err := DoVectorFile("./t.tv")
-	if err != nil {
-		log.Printf("DoVectorFile(./t.tv): %s\n", err)
-		os.Exit(5)
-	}
-	log.Println("success")
-	os.Exit(5)
+	flag.BoolVar(&debug, "d", false, "enable debug output")
+	flag.Parse()
+	vectorFiles := flag.Args()
 
-	// The Nano's log is opened first and remains open always.
+	// Open the Nano's log file (not the Nano itself)
 	nanoLogFile, err := os.OpenFile("Nano.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Fatal("opening Nano.log: ", err)
+		log.Printf("opening Nano.log: %v", err)
+		return 2
 	}
+	defer nanoLogFile.Close()
 	nanoLog = log.New(nanoLogFile, "", log.Lmsgprefix|log.Lmicroseconds)
-	input := NewInput()
 
-	for {
-		log.Println("starting a session")
-		nano, err := NewArduino(arduinoNanoDevice, baudRate)
-		if err == nil {
-			err = session(input, nano)
-			if err == io.EOF {
-				log.Printf("user quit\n")
-				os.Exit(0)
-			}
-		}
-
-		log.Printf("session aborted: %v\n", err)
-		if nano != nil {
-			nano.Close()
-		}
-
-		// The original design was to sleep for a few seconds here
-		// and then iterate. This reopens the serial port, which
-		// resets the Nano. But this design has the effect of losing
-		// panic codes (because of the reset), which makes
-		// troubleshooting occasional problems more difficult. So
-		// now, we spin here waiting for user input. The check for
-		// input sleeps for 50mS so this only executes 20 times per
-		// second, which is little enough to avoid heat issues.
-
-		log.Printf("Return to continue...\n")
-		var line string
-		for {
-			line, err = input.CheckFor()
-			if err != nil {
-				break
-			}
-			if len(line) > 0 {
-				break
-			}
-		}
-		// To be nice, we do an EOF check here, although ^C works fine.
-		if err == io.EOF {
-			log.Printf("user quit\n")
-			os.Exit(0)
-		}
-		log.Printf("Continuing...\n")
+	// Now open the Nano (serial device)
+	nano, err := NewArduino(arduinoNanoDevice, baudRate)
+	if err != nil {
+		log.Printf("opening Arduino device %s: %v", arduinoNanoDevice, err)
+		return 2
 	}
+	defer nano.Close()
+
+	// Create a protocol connection to the Nano
+	if err := CreateSession(nano); err != nil {
+		log.Printf("creating session with Arduino device %s: %v", arduinoNanoDevice, err)
+		return 2
+	}
+
+	// If there are vector files, process them and done
+	if len(vectorFiles) > 0 {
+		for _, vf := range vectorFiles {
+			err := DoVectorFile(vf)
+			if err != nil {
+				log.Printf("vector file %s: %s\n", vf, err)
+				return 2
+			}
+		}
+		return 0
+	}
+
+	// No vector files on the command line - interactive mode
+	log.Println("starting interactive session")
+	input := NewInput()
+	err = interactiveSession(input, nano)
+	if err == io.EOF {
+		log.Printf("user quit\n")
+		return 0
+	}
+
+	log.Printf("session aborted: %v\n", err)
+	return 2
 }
 
-// Conduct a session with the Nano. Ideally, this function is
-// called once per execution of this program and never returns.
+// Conduct an interactive session with the Nano.
 //
 // Errors:
 // No such file or directory: the Nano is probably not plugged in
 // (The USB device doesn't exist in /dev unless Nano is connected.)
 //
 // Connection not established: device open, but protocol broke down
-func session(input *Input, nano *Arduino) error {
+// Various I/O errors
+func interactiveSession(input *Input, nano *Arduino) error {
 	var err error
-	tries := 3
-	for i := 0; i < tries; i++ {
-		log.Println("creating connection")
-		if err = establishConnection(nano, i == 0); err == nil {
-			break
-		}
-
-		log.Printf("connection setup failed: %v: sync retry %d\n", err, i+1)
-		time.Sleep(interSessionDelay)
-	}
-	if err != nil {
-		return err
-	}
-
-	log.Println("session in progress")
-
 	for {
-		if err := doPoll(nano); err != nil {
+		if err = doPoll(nano); err != nil {
 			return err
 		}
 
@@ -133,7 +102,7 @@ func session(input *Input, nano *Arduino) error {
 			return err
 		}
 		if len(line) > 1 { // 1 for the newline
-			if err := process(line[:len(line)-1], nano); err != nil {
+			if err = process(line, nano); err != nil {
 				return err
 			}
 		}
@@ -152,12 +121,12 @@ func process(line string, nano *Arduino) error {
 			log.Printf("ret %d %v (%d %d)\n", n, err, cmd[1], cmd[2])
 		}
 		if n != 2 {
-			fmt.Printf("usage: t hexct hexid\n")
+			log.Printf("usage: t hexct hexid\n")
 			return nil
 		}
 		cmd[0] = CmdPulse
 		if _, err := doFixedCommand(nano, cmd, 0); err != nil {
-			fmt.Printf("cmd t 0x%02X 0x%02X: %v\n", cmd[1], cmd[2], err);
+			log.Printf("cmd t 0x%02X 0x%02X: %v\n", cmd[1], cmd[2], err);
 		}
 	case 's': // set a register - 'sr' reverses the bits
 		var cmd []byte = make([]byte, 3, 3)
@@ -173,12 +142,12 @@ func process(line string, nano *Arduino) error {
 			log.Printf("ret %d %v (%x %x)\n", n, err, cmd[1], cmd[2])
 		}
         if n != 2 {
-            fmt.Printf("usage: s hexid hexdata or sr hexid hexdata\n")
+            log.Printf("usage: s hexid hexdata or sr hexid hexdata\n")
             return nil
         }
         cmd[0] = cmdByte
         if _, err := doFixedCommand(nano, cmd, 0); err != nil {
-            fmt.Printf("error: cmd s 0x%02X 0x%02X: %v\n", cmd[1], cmd[2], err);
+            log.Printf("error: cmd s 0x%02X 0x%02X: %v\n", cmd[1], cmd[2], err);
         }
 	case 'g': // get a register - 'gr' reverses the bits
 		// Note: this just reads the reads the input register.
@@ -196,19 +165,19 @@ func process(line string, nano *Arduino) error {
 			log.Printf("ret %d %v (%d)\n", n, err, cmd[1])
 		}
         if n != 1 {
-            fmt.Printf("usage: g hexid or gr hexid\n")
+            log.Printf("usage: g hexid or gr hexid\n")
             return nil
         }
         cmd[0] = cmdByte
         sl, err := doFixedCommand(nano, cmd, 1)
 		if err != nil {
-            fmt.Printf("cmd g 0x%02X: %v\n", cmd[1], err);
+            log.Printf("cmd g 0x%02X: %v\n", cmd[1], err);
 			break
         }
-		fmt.Printf("in(0x%02X) = 0x%02X\n", cmd[1], sl[0])
+		log.Printf("in(0x%02X) = 0x%02X\n", cmd[1], sl[0])
 
 	default:
-		fmt.Printf("%s: unknown command\n", line)
+		log.Printf("%s: unknown command\n", line)
 	}
 	return nil
 }
