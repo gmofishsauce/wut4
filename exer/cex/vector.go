@@ -27,17 +27,17 @@ const SPACE = ' '
 //
 // TODO track line numbers else troubleshooting bad vectors
 // will be next to impossible.
-func DoVectorFile(filePath string) error {
+func DoVectorFile(filePath string, nano *Arduino) error {
     file, err := os.Open(filePath)
     if err != nil {
 		return err
     }
     defer file.Close()
-    return scan(bufio.NewScanner(file))
+    return scan(bufio.NewScanner(file), nano)
 }
 
 // Scan one vector file.
-func scan(scanner *bufio.Scanner) error {
+func scan(scanner *bufio.Scanner, nano *Arduino) error {
 	var tf *utils.TestFile
     for scanner.Scan() {
 		// First check for empty lines, comments, 'socket' statement
@@ -53,7 +53,7 @@ func scan(scanner *bufio.Scanner) error {
 			if tf != nil || len(tokens) != 2 {
 				return fmt.Errorf("bad 'socket' statement")
 			}
-			tf = utils.NewTestFile(tokens[1])
+			tf = utils.NewTestFile(tokens[1], nano)
 			if (tf == nil) {
 				return fmt.Errorf("bad socket type")
 			}
@@ -166,6 +166,8 @@ func applyVector(tf *utils.TestFile) error {
 
 func applyPLCC(tf *utils.TestFile) error {
 	// Pins 1 - 8: U4:0..7
+	doSetCmd(fmt.Sprintf("s 4 %02X", tf.GetByteToUUT()), nano)
+
 	// Pins 9 - 16: U5:0..7
 	// Pin 17 - TSTCLK
 	// Pins 18, 19 - Vcc and Gnd

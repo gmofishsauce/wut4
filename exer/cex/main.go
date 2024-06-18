@@ -61,7 +61,7 @@ func submain() int { // return exit code
 	// If there are vector files, process them and done
 	if len(vectorFiles) > 0 {
 		for _, vf := range vectorFiles {
-			err := DoVectorFile(vf)
+			err := DoVectorFile(vf, nano)
 			if err != nil {
 				log.Printf("vector file %s: %s\n", vf, err)
 				return 2

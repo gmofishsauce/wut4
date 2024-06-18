@@ -25,13 +25,14 @@ type TestFile struct {
 	socket string		 // "PLCC" or "ZIF"
 	size int			 // number of bits, 0 .. size-1
 	clockPin int         // PIN NUMBER 1..n of clock, or 0
+	nano *Arduino        // open Arduino device
 	toUUT *FixedBitVec	 // bits that are UUT inputs
 	fromUUT *FixedBitVec // bits that are UUT outputs
 }
 
 // Allocate a test file object. The returned value may be defined
 // as PLCC or ZIF. Otherwise, the allocator returns nil.
-func NewTestFile(socket string) *TestFile {
+func NewTestFile(socket string, nano *Arduino) *TestFile {
 	var size int
 	if (socket == "PLCC") {
 		size = 68
@@ -44,6 +45,7 @@ func NewTestFile(socket string) *TestFile {
 		socket: socket,
 		size: size,
 		clockPin: 0, // means "no clock"
+		nano: nano,
 		toUUT: NewFixedBitVec(size),
 		fromUUT: NewFixedBitVec(size),
 	}
@@ -82,8 +84,13 @@ func (tf *TestFile) GetFromUUT(bit BitPosition) int {
 }
 
 // Set the clock pin. The argument is a position 0..n-1
+// We make the clock pin high so we can output the byte
+// containing the pin. We then check for it and toggle
+// it before reading the fromUUT() bits. In other words
+// we assume a positive edge clock.
 func (tf *TestFile) SetClock(bit BitPosition) {
 	tf.clockPin = 1 + int(bit)
+	tf.SetToUUT(bit)
 }
 
 // Get the clock pin. The result is a position.
@@ -106,6 +113,14 @@ func (tf *TestFile) Clear() {
 	tf.clockPin = 0 // default none
 	tf.toUUT = NewFixedBitVec(tf.size)
 	tf.fromUUT = NewFixedBitVec(tf.size)
+}
+
+func (tf *TestFile) GetByteFromUUT(bit BitPosition) {
+	tf.fromUUT.GetByte(bit)
+}
+
+func (tf *TestFile) GetByteToUUT(bit BitPosition) {
+	tf.toUUT.GetByte(bit)
 }
 
 func (tf *TestFile) String() string {
