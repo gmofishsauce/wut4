@@ -165,7 +165,19 @@ func applyVector(tf *utils.TestFile) error {
 }
 
 func applyPLCC(tf *utils.TestFile) error {
-	fmt.Println("applyPLCC()")
+	// Pins 1 - 8: U4:0..7
+	// Pins 9 - 16: U5:0..7
+	// Pin 17 - TSTCLK
+	// Pins 18, 19 - Vcc and Gnd
+	// Pins 20 - 24: U11:0..4
+	// Pins 25 - 27: U8:2..0 (why reversed?)
+	// Pins 28 - 35: B3:7..0
+	// Pins 36 - 43: B7:7..0
+	// Pins 44 - 48: B8:3..7
+	// Pins 49 - 52: B10:3..0 (why reversed?)
+	// Pins 53 - 60: B1:0..7
+	// Pins 61 - 68: B2:0..7
+
 	return nil
 }
 

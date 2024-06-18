@@ -8586,7 +8586,7 @@
 		)
 		(uuid "084c2f46-d221-40bd-903b-2c7964988d8b")
 	)
-	(label "B3_7"
+	(label "B3_0"
 		(at 223.52 119.38 0)
 		(fields_autoplaced yes)
 		(effects
@@ -8918,6 +8918,7 @@
 	)
 	(label "B10_2"
 		(at 88.9 157.48 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -9599,6 +9600,7 @@
 	)
 	(label "B10_1"
 		(at 91.44 157.48 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -9862,6 +9864,7 @@
 	)
 	(label "B10_3"
 		(at 86.36 157.48 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -10290,6 +10293,7 @@
 	)
 	(label "B10_0"
 		(at 93.98 157.48 90)
+		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
