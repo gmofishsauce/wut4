@@ -39,7 +39,7 @@ func NewArduino(deviceName string, baudRate int) (*Arduino, error) {
 	var err error
 
 	mode := &serial.Mode{BaudRate: baudRate, DataBits: 8,
-			Parity: serial.NoParity, StopBits: serial.OneStopBit}
+		Parity: serial.NoParity, StopBits: serial.OneStopBit}
 	arduino.port, err = serial.Open(deviceName, mode)
 	if err != nil {
 		return nil, err

@@ -22,32 +22,32 @@ import (
 // The setter and getter for the clock pin return the position.
 // The clock pin getter panics if there is no clock pin defined.
 type TestFile struct {
-	socket string		 // "PLCC" or "ZIF"
-	size int			 // number of bits, 0 .. size-1
-	clockPin int         // PIN NUMBER 1..n of clock, or 0
-	nano *Arduino        // open Arduino device
-	toUUT *FixedBitVec	 // bits that are UUT inputs
-	fromUUT *FixedBitVec // bits that are UUT outputs
+	socket   string       // "PLCC" or "ZIF"
+	size     int          // number of bits, 0 .. size-1
+	clockPin int          // PIN NUMBER 1..n of clock, or 0
+	nano     *Arduino     // open Arduino device
+	toUUT    *FixedBitVec // bits that are UUT inputs
+	fromUUT  *FixedBitVec // bits that are UUT outputs
 }
 
 // Allocate a test file object. The returned value may be defined
 // as PLCC or ZIF. Otherwise, the allocator returns nil.
 func NewTestFile(socket string, nano *Arduino) *TestFile {
 	var size int
-	if (socket == "PLCC") {
+	if socket == "PLCC" {
 		size = 68
-	} else if (socket == "ZIF") {
+	} else if socket == "ZIF" {
 		size = 24
 	} else {
 		return nil
 	}
-	return &TestFile {
-		socket: socket,
-		size: size,
+	return &TestFile{
+		socket:   socket,
+		size:     size,
 		clockPin: 0, // means "no clock"
-		nano: nano,
-		toUUT: NewFixedBitVec(size),
-		fromUUT: NewFixedBitVec(size),
+		nano:     nano,
+		toUUT:    NewFixedBitVec(size),
+		fromUUT:  NewFixedBitVec(size),
 	}
 }
 
@@ -140,4 +140,3 @@ func (tf *TestFile) String() string {
 	}
 	return sb.String()
 }
-

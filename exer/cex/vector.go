@@ -28,18 +28,18 @@ const SPACE = ' '
 // TODO track line numbers else troubleshooting bad vectors
 // will be next to impossible.
 func DoVectorFile(filePath string, nano *Arduino) error {
-    file, err := os.Open(filePath)
-    if err != nil {
+	file, err := os.Open(filePath)
+	if err != nil {
 		return err
-    }
-    defer file.Close()
-    return scan(bufio.NewScanner(file), nano)
+	}
+	defer file.Close()
+	return scan(bufio.NewScanner(file), nano)
 }
 
 // Scan one vector file.
 func scan(scanner *bufio.Scanner, nano *Arduino) error {
 	var tf *utils.TestFile
-    for scanner.Scan() {
+	for scanner.Scan() {
 		// First check for empty lines, comments, 'socket' statement
 		line := scanner.Text()
 		if len(line) == 0 || line[0] == '#' || line[0] == SPACE {
@@ -54,7 +54,7 @@ func scan(scanner *bufio.Scanner, nano *Arduino) error {
 				return fmt.Errorf("bad 'socket' statement")
 			}
 			tf = utils.NewTestFile(tokens[1], nano)
-			if (tf == nil) {
+			if tf == nil {
 				return fmt.Errorf("bad socket type")
 			}
 			continue
@@ -77,7 +77,7 @@ func scan(scanner *bufio.Scanner, nano *Arduino) error {
 		if err := applyVector(tf); err != nil {
 			return err
 		}
-    }
+	}
 
 	return nil
 }
@@ -96,7 +96,7 @@ func parseVector(tf *utils.TestFile, tokens []string) error {
 			continue
 		}
 
-		switch (t[0]) {
+		switch t[0] {
 		case '0':
 			tf.ResetToUUT(pos)
 			pos++

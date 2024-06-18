@@ -130,7 +130,7 @@ func doPoll(nano *Arduino) error {
 		if isLogRequest(msg) {
 			NanoLog.Printf(msg)
 		} else {
-		    return fmt.Errorf("unsupported request type")
+			return fmt.Errorf("unsupported request type")
 		}
 	}
 	return nil

@@ -17,21 +17,21 @@ func NewFixedBitVec(size int) *FixedBitVec {
 	// This allocates one extra byte when the number of bits
 	// is a multiple of 8 but it's by far the simplest answer.
 	n := 1 + size/8
-	return &FixedBitVec{ bitArray: make([]byte, n, n) }
+	return &FixedBitVec{bitArray: make([]byte, n, n)}
 }
 
 // Set the bit at the position and mark it "used"
 func (fbv *FixedBitVec) Set(bit BitPosition) {
 	theByte := bit / 8
 	theBit := byte(bit % 8)
-	fbv.bitArray[theByte] |= (1<<theBit)
+	fbv.bitArray[theByte] |= (1 << theBit)
 }
 
 // Clear the bit at the position and mark it "used"
 func (fbv *FixedBitVec) Reset(bit BitPosition) {
 	theByte := bit / 8
 	theBit := byte(bit % 8)
-	fbv.bitArray[theByte] &^= (1<<theBit)
+	fbv.bitArray[theByte] &^= (1 << theBit)
 }
 
 // Get the bit at position and return as a 1 or a 0
@@ -43,6 +43,5 @@ func (fbv *FixedBitVec) Get(bit BitPosition) int {
 
 // Get the byte containing the bit argument
 func (fbv *FixedBitVec) GetByte(bit BitPosition) byte {
-	return fbv.bitArray[bit / 8]
+	return fbv.bitArray[bit/8]
 }
-

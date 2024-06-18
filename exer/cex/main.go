@@ -189,7 +189,7 @@ func process(line string, nano *Arduino) error {
 		if err != nil {
 			log.Printf("command %s: %v", line, err)
 			return err
-        }
+		}
 		log.Printf("read 0x%02X\n", result)
 	default:
 		log.Printf("%s: unknown command\n", line)
