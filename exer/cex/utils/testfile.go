@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"fmt"
@@ -47,6 +47,14 @@ func NewTestFile(socket string) *TestFile {
 		toUUT: NewFixedBitVec(size),
 		fromUUT: NewFixedBitVec(size),
 	}
+}
+
+func (tf *TestFile) Size() int {
+	return tf.size
+}
+
+func (tf *TestFile) Socket() string {
+	return tf.socket
 }
 
 func (tf *TestFile) SetToUUT(bit BitPosition) {

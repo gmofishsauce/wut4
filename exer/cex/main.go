@@ -12,13 +12,14 @@ import (
 	"os"
 )
 
+var Debug = false
+var NanoLog *log.Logger
+
 // When the Arduino (the "Nano") is connected by USB-serial, opening the port
 // from the Mac side forces a hard reset to the device (the Arduino restarts).
 
-// About calls to time.Sleep() in this code: sleeps occur only during session
-// setup and teardown, and they are long (seconds). There are no millisecond
-// delays imposed by code in this file. As of March 2022, the only millisecond
-// sleep is in the terminal input code.
+const arduinoNanoDevice = "/dev/cu.usbserial-AQ0169PT"
+const baudRate = 115200 // Note: change requires updating the Arduino firmware
 
 func main() {
 	os.Exit(submain())
@@ -30,7 +31,7 @@ func submain() int { // return exit code
 	log.SetPrefix("cex: ")
 	log.Println("firing up")
 
-	flag.BoolVar(&debug, "d", false, "enable debug output")
+	flag.BoolVar(&Debug, "d", false, "enable debug output")
 	flag.Parse()
 	vectorFiles := flag.Args()
 
@@ -41,7 +42,7 @@ func submain() int { // return exit code
 		return 2
 	}
 	defer nanoLogFile.Close()
-	nanoLog = log.New(nanoLogFile, "", log.Lmsgprefix|log.Lmicroseconds)
+	NanoLog = log.New(nanoLogFile, "", log.Lmsgprefix|log.Lmicroseconds)
 
 	// Now open the Nano (serial device)
 	nano, err := NewArduino(arduinoNanoDevice, baudRate)
@@ -117,7 +118,7 @@ func process(line string, nano *Arduino) error {
 		var cmd []byte = make([]byte, 3, 3)
 		// t id count
 		n, err := fmt.Sscanf(line[2:], "%x %x", &cmd[1], &cmd[2])
-		if debug {
+		if Debug {
 			log.Printf("ret %d %v (%d %d)\n", n, err, cmd[1], cmd[2])
 		}
 		if n != 2 {
@@ -138,7 +139,7 @@ func process(line string, nano *Arduino) error {
 			offset = 3
 		}
         n, err := fmt.Sscanf(line[offset:], "%x %x", &cmd[1], &cmd[2])
-		if debug {
+		if Debug {
 			log.Printf("ret %d %v (%x %x)\n", n, err, cmd[1], cmd[2])
 		}
         if n != 2 {
@@ -161,7 +162,7 @@ func process(line string, nano *Arduino) error {
 			offset = 3
 		}
         n, err := fmt.Sscanf(line[offset:], "%x", &cmd[1])
-		if debug {
+		if Debug {
 			log.Printf("ret %d %v (%d)\n", n, err, cmd[1])
 		}
         if n != 1 {

@@ -1,4 +1,4 @@
-package main
+package utils
 
 // As conventionally used in this tester, component pin "n" (1..package_count)
 // is at position (n-1) (0..package_count-1) in bit vectors. Values in the

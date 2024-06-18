@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+const responseDelay = 5000 * time.Millisecond
+const interSessionDelay = 3000 * time.Millisecond
+
 // Create a session with the Nano. The session need not be interactive.
 //
 // Errors:
@@ -51,7 +54,7 @@ func establishConnection(nano *Arduino, wasReset bool) error {
 	if err := checkProtocolVersion(nano); err != nil {
 		return err
 	}
-	if debug {
+	if Debug {
 		log.Println("protocol version OK")
 	}
 	return nil
@@ -125,7 +128,7 @@ func doPoll(nano *Arduino) error {
 	}
 	if len(msg) != 0 {
 		if isLogRequest(msg) {
-			nanoLog.Printf(msg)
+			NanoLog.Printf(msg)
 		} else {
 		    return fmt.Errorf("unsupported request type")
 		}
@@ -202,7 +205,7 @@ func doFixedCommand(nano *Arduino, fixed []byte, expected int) ([]byte, error) {
 	if expected < 0 || expected > 8 {
 		return response, fmt.Errorf("invalid fixed response expected")
 	}
-	if debug && fixed[0] != CmdPoll {
+	if Debug && fixed[0] != CmdPoll {
 		// Don't debug poll commands - there are too many
 		log.Printf("doFixedCommand: sending %v\n", fixed)
 	}
@@ -236,7 +239,7 @@ func doFixedCommand(nano *Arduino, fixed []byte, expected int) ([]byte, error) {
 // No counted command has fixed response so only the error is returned.
 func doCountedSend(nano *Arduino, fixed []byte, counted []byte) error {
 	count := fixed[len(fixed)-1]
-	if debug {
+	if Debug {
 		log.Printf("doCountedSend(): counted len = %d\n", count)
 	}
 	if len(counted) < int(count) {
@@ -245,7 +248,7 @@ func doCountedSend(nano *Arduino, fixed []byte, counted []byte) error {
 	if _, err := doFixedCommand(nano, fixed, 0); err != nil {
 		return err
 	}
-	if debug {
+	if Debug {
 		log.Printf("doCountedSend(): sending %d\n", len(counted))
 	}
 	if err := nano.Write(counted); err != nil {
@@ -264,7 +267,7 @@ func doCountedReceive(nano *Arduino, fixed []byte) ([]byte, error) {
 		return expected, err
 	}
 	count := expected[0]
-	if debug && count > 0 {
+	if Debug && count > 0 {
 		log.Printf("Receive %d\n", count)
 	}
 	response := make([]byte, count, count)

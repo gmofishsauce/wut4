@@ -14,6 +14,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"cex/utils"
 )
 
 const SPACE = ' '
@@ -36,7 +38,7 @@ func DoVectorFile(filePath string) error {
 
 // Scan one vector file.
 func scan(scanner *bufio.Scanner) error {
-	var tf *TestFile
+	var tf *utils.TestFile
     for scanner.Scan() {
 		// First check for empty lines, comments, 'socket' statement
 		line := scanner.Text()
@@ -51,7 +53,7 @@ func scan(scanner *bufio.Scanner) error {
 			if tf != nil || len(tokens) != 2 {
 				return fmt.Errorf("bad 'socket' statement")
 			}
-			tf = NewTestFile(tokens[1])
+			tf = utils.NewTestFile(tokens[1])
 			if (tf == nil) {
 				return fmt.Errorf("bad socket type")
 			}
@@ -64,7 +66,7 @@ func scan(scanner *bufio.Scanner) error {
 		if err := parseVector(tf, tokens); err != nil {
 			return err
 		}
-		if debug {
+		if Debug {
 			fmt.Printf("%s\n", tf)
 		}
 		if err := scanner.Err(); err != nil {
@@ -83,8 +85,8 @@ func scan(scanner *bufio.Scanner) error {
 // Parse the next vector from the file into the bit vectors in tf.
 // The tokens should be a line specifying exactly 24 or 68 bits as
 // specified in the socket statement and stored in the size field.
-func parseVector(tf *TestFile, tokens []string) error {
-	var pos BitPosition
+func parseVector(tf *utils.TestFile, tokens []string) error {
+	var pos utils.BitPosition
 	for _, t := range tokens {
 		if len(t) == 0 {
 			// Golang's split() function splits on every
@@ -143,8 +145,8 @@ func parseVector(tf *TestFile, tokens []string) error {
 		}
 	}
 
-	if int(pos) != tf.size {
-		return fmt.Errorf("expected %d bits in vector, got %d", tf.size, pos)
+	if int(pos) != tf.Size() {
+		return fmt.Errorf("expected %d bits in vector, got %d", tf.Size(), pos)
 	}
 
 	return nil
@@ -152,22 +154,22 @@ func parseVector(tf *TestFile, tokens []string) error {
 
 // Apply the vector stored in the tf structure to the hardware.
 
-func applyVector(tf *TestFile) error {
-	if tf.socket == "PLCC" {
+func applyVector(tf *utils.TestFile) error {
+	if tf.Socket() == "PLCC" {
 		return applyPLCC(tf)
-	} else if tf.socket == "ZIF" {
+	} else if tf.Socket() == "ZIF" {
 		return applyZIF(tf)
 	} else {
-		return fmt.Errorf("unknown socket type %s", tf.socket)
+		return fmt.Errorf("unknown socket type %s", tf.Socket())
 	}
 }
 
-func applyPLCC(tf *TestFile) error {
+func applyPLCC(tf *utils.TestFile) error {
 	fmt.Println("applyPLCC()")
 	return nil
 }
 
-func applyZIF(tf *TestFile) error {
+func applyZIF(tf *utils.TestFile) error {
 	fmt.Println("applyZIF()")
 	return nil
 }
