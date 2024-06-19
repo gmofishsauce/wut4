@@ -10,10 +10,12 @@ import (
 	"io"
 	"log"
 	"os"
+
+	"cex/dev"
 )
 
-var Debug = false
-var NanoLog *log.Logger
+var debug = false
+var nanoLog *log.Logger
 
 // When the Arduino (the "Nano") is connected by USB-serial, opening the port
 // from the Mac side forces a hard reset to the device (the Arduino restarts).
@@ -31,7 +33,7 @@ func submain() int { // return exit code
 	log.SetPrefix("cex: ")
 	log.Println("firing up")
 
-	flag.BoolVar(&Debug, "d", false, "enable debug output")
+	flag.BoolVar(&debug, "d", false, "enable debug output")
 	flag.Parse()
 	vectorFiles := flag.Args()
 
@@ -42,10 +44,10 @@ func submain() int { // return exit code
 		return 2
 	}
 	defer nanoLogFile.Close()
-	NanoLog = log.New(nanoLogFile, "", log.Lmsgprefix|log.Lmicroseconds)
+	nanoLog = log.New(nanoLogFile, "", log.Lmsgprefix|log.Lmicroseconds)
 
 	// Now open the Nano (serial device)
-	nano, err := NewArduino(arduinoNanoDevice, baudRate)
+	nano, err := dev.NewArduino(arduinoNanoDevice, baudRate, nanoLog, debug)
 	if err != nil {
 		log.Printf("opening Arduino device %s: %v", arduinoNanoDevice, err)
 		return 2
@@ -53,7 +55,7 @@ func submain() int { // return exit code
 	defer nano.Close()
 
 	// Create a protocol connection to the Nano
-	if err := CreateSession(nano); err != nil {
+	if err := dev.CreateSession(nano); err != nil {
 		log.Printf("creating session with Arduino device %s: %v", arduinoNanoDevice, err)
 		return 2
 	}
@@ -91,10 +93,10 @@ func submain() int { // return exit code
 //
 // Connection not established: device open, but protocol broke down
 // Various I/O errors
-func interactiveSession(input *Input, nano *Arduino) error {
+func interactiveSession(input *Input, nano *dev.Arduino) error {
 	var err error
 	for {
-		if err = doPoll(nano); err != nil {
+		if err = dev.DoPoll(nano); err != nil {
 			return err
 		}
 
@@ -115,7 +117,7 @@ func interactiveSession(input *Input, nano *Arduino) error {
 // print messages for syntax errors, but don't return errors
 // because those would end the session with the Nano.
 
-func doToggleCmd(line string, nano *Arduino) error {
+func doToggleCmd(line string, nano *dev.Arduino) error {
 	var cmd []byte = make([]byte, 3, 3)
 	// t id count
 	n, err := fmt.Sscanf(line[2:], "%x %x", &cmd[1], &cmd[2])
@@ -123,18 +125,18 @@ func doToggleCmd(line string, nano *Arduino) error {
 		log.Printf("usage: t hexct hexid")
 		return nil
 	}
-	cmd[0] = CmdPulse
-	_, err = doFixedCommand(nano, cmd, 0)
+	cmd[0] = dev.CmdPulse
+	_, err = dev.DoFixedCommand(nano, cmd, 0)
 	return err
 }
 
-func doSetCmd(line string, nano *Arduino) error {
+func doSetCmd(line string, nano *dev.Arduino) error {
 	var cmd []byte = make([]byte, 3, 3)
 	// s id data or sr id data for bit-reversed set
-	var cmdByte byte = CmdSet
+	var cmdByte byte = dev.CmdSet
 	offset := 2
 	if line[1] == 'r' {
-		cmdByte = CmdSetR
+		cmdByte = dev.CmdSetR
 		offset = 3
 	}
 	if n, _ := fmt.Sscanf(line[offset:], "%x %x", &cmd[1], &cmd[2]); n != 2 {
@@ -142,19 +144,19 @@ func doSetCmd(line string, nano *Arduino) error {
 		return nil
 	}
 	cmd[0] = cmdByte
-	_, err := doFixedCommand(nano, cmd, 0)
+	_, err := dev.DoFixedCommand(nano, cmd, 0)
 	return err
 }
 
-func doGetCmd(line string, nano *Arduino) (byte, error) {
+func doGetCmd(line string, nano *dev.Arduino) (byte, error) {
 	// Note: this just reads the reads the input register.
 	// It must be separately clocked using a "t" command.
 	var cmd []byte = make([]byte, 2, 2)
 	// g id or gr id for bit-reversed get
-	var cmdByte byte = CmdGet
+	var cmdByte byte = dev.CmdGet
 	offset := 2
 	if line[1] == 'r' {
-		cmdByte = CmdGetR
+		cmdByte = dev.CmdGetR
 		offset = 3
 	}
 	n, err := fmt.Sscanf(line[offset:], "%x", &cmd[1])
@@ -163,7 +165,7 @@ func doGetCmd(line string, nano *Arduino) (byte, error) {
 		return 0, nil
 	}
 	cmd[0] = cmdByte
-	sl, err := doFixedCommand(nano, cmd, 1)
+	sl, err := dev.DoFixedCommand(nano, cmd, 1)
 	if err != nil {
 		return 0, err
 	}
@@ -172,7 +174,7 @@ func doGetCmd(line string, nano *Arduino) (byte, error) {
 
 // Process a line of user input. Returning error is fatal,
 // so we don't do that for typos, etc. We just print messages.
-func process(line string, nano *Arduino) error {
+func process(line string, nano *dev.Arduino) error {
 	switch line[0] {
 	case 't': // toggle a control line, e.g. a clock
 		if err := doToggleCmd(line, nano); err != nil {

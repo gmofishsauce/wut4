@@ -3,6 +3,8 @@ package utils
 import (
 	"fmt"
 	"strings"
+
+	"cex/dev"
 )
 
 // Each test file is parsed into one of these. The scalar fields
@@ -25,14 +27,14 @@ type TestFile struct {
 	socket   string       // "PLCC" or "ZIF"
 	size     int          // number of bits, 0 .. size-1
 	clockPin int          // PIN NUMBER 1..n of clock, or 0
-	nano     *Arduino     // open Arduino device
+	nano     *dev.Arduino // open Arduino device
 	toUUT    *FixedBitVec // bits that are UUT inputs
 	fromUUT  *FixedBitVec // bits that are UUT outputs
 }
 
 // Allocate a test file object. The returned value may be defined
 // as PLCC or ZIF. Otherwise, the allocator returns nil.
-func NewTestFile(socket string, nano *Arduino) *TestFile {
+func NewTestFile(socket string, nano *dev.Arduino) *TestFile {
 	var size int
 	if socket == "PLCC" {
 		size = 68
@@ -57,6 +59,10 @@ func (tf *TestFile) Size() int {
 
 func (tf *TestFile) Socket() string {
 	return tf.socket
+}
+
+func (tf *TestFile) Nano() *dev.Arduino {
+	return tf.nano
 }
 
 func (tf *TestFile) SetToUUT(bit BitPosition) {
@@ -115,12 +121,12 @@ func (tf *TestFile) Clear() {
 	tf.fromUUT = NewFixedBitVec(tf.size)
 }
 
-func (tf *TestFile) GetByteFromUUT(bit BitPosition) {
-	tf.fromUUT.GetByte(bit)
+func (tf *TestFile) GetByteFromUUT(bit BitPosition) byte {
+	return tf.fromUUT.GetByte(bit)
 }
 
-func (tf *TestFile) GetByteToUUT(bit BitPosition) {
-	tf.toUUT.GetByte(bit)
+func (tf *TestFile) GetByteToUUT(bit BitPosition) byte {
+	return tf.toUUT.GetByte(bit)
 }
 
 func (tf *TestFile) String() string {

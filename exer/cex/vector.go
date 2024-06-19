@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"cex/dev"
 	"cex/utils"
 )
 
@@ -27,7 +28,7 @@ const SPACE = ' '
 //
 // TODO track line numbers else troubleshooting bad vectors
 // will be next to impossible.
-func DoVectorFile(filePath string, nano *Arduino) error {
+func DoVectorFile(filePath string, nano *dev.Arduino) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return err
@@ -37,7 +38,7 @@ func DoVectorFile(filePath string, nano *Arduino) error {
 }
 
 // Scan one vector file.
-func scan(scanner *bufio.Scanner, nano *Arduino) error {
+func scan(scanner *bufio.Scanner, nano *dev.Arduino) error {
 	var tf *utils.TestFile
 	for scanner.Scan() {
 		// First check for empty lines, comments, 'socket' statement
@@ -66,7 +67,7 @@ func scan(scanner *bufio.Scanner, nano *Arduino) error {
 		if err := parseVector(tf, tokens); err != nil {
 			return err
 		}
-		if Debug {
+		if debug {
 			fmt.Printf("%s\n", tf)
 		}
 		if err := scanner.Err(); err != nil {
@@ -166,7 +167,7 @@ func applyVector(tf *utils.TestFile) error {
 
 func applyPLCC(tf *utils.TestFile) error {
 	// Pins 1 - 8: U4:0..7
-	doSetCmd(fmt.Sprintf("s 4 %02X", tf.GetByteToUUT()), nano)
+	doSetCmd(fmt.Sprintf("s 4 %02X", tf.GetByteToUUT(0)), tf.Nano())
 
 	// Pins 9 - 16: U5:0..7
 	// Pin 17 - TSTCLK

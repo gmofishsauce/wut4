@@ -5,7 +5,7 @@
 // Opening a standard USB serial port activates the DTR signal which resets the
 // Arduino, necessitating a full reconnect.
 
-package main
+package dev
 
 import (
 	"fmt"
@@ -23,7 +23,9 @@ const resetDelay time.Duration = 4 * time.Second
 // Types
 
 type Arduino struct {
-	port serial.Port
+	port  serial.Port
+	log   *log.Logger
+	debug bool
 }
 
 type NoResponseError time.Duration
@@ -34,7 +36,7 @@ func (nre NoResponseError) Error() string {
 
 // Public interface
 
-func NewArduino(deviceName string, baudRate int) (*Arduino, error) {
+func NewArduino(deviceName string, baudRate int, log *log.Logger, debug bool) (*Arduino, error) {
 	var arduino Arduino
 	var err error
 
@@ -45,6 +47,8 @@ func NewArduino(deviceName string, baudRate int) (*Arduino, error) {
 		return nil, err
 	}
 
+	arduino.log = log
+	arduino.debug = debug
 	log.Printf("serial port is open - delaying %.0f seconds for Nano reset", resetDelay.Seconds())
 	time.Sleep(resetDelay)
 	return &arduino, nil
