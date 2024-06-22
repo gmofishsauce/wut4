@@ -48,7 +48,7 @@ func NewArduino(deviceName string, baudRate int, log *log.Logger, debug bool) (*
 	}
 
 	arduino.log = log
-	arduino.debug = debug
+	arduino.debug = false // = debug FOR NOW
 	log.Printf("serial port is open - delaying %.0f seconds for Nano reset", resetDelay.Seconds())
 	time.Sleep(resetDelay)
 	return &arduino, nil

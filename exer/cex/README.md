@@ -72,3 +72,4 @@ Example
 Exactly one character **C** may appear in a vector. This specifies that the pin is a clock line. The firmware will set the inputs, pulse the clock line low, then high, and then read and verify the outputs.
 
 The exerciser does not control power and ground. When executing a sequence of vectors from a vector file, the exerciser does not change any state except as directed by the vectors. As a result it is possible to create multiple-step sequential tests.
+

@@ -63,6 +63,7 @@ func submain() int { // return exit code
 	// If there are vector files, process them and done
 	if len(vectorFiles) > 0 {
 		for _, vf := range vectorFiles {
+			log.Printf("processing vector file %s", vf)
 			err := DoVectorFile(vf, nano)
 			if err != nil {
 				log.Printf("vector file %s: %s\n", vf, err)
@@ -127,6 +128,9 @@ func doToggleCmd(line string, nano *dev.Arduino) error {
 	}
 	cmd[0] = dev.CmdPulse
 	_, err = dev.DoFixedCommand(nano, cmd, 0)
+	if err == nil && debug {
+		log.Printf("%s", line)
+	}
 	return err
 }
 
@@ -145,6 +149,9 @@ func doSetCmd(line string, nano *dev.Arduino) error {
 	}
 	cmd[0] = cmdByte
 	_, err := dev.DoFixedCommand(nano, cmd, 0)
+	if err == nil && debug {
+		log.Printf("%s", line)
+	}
 	return err
 }
 
@@ -169,7 +176,11 @@ func doGetCmd(line string, nano *dev.Arduino) (byte, error) {
 	if err != nil {
 		return 0, err
 	}
-	return sl[0], err
+	result := sl[0]
+	if debug {
+		log.Printf("%s = %02X", line, result)
+	}
+	return result, err
 }
 
 // Process a line of user input. Returning error is fatal,
