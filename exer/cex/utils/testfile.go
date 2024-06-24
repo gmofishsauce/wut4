@@ -30,6 +30,7 @@ type TestFile struct {
 	nano     *dev.Arduino // open Arduino device
 	toUUT    *FixedBitVec // bits that are UUT inputs
 	fromUUT  *FixedBitVec // bits that are UUT outputs
+	ignored  *FixedBitVec // bits that are read but not checked
 }
 
 // Allocate a test file object. The returned value may be defined
@@ -44,12 +45,15 @@ func NewTestFile(socket string, nano *dev.Arduino) *TestFile {
 		return nil
 	}
 	return &TestFile{
+		// Per-vector file state
 		socket:   socket,
 		size:     size,
-		clockPin: 0, // means "no clock"
 		nano:     nano,
+		// Per-vector state:
+		clockPin: 0, // means "no clock"
 		toUUT:    NewFixedBitVec(size),
 		fromUUT:  NewFixedBitVec(size),
+		ignored:  NewFixedBitVec(size),
 	}
 }
 
@@ -89,6 +93,19 @@ func (tf *TestFile) GetFromUUT(bit BitPosition) int {
 	return tf.fromUUT.Get(bit)
 }
 
+// Set a bit that causes a fromUUT pin to be ignored
+func (tf *TestFile) SetIgnored(bit BitPosition) {
+	tf.ignored.Set(bit)
+}
+
+// Get a bit that is 1 if the BitPosition should be
+// ignored when read. This only works for fromUUT bits
+// because the hardware is only capable of generating
+// a 0 or 1 for toUUT bits; it cannot "ignore" them.
+func (tf *TestFile) IsIgnored(bit BitPosition) int {
+	return tf.ignored.Get(bit)
+}
+
 // Set the clock pin. The argument is a position 0..n-1
 // We make the clock pin high so we can output the byte
 // containing the pin. We then check for it and toggle
@@ -114,11 +131,14 @@ func (tf *TestFile) HasClock() bool {
 
 // Clear (reallocate) the bit vectors. StackOverflow says that
 // reallocation is faster than clearing, at least until/unless
-// the volume of data forces heavy GC (which is hard to measure).
+// the volume of data forces heavy GC (which is hard to measure
+// and definitely won't happen here, even if we generate a file
+// with millions of vectors).
 func (tf *TestFile) Clear() {
 	tf.clockPin = 0 // default none
 	tf.toUUT = NewFixedBitVec(tf.size)
 	tf.fromUUT = NewFixedBitVec(tf.size)
+	tf.clockPin = 0 // "none"
 }
 
 func (tf *TestFile) GetByteFromUUT(bit BitPosition) byte {

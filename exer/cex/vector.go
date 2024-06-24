@@ -5,7 +5,8 @@ package main
 //
 // The acronym "UUT" stands for "unit under test". We output the bits
 // that control the UUT's inputs, and check the results that come from
-// the UUT's outputs.
+// the UUT's outputs using our inputs. Since this makes the terms
+// "input" and "output" confusing, I usually use "toUUT" and "fromUUT".
 
 import (
 	"bufio"
@@ -49,6 +50,12 @@ func scan(scanner *bufio.Scanner, nano *dev.Arduino) error {
 			continue
 		}
 
+		// Output log comment
+		if line[0] == '>' {
+			log.Printf("%s", line[1:])
+			continue
+		}
+
 		tokens := strings.Split(line, string(SPACE))
 
 		// Handle the exactly-once-per-file "socket" statement
@@ -63,8 +70,10 @@ func scan(scanner *bufio.Scanner, nano *dev.Arduino) error {
 			continue
 		}
 
-		// Must be a vector or error. Clear the per-vector
-		// fields in the TestFile. Sort of ugly, meh.
+		// Must be a vector or error. We have per-file stuff
+		// and per-vector stuff in the same data structure, the
+		// TestFile. Sort of ugly, meh. Clear the per-vector
+		// fields now.
 		tf.Clear()
 
 		if err := parseVector(tf, tokens); err != nil {
@@ -89,14 +98,16 @@ func scan(scanner *bufio.Scanner, nano *dev.Arduino) error {
 // Parse the next vector from the file into the bit vectors in tf.
 // The tokens should be a line specifying exactly 24 or 68 bits as
 // specified in the socket statement and stored in the size field.
+// The vector representations must have been cleared (reallocated)
+// by the caller.
 func parseVector(tf *utils.TestFile, tokens []string) error {
 	var pos utils.BitPosition
 	for _, t := range tokens {
 		if len(t) == 0 {
 			// Golang's split() function splits on every
 			// occurrence of the split character, rather
-			// than consuming groups of them. This just
-			// means there were multiple spaces.
+			// than consuming groups of them. Being here
+			// just means there were multiple spaces.
 			continue
 		}
 
@@ -116,8 +127,10 @@ func parseVector(tf *utils.TestFile, tokens []string) error {
 		case 'C':
 			tf.SetClock(pos)
 		case 'X', 'G', 'V': // place holders
+			tf.SetIgnored(pos)
 			pos++
 		case '%':
+			// Set 16 bits of the vector from four digits of hex.
 			// This and the next case are similar, but not quite
 			// similar enough to bother making a function.
 			v, err := strconv.ParseUint(t[1:5], 16, 16)
@@ -132,6 +145,7 @@ func parseVector(tf *utils.TestFile, tokens []string) error {
 				v >>= 1
 			}
 		case '@':
+			// Set 16 bits reversed from four digits of hex.
 			v, err := strconv.ParseUint(t[1:5], 16, 16)
 			if err != nil {
 				return fmt.Errorf("parse %s: %v", t, err)
@@ -175,6 +189,8 @@ func pinToPos(pin int) utils.BitPosition {
 // Apply one vector, which is stored in the TestFile, to the hardware.
 // Return the results.
 func applyPLCC(tf *utils.TestFile) error {
+	var b byte
+
 	// Pins 1 - 8: U4:0..7
 	if err := doSetCmd(fmt.Sprintf("s 4 %02X", tf.GetByteToUUT(0)), tf.Nano()); err != nil {
 		return err
@@ -186,39 +202,37 @@ func applyPLCC(tf *utils.TestFile) error {
 	}
 
 	// Pins 17, 18, 19 - Clk, Vcc, and Gnd
+	// Pins 20..24 Cout, P, G, Z, V outputs from UUT.
 	// Pins 20 through 24 are inputs, captured below.
 	// So tf.GetByteToUUT(16) is not a thing because
-	// pin positions 17..24 are not controls or data.
+	// pin positions 17..24 are not "toUUT" pins.
 
 	// Pins 25 - 27: U8:2..0 (bit reversed)
 	// Pins 44 - 48: U8:3..7
-	// We have to construct the entire U8/B8 byte from the various
-	// vector bits that drive it; this one is mis-ordered enough
-	// that it's much easier to do it a bit at a time.
-	var b byte
-	b |= byte(tf.GetToUUT(pinToPos(27)))
-	b |= byte(tf.GetToUUT(pinToPos(26))) << 1
-	b |= byte(tf.GetToUUT(pinToPos(25))) << 2
-	b |= byte(tf.GetToUUT(pinToPos(44))) << 3
-	b |= byte(tf.GetToUUT(pinToPos(45))) << 4
-	b |= byte(tf.GetToUUT(pinToPos(46))) << 5
-	b |= byte(tf.GetToUUT(pinToPos(47))) << 6
-	b |= byte(tf.GetToUUT(pinToPos(48))) << 7
+	b = 0
+	b |= byte(tf.GetToUUT(pinToPos(27)))      // ENF
+	b |= byte(tf.GetToUUT(pinToPos(26))) << 1 // FTF
+	b |= byte(tf.GetToUUT(pinToPos(25))) << 2 // OE#
+	b |= byte(tf.GetToUUT(pinToPos(44))) << 3 // Cin to UUT
+	b |= byte(tf.GetToUUT(pinToPos(45))) << 4 // S0
+	b |= byte(tf.GetToUUT(pinToPos(46))) << 5 // S1
+	b |= byte(tf.GetToUUT(pinToPos(47))) << 6 // S2
+	b |= byte(tf.GetToUUT(pinToPos(48))) << 7 // OSA
 	if err := doSetCmd(fmt.Sprintf("s 6 %02X", b), tf.Nano()); err != nil {
 		return err
 	}
 
 	// Pins 49 - 52: B10:3..0 (bit reversed)
 	b = 0
-	b |= byte(tf.GetToUUT(pinToPos(49))) << 4
-	b |= byte(tf.GetToUUT(pinToPos(50))) << 5
-	b |= byte(tf.GetToUUT(pinToPos(51))) << 6
-	b |= byte(tf.GetToUUT(pinToPos(52))) << 7
+	b |= byte(tf.GetToUUT(pinToPos(49))) << 4 // OSB
+	b |= byte(tf.GetToUUT(pinToPos(50))) << 5 // FTAB
+	b |= byte(tf.GetToUUT(pinToPos(51))) << 6 // ENB#
+	b |= byte(tf.GetToUUT(pinToPos(52))) << 7 // ENA#
 	if err := doSetCmd(fmt.Sprintf("s A %02X", b), tf.Nano()); err != nil {
 		return err
 	}
 
-	// Pins 53 - 60: B1:0..7
+	// Pins 53 - 60: B1:0..7 (B input low byte)
 	b = 0
 	shift := 0
 	for i := pinToPos(53); i <= pinToPos(60); i++ {
@@ -229,7 +243,7 @@ func applyPLCC(tf *utils.TestFile) error {
 		return err
 	}
 
-	// Pins 61 - 68: B2:0..7
+	// Pins 61 - 68: B2:0..7 (B input high byte)
 	b = 0
 	shift = 0
 	for i := pinToPos(61); i <= pinToPos(68); i++ {
@@ -240,43 +254,36 @@ func applyPLCC(tf *utils.TestFile) error {
 		return err
 	}
 
-	// if this vector is clocked, toggle PLCC Pin 17,
-	// which is wired to TSTCLK, Nano toggle 8
+	// All the static toUUT pins on the PLCC have been set. Now, the
+	// ALU device may be used in a clocked way or combinationally.
+	// If this vector is clocked, toggle PLCC Pin 17, which is wired
+	// to TSTCLK, Nano toggle 8.
 	if tf.HasClock() {
 		doToggleCmd("t 1 8", tf.Nano())
 	}
 
 	// Read the chip's outputs through our inputs. We need to clock
-	// each register with a toggle (t) command before we read it.
+	// each register with a toggle (t) command before we read it with
+	// a get (g) command. The addresses are completely arbitrary. The
+	// first argument to the t command is a count.
 
-	// Pins 20 - 24: U11:0..4
+	// Pins 20 - 24: U11:0..4: clock bit 0xB, read port 0xC.
 	// Carry out (c), carry propagate (p), carry generate (g), zero
 	// flag (z), and overflow flag (v) plus three unused input bits.
+	// U3/B3: clock pin 0 - high byte of F (result)
+	// U7/B7: clock pin 7 - low byte of F
+
 	if err := doToggleCmd("t 1 B", tf.Nano()); err != nil {
 		return err
 	}
-	cpgzvXXX, err := doGetCmd("g C", tf.Nano())
-	if err != nil {
-		return err
-	}
-	b = 0
-	shift = 0
-	for i := pinToPos(20); i <= pinToPos(24); i++ {
-		if (cpgzvXXX>>shift)&1 != byte(tf.GetFromUUT(i)) {
-			log.Printf("  fail pin %d expected %d", 1+i, tf.GetFromUUT(i))
-			shift++
-		}
-	}
-
-	// 16 bit result on input ports B3 (MS byte) and B7 (LS byte).
-	// The pins are conceptually bit reversed (high order bit on
-	// low number pin).
-	// Pins 28 - 35: B3:7..0
-	// Pins 36 - 43: B7:7..0
 	if err := doToggleCmd("t 1 0", tf.Nano()); err != nil {
 		return err
 	}
 	if err := doToggleCmd("t 1 7", tf.Nano()); err != nil {
+		return err
+	}
+	cpgzvXXX, err := doGetCmd("g C", tf.Nano())
+	if err != nil {
 		return err
 	}
 	bHigh, err := doGetCmd("g 1", tf.Nano())
@@ -287,7 +294,36 @@ func applyPLCC(tf *utils.TestFile) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("  read result 0x%04X", int(bHigh) << 8 | int(bLow))
+
+	// We have the device outputs, whether clocked or combinational,
+	// in cpgzvXXX, bHigh, and bLow.
+
+	got := int(bHigh) << 8 | int(bLow)
+	expected := 0
+	shift = 15
+	for i := pinToPos(28); i < pinToPos(44); i++ {
+		expected |= (tf.GetFromUUT(i)&1) << shift
+		shift--
+	}
+	if expected != got {
+		log.Printf("  fail expected 0x%04X, got 0x%04X", expected, got)
+	}
+
+	shift = 0
+	names := "CPGZV"
+	for i := pinToPos(20); i <= pinToPos(24); i++ {
+		if (cpgzvXXX>>shift)&1 != byte(tf.GetFromUUT(i)) {
+			// Since we don't chain ALU chips to make a 32-bit ALU, we
+			// usually ignore the carry generate and propagate outputs.
+			// Indent the error printf beneath the indented fail line
+			// for the operation, if there was one.
+			if tf.IsIgnored(i) == 0 {
+				name := names[i - pinToPos(20)]
+				log.Printf("    fail pin '%c' expected %d", name, tf.GetFromUUT(i))
+			}
+		}
+		shift++
+	}
 
 	return nil
 }

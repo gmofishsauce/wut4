@@ -39,7 +39,7 @@ The input registers should not be enabled using **t** commands as this will caus
 
 ## Vector language
 
-Vector files are line-oriented. All nonempty lines must be left-justified. Lines starting with a space or hash character are ignored, as are empty lines consisting of just a newline. Tabs are not allowed. Hash is intended as a comment character. Comments must be left-justified (trailing comments are not allowed).
+Vector files are line-oriented. All nonempty lines must be left-justified. Lines starting with a space or hash character are ignored, as are empty lines consisting of just a newline. Tabs are not allowed. Hash is intended as a comment character. Comments must be left-justified (trailing comments are not allowed). Lines starting with '>' are commentary that is output to the log starting with character 1 of the line.
 
 The first non-empty non-comment line must contain the keyword **socket** followed by exactly one space. This must be followed by **PLCC** to select the 68-pin PLCC socket in the exerciser or **ZIF** to select the 40-pin ZIF socket in the exerciser.
 
