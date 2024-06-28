@@ -30,18 +30,21 @@ const SPACE = ' '
 //
 // TODO track line numbers else troubleshooting bad vectors
 // will be next to impossible.
-func DoVectorFile(filePath string, nano *dev.Arduino) error {
+func DoVectorFile(filePath string, nano *dev.Arduino) (int, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer file.Close()
 	return scan(bufio.NewScanner(file), nano)
 }
 
-// Scan one vector file.
-func scan(scanner *bufio.Scanner, nano *dev.Arduino) error {
+// Scan one vector file. Return number of hardware failures
+// detected and an error. Hardware failures are not "errors".
+func scan(scanner *bufio.Scanner, nano *dev.Arduino) (int, error) {
 	var tf *utils.TestFile
+	var totalErrors int
+
 	for scanner.Scan() {
 		// First check for empty lines and comments. Lines must
 		// be left-justified. Lines starting with spaces are empty.
@@ -61,11 +64,11 @@ func scan(scanner *bufio.Scanner, nano *dev.Arduino) error {
 		// Handle the exactly-once-per-file "socket" statement
 		if tokens[0] == "socket" {
 			if tf != nil || len(tokens) != 2 {
-				return fmt.Errorf("bad 'socket' statement")
+				return 0, fmt.Errorf("bad 'socket' statement")
 			}
 			tf = utils.NewTestFile(tokens[1], nano)
 			if tf == nil {
-				return fmt.Errorf("bad socket type")
+				return 0, fmt.Errorf("bad socket type")
 			}
 			continue
 		}
@@ -77,22 +80,24 @@ func scan(scanner *bufio.Scanner, nano *dev.Arduino) error {
 		tf.Clear()
 
 		if err := parseVector(tf, tokens); err != nil {
-			return err
-		}
-		if debug {
-			log.Printf("%s\n", tf)
+			return 0, err
 		}
 		if err := scanner.Err(); err != nil {
-			return err
+			return 0, err
+		}
+		if debug {
+			log.Printf("Parsed: %s\n", tf)
 		}
 
 		// Successfully parsed one vector; apply it
-		if err := applyVector(tf); err != nil {
-			return err
+		errorCount, err := applyVector(tf)
+		if err != nil {
+			return errorCount, err
 		}
+		totalErrors += errorCount
 	}
 
-	return nil
+	return totalErrors, nil
 }
 
 // Parse the next vector from the file into the bit vectors in tf.
@@ -172,13 +177,13 @@ func parseVector(tf *utils.TestFile, tokens []string) error {
 
 // Apply the vector stored in the tf structure to the hardware.
 
-func applyVector(tf *utils.TestFile) error {
+func applyVector(tf *utils.TestFile) (int, error) {
 	if tf.Socket() == "PLCC" {
 		return applyPLCC(tf)
 	} else if tf.Socket() == "ZIF" {
 		return applyZIF(tf)
 	} else {
-		return fmt.Errorf("unknown socket type %s", tf.Socket())
+		return 0, fmt.Errorf("unknown socket type %s", tf.Socket())
 	}
 }
 
@@ -187,18 +192,19 @@ func pinToPos(pin int) utils.BitPosition {
 }
 
 // Apply one vector, which is stored in the TestFile, to the hardware.
-// Return the results.
-func applyPLCC(tf *utils.TestFile) error {
+// Return a count of hardware failures and an error value. Hardware
+// failures do not cause an "error".
+func applyPLCC(tf *utils.TestFile) (int, error) {
 	var b byte
 
 	// Pins 1 - 8: U4:0..7
 	if err := doSetCmd(fmt.Sprintf("s 4 %02X", tf.GetByteToUUT(0)), tf.Nano()); err != nil {
-		return err
+		return 0, err
 	}
 
 	// Pins 9 - 16: U5:0..7
 	if err := doSetCmd(fmt.Sprintf("s 5 %02X", tf.GetByteToUUT(8)), tf.Nano()); err != nil {
-		return err
+		return 0, err
 	}
 
 	// Pins 17, 18, 19 - Clk, Vcc, and Gnd
@@ -219,7 +225,7 @@ func applyPLCC(tf *utils.TestFile) error {
 	b |= byte(tf.GetToUUT(pinToPos(47))) << 6 // S2
 	b |= byte(tf.GetToUUT(pinToPos(48))) << 7 // OSA
 	if err := doSetCmd(fmt.Sprintf("s 6 %02X", b), tf.Nano()); err != nil {
-		return err
+		return 0, err
 	}
 
 	// Pins 49 - 52: B10:3..0 (bit reversed)
@@ -229,7 +235,7 @@ func applyPLCC(tf *utils.TestFile) error {
 	b |= byte(tf.GetToUUT(pinToPos(51))) << 6 // ENB#
 	b |= byte(tf.GetToUUT(pinToPos(52))) << 7 // ENA#
 	if err := doSetCmd(fmt.Sprintf("s A %02X", b), tf.Nano()); err != nil {
-		return err
+		return 0, err
 	}
 
 	// Pins 53 - 60: B1:0..7 (B input low byte)
@@ -240,7 +246,7 @@ func applyPLCC(tf *utils.TestFile) error {
 		shift++
 	}
 	if err := doSetCmd(fmt.Sprintf("s 3 %02X", b), tf.Nano()); err != nil {
-		return err
+		return 0, err
 	}
 
 	// Pins 61 - 68: B2:0..7 (B input high byte)
@@ -251,7 +257,7 @@ func applyPLCC(tf *utils.TestFile) error {
 		shift++
 	}
 	if err := doSetCmd(fmt.Sprintf("s 2 %02X", b), tf.Nano()); err != nil {
-		return err
+		return 0, err
 	}
 
 	// All the static toUUT pins on the PLCC have been set. Now, the
@@ -274,30 +280,31 @@ func applyPLCC(tf *utils.TestFile) error {
 	// U7/B7: clock pin 7 - low byte of F
 
 	if err := doToggleCmd("t 1 B", tf.Nano()); err != nil {
-		return err
+		return 0, err
 	}
 	if err := doToggleCmd("t 1 0", tf.Nano()); err != nil {
-		return err
+		return 0, err
 	}
 	if err := doToggleCmd("t 1 7", tf.Nano()); err != nil {
-		return err
+		return 0, err
 	}
 	cpgzvXXX, err := doGetCmd("g C", tf.Nano())
 	if err != nil {
-		return err
+		return 0, err
 	}
 	bHigh, err := doGetCmd("g 1", tf.Nano())
 	if err != nil {
-		return err
+		return 0, err
 	}
 	bLow, err := doGetCmd("g 9", tf.Nano())
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// We have the device outputs, whether clocked or combinational,
 	// in cpgzvXXX, bHigh, and bLow.
 
+	errorCount := 0
 	got := int(bHigh) << 8 | int(bLow)
 	expected := 0
 	shift = 15
@@ -307,6 +314,7 @@ func applyPLCC(tf *utils.TestFile) error {
 	}
 	if expected != got {
 		log.Printf("  fail expected 0x%04X, got 0x%04X", expected, got)
+		errorCount++
 	}
 
 	shift = 0
@@ -320,15 +328,16 @@ func applyPLCC(tf *utils.TestFile) error {
 			if tf.IsIgnored(i) == 0 {
 				name := names[i - pinToPos(20)]
 				log.Printf("    fail pin '%c' expected %d", name, tf.GetFromUUT(i))
+				errorCount++
 			}
 		}
 		shift++
 	}
 
-	return nil
+	return errorCount, nil
 }
 
-func applyZIF(tf *utils.TestFile) error {
+func applyZIF(tf *utils.TestFile) (int, error) {
 	log.Println("applyZIF()")
-	return nil
+	return 0, nil
 }

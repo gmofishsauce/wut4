@@ -62,15 +62,25 @@ func submain() int { // return exit code
 
 	// If there are vector files, process them and done
 	if len(vectorFiles) > 0 {
+		totalFailures := 0
 		for _, vf := range vectorFiles {
 			log.Printf("processing vector file %s", vf)
-			err := DoVectorFile(vf, nano)
+			failureCount, err := DoVectorFile(vf, nano)
 			if err != nil {
-				log.Printf("vector file %s: %s\n", vf, err)
+				log.Printf("vector file %s: error: %s\n", vf, err)
 				return 2
 			}
+			log.Printf("vector file %s: %d failure(s)", vf, failureCount)
+			totalFailures += failureCount
 		}
-		return 0
+		outcome := 0
+		if totalFailures == 0 {
+			log.Printf("success")
+		} else {
+			log.Printf("%d failures", totalFailures)
+			outcome = 3
+		}
+		return outcome
 	}
 
 	// No vector files on the command line - interactive mode

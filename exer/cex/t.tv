@@ -9,42 +9,42 @@ socket PLCC
 # Combinational - register clocks disabled, select flow through
 # First just check the F output, ignoring the status bits.
 >CLEAR
-%0007  0 V G L X X H L 1 1 0  @A5A5 0 0 0 0 1 1 1 1 1 %0005
-%FFFF  0 V G L X X H L 1 1 0  @A5A5 0 0 0 0 1 1 1 1 1 %FFFF
-%0000  0 V G L X X H L 1 1 0  @A5A5 0 0 0 0 1 1 1 1 1 %0000
+%0007  0 V G L X X H L 1 1 0  @0000 0 0 0 0 1 1 1 1 1 %0005
+%FFFF  0 V G L X X H L 1 1 0  @0000 0 0 0 0 1 1 1 1 1 %FFFF
+%0000  0 V G L X X H L 1 1 0  @0000 0 0 0 0 1 1 1 1 1 %0000
 
 >NOT(A) + B
-%0007  0 V G L X X L L 1 1 0  @A5A5 0 1 0 0 1 1 1 1 1 %0005
-%FFFF  0 V G L X X L L 1 1 0  @A5A5 0 1 0 0 1 1 1 1 1 %FFFF
-%0000  0 V G L X X L L 1 1 0  @A5A5 0 1 0 0 1 1 1 1 1 %0000
+%0007  0 V G L X X L L 1 1 0  @FFFD 0 1 0 0 1 1 1 1 1 %0005
+%FFFF  0 V G L X X L L 1 1 0  @FFFF 0 1 0 0 1 1 1 1 1 %FFFF
+%0000  0 V G L X X L L 1 1 0  @FFFF 0 1 0 0 1 1 1 1 1 %0000
 
 >A + NOT(B)
-%0007  0 V G H X X L L 1 1 0  @A5A5 0 0 1 0 1 1 1 1 1 %0005
-%FFFF  0 V G L X X L L 1 1 0  @A5A5 0 0 1 0 1 1 1 1 1 %FFFF
-%0000  0 V G L X X L L 1 1 0  @A5A5 0 0 1 0 1 1 1 1 1 %0000
+%0007  0 V G H X X L L 1 1 0  @0001 0 0 1 0 1 1 1 1 1 %0005
+%FFFF  0 V G L X X L L 1 1 0  @FFFF 0 0 1 0 1 1 1 1 1 %FFFF
+%0000  0 V G L X X L L 1 1 0  @FFFF 0 0 1 0 1 1 1 1 1 %0000
 
 >A + B
-%0007  0 V G L X X L L 1 1 0  @A5A5 0 1 1 0 1 1 1 1 1 %0005
-%FFFF  0 V G H X X L L 1 1 0  @A5A5 0 1 1 0 1 1 1 1 1 %FFFF
-%0000  0 V G L X X H L 1 1 0  @A5A5 0 1 1 0 1 1 1 1 1 %0000
+%0007  0 V G L X X L L 1 1 0  @000C 0 1 1 0 1 1 1 1 1 %0005
+%FFFF  0 V G H X X L L 1 1 0  @FFFE 0 1 1 0 1 1 1 1 1 %FFFF
+%0000  0 V G L X X H L 1 1 0  @0000 0 1 1 0 1 1 1 1 1 %0000
 
 >A XOR B
-%0007  0 V G L X X L L 1 1 0  @A5A5 0 0 0 1 1 1 1 1 1 %0005
-%FFFF  0 V G L X X H L 1 1 0  @A5A5 0 0 0 1 1 1 1 1 1 %FFFF
-%0000  0 V G L X X H L 1 1 0  @A5A5 0 0 0 1 1 1 1 1 1 %0000
+%0007  0 V G L X X L L 1 1 0  @0002 0 0 0 1 1 1 1 1 1 %0005
+%FFFF  0 V G L X X H L 1 1 0  @0000 0 0 0 1 1 1 1 1 1 %FFFF
+%0000  0 V G L X X H L 1 1 0  @0000 0 0 0 1 1 1 1 1 1 %0000
 
 >A OR B
-%0007  0 V G L X X L L 1 1 0  @A5A5 0 1 0 1 1 1 1 1 1 %0005
-%FFFF  0 V G L X X L L 1 1 0  @A5A5 0 1 0 1 1 1 1 1 1 %FFFF
-%0000  0 V G L X X H L 1 1 0  @A5A5 0 1 0 1 1 1 1 1 1 %0000
+%0007  0 V G L X X L L 1 1 0  @0007 0 1 0 1 1 1 1 1 1 %0005
+%FFFF  0 V G L X X L L 1 1 0  @FFFF 0 1 0 1 1 1 1 1 1 %FFFF
+%0000  0 V G L X X H L 1 1 0  @0000 0 1 0 1 1 1 1 1 1 %0000
 
 >A AND B
-%0007  0 V G L X X L L 1 1 0  @A5A5 0 0 1 1 1 1 1 1 1 %0005
-%FFFF  0 V G L X X L L 1 1 0  @A5A5 0 0 1 1 1 1 1 1 1 %FFFF
-%0000  0 V G L X X H L 1 1 0  @A5A5 0 0 1 1 1 1 1 1 1 %0000
+%0007  0 V G L X X L L 1 1 0  @0005 0 0 1 1 1 1 1 1 1 %0005
+%FFFF  0 V G L X X L L 1 1 0  @FFFF 0 0 1 1 1 1 1 1 1 %FFFF
+%0000  0 V G L X X H L 1 1 0  @0000 0 0 1 1 1 1 1 1 1 %0000
 
 >SET
-%0007  0 V G L X X L L 1 1 0  @A5A5 0 1 1 1 1 1 1 1 1 %0005
-%FFFF  0 V G L X X L L 1 1 0  @A5A5 0 1 1 1 1 1 1 1 1 %FFFF
-%0000  0 V G L X X L L 1 1 0  @A5A5 0 1 1 1 1 1 1 1 1 %0000
+%0007  0 V G L X X L L 1 1 0  @FFFF 0 1 1 1 1 1 1 1 1 %0005
+%FFFF  0 V G L X X L L 1 1 0  @FFFF 0 1 1 1 1 1 1 1 1 %FFFF
+%0000  0 V G L X X L L 1 1 0  @FFFF 0 1 1 1 1 1 1 1 1 %0000
 
