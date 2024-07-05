@@ -1,4 +1,6 @@
-# TestVector (.tv) file for testing the file scanner
+# TestVector (.tv) file that tests combinational ALU operations.
+# Does not ever clock any of the internal registers or select
+# them as inputs or outputs.
 
 socket PLCC
 
@@ -7,7 +9,8 @@ socket PLCC
 #        Vcc             FTF          S0  S2  OSB ENB B-in
 #
 # Combinational - register clocks disabled, select flow through
-# First just check the F output, ignoring the status bits.
+# Run a few tests for each of the 8 ALU operations.
+
 >CLEAR
 %0007  0 V G L X X H L 1 1 0  @0000 0 0 0 0 1 1 1 1 1 %0005
 %FFFF  0 V G L X X H L 1 1 0  @0000 0 0 0 0 1 1 1 1 1 %FFFF

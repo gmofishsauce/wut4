@@ -1,0 +1,28 @@
+# TestVector (.tv) file that tests some clocked (combinational)
+# ALU operations. The tests here clock the A and B registers
+# while issuing a CLEAR operation combinationally. Then they
+# select the A and B registers as inputs and do an ADD operation.
+
+socket PLCC
+
+# 0    17  19        24    27    43 44              52 68
+# A-in CLK G C P G Z V ENF OE F-out Cin S1  OSA FTA ENA
+#        Vcc             FTF          S0  S2  OSB ENB B-in
+#
+# ENA# and ENB# enable loading the A and B registers. They are
+# the last two bits before the 16-bit B operand at right.
+
+>CLEAR and LOAD A = 0x0007, B = 0x0005
+%0007  C V G L X X H L 1 1 0  @0000 0 0 0 0 1 1 1 0 0 %0005
+
+>Change combinational input, Set FTAB = 0, A + B from registers.
+>If result is 0001 and overflow, fail: inputs came from bus.
+%7FFF  0 V G L X X L L 1 1 0  @000C 0 1 1 0 1 1 0 1 1 %0002
+
+#ADD
+#%FFFF  0 V G H X X L L 1 1 0  @FFFE 0 1 1 0 1 1 1 1 1 %FFFF
+#%0000  0 V G L X X H L 1 1 0  @0000 0 1 1 0 1 1 1 1 1 %0000
+
+#CLEAR
+#%FFFF  0 V G L X X H L 1 1 0  @0000 0 0 0 0 1 1 1 1 1 %FFFF
+#%0000  0 V G L X X H L 1 1 0  @0000 0 0 0 0 1 1 1 1 1 %0000

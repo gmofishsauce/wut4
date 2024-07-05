@@ -131,6 +131,7 @@ func parseVector(tf *utils.TestFile, tokens []string) error {
 			pos++
 		case 'C':
 			tf.SetClock(pos)
+			pos++
 		case 'X', 'G', 'V': // place holders
 			tf.SetIgnored(pos)
 			pos++
