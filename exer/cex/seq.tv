@@ -1,7 +1,5 @@
-# TestVector (.tv) file that tests some clocked (combinational)
-# ALU operations. The tests here clock the A and B registers
-# while issuing a CLEAR operation combinationally. Then they
-# select the A and B registers as inputs and do an ADD operation.
+# TestVector (.tv) file that tests some clocked (sequential)
+# ALU operations.
 
 socket PLCC
 
@@ -19,10 +17,18 @@ socket PLCC
 >If result is 0001 and overflow, fail: inputs came from bus.
 %7FFF  0 V G L X X L L 1 1 0  @000C 0 1 1 0 1 1 0 1 1 %0002
 
-#ADD
-#%FFFF  0 V G H X X L L 1 1 0  @FFFE 0 1 1 0 1 1 1 1 1 %FFFF
-#%0000  0 V G L X X H L 1 1 0  @0000 0 1 1 0 1 1 1 1 1 %0000
+# New test sequence. First, load A, B with 1, FFFC. Add them
+# from the combinational inputs in parallel with loading the
+# operand registers. Clock the result to the output register
+# but select the combinational output and verify that it's
+# FFFD.
+>ADD FFFC and 0001. Load them to A, B. Load RESULT but bypass
+>result with sum = FFFD.
+%0001  C V G L X X L L 0 0 0  @FFFD 0 1 1 0 1 1 1 0 0 %FFFC
 
-#CLEAR
-#%FFFF  0 V G L X X H L 1 1 0  @0000 0 0 0 0 1 1 1 1 1 %FFFF
-#%0000  0 V G L X X H L 1 1 0  @0000 0 0 0 0 1 1 1 1 1 %0000
+>Check that F register was loaded by looping it back and
+>adding A again. Input pins not used. Clock result and bypass.
+>If 0002, 0003, or 0005 appears anywhere, error.
+%0003  C V G L X X L L 0 0 0  @FFFE 0 1 1 0 0 0 0 1 1 %0002
+%0003  C V G H X X H L 0 0 0  @FFFF 0 1 1 0 0 0 0 1 1 %0002
+%0003  C V G L X X L L 0 0 0  @0000 0 1 1 0 0 0 0 1 1 %0002
