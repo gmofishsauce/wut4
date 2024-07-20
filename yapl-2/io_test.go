@@ -3,22 +3,22 @@
 package main
 
 import (
-    "os"
+	"os"
 	"testing"
 )
 
 func check(t *testing.T, header string, e error) {
-    if e != nil {
+	if e != nil {
 		t.Fatalf("%s: error: %s\n", header, e.Error())
-    }
+	}
 }
 
 func TestIO1(t *testing.T) {
 	var testdata string = "This\nis a string\n    with multiple lines.\n"
 
 	// Create a temporary file
-    f, err := os.CreateTemp("", "TestIO1")
-    check(t, "creating temp file", err)
+	f, err := os.CreateTemp("", "TestIO1")
+	check(t, "creating temp file", err)
 	name := f.Name()
 	defer os.Remove(name)
 	fd := Word(f.Fd())

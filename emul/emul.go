@@ -68,7 +68,7 @@ type word uint16
 type exception uint16
 
 const (
-	ExNone exception = 0 // no exception (reset is not exception)
+	ExNone    exception = 0  // no exception (reset is not exception)
 	ExIllegal exception = 16 // illegal instruction
 	ExMemory  exception = 18 // access violation (page fault)
 	ExAlign   exception = 20 // alignment fault

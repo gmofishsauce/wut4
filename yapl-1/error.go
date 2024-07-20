@@ -15,14 +15,14 @@ const ErrBase Word = 0xC000
 // A few error codes are in the range 0xFFFn; these are compatible with
 // the error encoding convention and can be returned directly as errors.
 const ( // Error subtypes
-	ERR_LEX Word = 0x100     // 0x100 .. 0x1FF lexer errors
-	ERR_PARSE Word = 0x200   // 0x200 .. 0x2FF syntax errors
-	ERR_TYPE Word = 0x300    // 0x300 .. 0x3FF type errors
-	ERR_IR Word = 0x400      // 0x400 .. 0x4FF IR errors
-	ERR_GEN Word = 0x500     // 0x500 .. 0x5FF code gen errors
-	ERR_SYM Word = 0x600     // 0x600 .. 0x6FF symbol table errors
-	ERR_INT Word = 0x700     // 0x700 .. 0x6FF internal errors
-	ERR_SYS Word = 0xFF00    // 0xFF00..0xFFFF system (e.g. I/O) errors
+	ERR_LEX   Word = 0x100  // 0x100 .. 0x1FF lexer errors
+	ERR_PARSE Word = 0x200  // 0x200 .. 0x2FF syntax errors
+	ERR_TYPE  Word = 0x300  // 0x300 .. 0x3FF type errors
+	ERR_IR    Word = 0x400  // 0x400 .. 0x4FF IR errors
+	ERR_GEN   Word = 0x500  // 0x500 .. 0x5FF code gen errors
+	ERR_SYM   Word = 0x600  // 0x600 .. 0x6FF symbol table errors
+	ERR_INT   Word = 0x700  // 0x700 .. 0x6FF internal errors
+	ERR_SYS   Word = 0xFF00 // 0xFF00..0xFFFF system (e.g. I/O) errors
 )
 
 // This takes advantage of casting an "external" (WUT-4 "errno") error
@@ -44,30 +44,30 @@ const TT_EOF Token = Token(E_EOF) // 0xFFFF io.go
 // This is programming for big kids. Don't screw up.
 
 const ( // Lexer errors
-	ERR_LEX_INVAL Word = ErrBase|ERR_LEX|1   // 0xC101 invalid character
-	ERR_LEX_IO Word = ErrBase|ERR_LEX|2      // 0xC102 i/o error on input
-	ERR_LEX_UNEXP Word = ErrBase|ERR_LEX|3   // 0xC103 unexpected char
+	ERR_LEX_INVAL Word = ErrBase | ERR_LEX | 1 // 0xC101 invalid character
+	ERR_LEX_IO    Word = ErrBase | ERR_LEX | 2 // 0xC102 i/o error on input
+	ERR_LEX_UNEXP Word = ErrBase | ERR_LEX | 3 // 0xC103 unexpected char
 )
 
 const ( // Parse errors
-	ERR_PARSE_ERR Word = ErrBase|ERR_PARSE|1 // 0xC201 "parse error" (TBD)
+	ERR_PARSE_ERR Word = ErrBase | ERR_PARSE | 1 // 0xC201 "parse error" (TBD)
 )
 
 const ( // Symbol table errors
-	ERR_SYM_REDEF Word = ErrBase|ERR_SYM|1   // 0xC601 symbol redefined
-	ERR_SYM_NODEF Word = ErrBase|ERR_SYM|2   // 0xC602 symbol undefined
+	ERR_SYM_REDEF Word = ErrBase | ERR_SYM | 1 // 0xC601 symbol redefined
+	ERR_SYM_NODEF Word = ErrBase | ERR_SYM | 2 // 0xC602 symbol undefined
 )
 
 const ( // internal errors, e.g. out of space
-	ERR_INT_NOSTR Word = ErrBase|ERR_INT|1   // 0xC701 string table full
-	ERR_INT_NOSYM Word = ErrBase|ERR_INT|2   // 0xC702 symbol table full
-	ERR_INT_TOOBIG Word = ErrBase|ERR_INT|3  // 0xC703 symbol or string too long
-	ERR_INT_BUG Word = ErrBase|ERR_INT|4     // 0xC704 unspecified internal error
-	ERR_INT_INIT Word = ErrBase|ERR_INT|5    // 0xC705 initialization error
-	ERR_INT_CAST Word = ErrBase|ERR_INT|6    // 0xC706 bad cast
+	ERR_INT_NOSTR  Word = ErrBase | ERR_INT | 1 // 0xC701 string table full
+	ERR_INT_NOSYM  Word = ErrBase | ERR_INT | 2 // 0xC702 symbol table full
+	ERR_INT_TOOBIG Word = ErrBase | ERR_INT | 3 // 0xC703 symbol or string too long
+	ERR_INT_BUG    Word = ErrBase | ERR_INT | 4 // 0xC704 unspecified internal error
+	ERR_INT_INIT   Word = ErrBase | ERR_INT | 5 // 0xC705 initialization error
+	ERR_INT_CAST   Word = ErrBase | ERR_INT | 6 // 0xC706 bad cast
 )
 
-var errorTable []Word = []Word {
+var errorTable []Word = []Word{
 	ERR_LEX_INVAL,
 	ERR_LEX_IO,
 	ERR_LEX_UNEXP,
@@ -82,7 +82,7 @@ var errorTable []Word = []Word {
 	ERR_INT_CAST,
 }
 
-var errorMessages []string = []string {
+var errorMessages []string = []string{
 	"invalid character",
 	"i/o error on input",
 	"unexpected char",
@@ -108,7 +108,7 @@ func LookupError(code Word) string {
 
 // Error severities
 const ERR_CONTINUE = Word(1)
-const ERR_FATAL    = Word(2)
+const ERR_FATAL = Word(2)
 
 // This is the while point of all the fussing
 func PrintErr(fmt string, code Word, sev Word, val Word) {

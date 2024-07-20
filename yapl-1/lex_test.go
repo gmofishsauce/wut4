@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-
 func TestLex01(t *testing.T) {
 	f, err := os.Open("t1.yapl-1")
 	check(t, "opening test file t1.yapl-1", err)
@@ -17,7 +16,7 @@ func TestLex01(t *testing.T) {
 	t1 := GetToken()
 	PushbackToken(t1)
 	t2 := GetToken()
-	assert(t, t1==t2, "PushbackToken")
+	assert(t, t1 == t2, "PushbackToken")
 
 	var tk Token
 	for tk = GetToken(); tk != TT_EOF; tk = GetToken() {

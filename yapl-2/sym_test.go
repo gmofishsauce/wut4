@@ -28,7 +28,7 @@ func TestSym01(t *testing.T) {
 	strtab[i] = x
 
 	index := SymEnter(Word(i), 1)
-	assert(t, index == symtabNext - 1, "TestSym01 4")
+	assert(t, index == symtabNext-1, "TestSym01 4")
 	assert(t, symtab[index].Len == 1, "TestSym01 5")
 	assert(t, strtab[symtab[index].Val] == x, "TestSym01 6")
 }
@@ -62,7 +62,7 @@ func TestSym02(t *testing.T) {
 	strtab[i+2] = Byte('r')
 	s4 := SymEnter(Word(i), Byte(3))
 
-	assert(t, s1==s4, "TestSym02 4")
+	assert(t, s1 == s4, "TestSym02 4")
 	assert(t, 1+symtab[s2].Val == symtab[s3].Val, "TestSym02 5")
 	assert(t, i == j+3, "TestSym02 6")
 }

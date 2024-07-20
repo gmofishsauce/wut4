@@ -1,0 +1,40 @@
+#!/bin/bash
+shopt -s expand_aliases
+
+alias enter="pushd > /dev/null"
+alias leave="popd > /dev/null"
+
+enter dsm
+echo 'Building dsm...'
+go build || exit $?
+leave
+
+enter emul
+echo 'Building emul...'
+go build || exit $?
+leave
+
+enter exer/cex
+echo 'Building cex...'
+go build || exit $?
+leave
+
+enter itf
+echo 'Building itf and running tests...'
+echo '(Script continues despite test failures.)'
+go build || exit $?
+./RUNALL
+leave
+
+enter yapl-1
+echo 'Building yapl v1...'
+go build || exit $?
+leave
+
+enter yapl-2
+echo 'Building yapl v2...'
+go build || exit $?
+leave
+
+echo 'Done.'
+

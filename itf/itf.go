@@ -18,8 +18,8 @@ License along with this program. If not, see
 package main
 
 import (
-	"fmt"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -43,10 +43,10 @@ func main() {
 
 	// TODO Should check that asmPath is a readable plain file
 	workDir := makeTmpDir(asmPath)
-	if err = os.RemoveAll(workDir) ; err != nil {
+	if err = os.RemoveAll(workDir); err != nil {
 		fatal("removing working directory: " + err.Error())
 	}
-	if err = os.Mkdir(workDir, 0750) ; err != nil {
+	if err = os.Mkdir(workDir, 0750); err != nil {
 		fatal("creating working directory: " + err.Error())
 	}
 	pr(fmt.Sprintf("testing %s in %s...", asmPath, workDir))
@@ -83,7 +83,7 @@ const Assembler string = "../asm/asm"
 
 // The assembler writes a binary file, so it accepts a -o output command
 // line option that must precede the source file path(s).
-func runAssembler(sourcePath string, targetPath string) error { 
+func runAssembler(sourcePath string, targetPath string) error {
 	cmd := exec.Command(Assembler, "-o", targetPath, sourcePath)
 	pr("running: " + cmd.String())
 	output, err := cmd.CombinedOutput()
@@ -116,17 +116,17 @@ func runDisassembler(sourcePath string, targetPath string) error {
 const Comparer string = "cmp"
 
 func runCompare(origBinPath string, reassembledBinPath string) error {
-    cmd := exec.Command(Comparer, origBinPath, reassembledBinPath)
-    pr("running: " + cmd.String())
-    output, err := cmd.CombinedOutput()
-    pr(string(output))
-    return err
+	cmd := exec.Command(Comparer, origBinPath, reassembledBinPath)
+	pr("running: " + cmd.String())
+	output, err := cmd.CombinedOutput()
+	pr(string(output))
+	return err
 }
 
 func makeTmpDir(asmPath string) string {
-    base := path.Base(asmPath)
-    ext := path.Ext(asmPath)
-    name := strings.ReplaceAll(base, ext, "")
+	base := path.Base(asmPath)
+	ext := path.Ext(asmPath)
+	name := strings.ReplaceAll(base, ext, "")
 	return "./_Test_" + name
 }
 
@@ -135,4 +135,3 @@ func usage() {
 	flag.PrintDefaults()
 	os.Exit(1)
 }
-

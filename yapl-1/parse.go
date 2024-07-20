@@ -142,7 +142,7 @@ func syntaxError(msg string, bad Token) AstIndex {
 func resync() {
 	var t Token
 	for t = GetToken(); t != SEMI && t != BCLOSE && t != TT_EOF; t = GetToken() {
-		; // nothing
+		// nothing
 	}
 	if t == TT_EOF {
 		// Leave it for the caller to consume

@@ -306,11 +306,11 @@ func applyPLCC(tf *utils.TestFile) (int, error) {
 	// in cpgzvXXX, bHigh, and bLow.
 
 	errorCount := 0
-	got := int(bHigh) << 8 | int(bLow)
+	got := int(bHigh)<<8 | int(bLow)
 	expected := 0
 	shift = 15
 	for i := pinToPos(28); i < pinToPos(44); i++ {
-		expected |= (tf.GetFromUUT(i)&1) << shift
+		expected |= (tf.GetFromUUT(i) & 1) << shift
 		shift--
 	}
 	if expected != got {
@@ -327,7 +327,7 @@ func applyPLCC(tf *utils.TestFile) (int, error) {
 			// Indent the error printf beneath the indented fail line
 			// for the operation, if there was one.
 			if tf.IsIgnored(i) == 0 {
-				name := names[i - pinToPos(20)]
+				name := names[i-pinToPos(20)]
 				log.Printf("    fail pin '%c' expected %d", name, tf.GetFromUUT(i))
 				errorCount++
 			}

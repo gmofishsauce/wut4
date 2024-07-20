@@ -4,10 +4,10 @@ package main
 
 // This is a language compiler designed to execute in a 64k address space.
 //
-// This compiler differs from modern compilers in the following way: it is 
+// This compiler differs from modern compilers in the following way: it is
 // built around a _symbol table_, which contains a unique entry for each
 // string symbol or constant value in the program being compiled. Modern
-// compilers generally load the entire source file as a string and hold 
+// compilers generally load the entire source file as a string and hold
 // references into the string; in a 64k memory space, this not possible.
 //
 // The first pass of this compiler makes use of three data structures:
@@ -53,7 +53,7 @@ type Bool bool
 // output from the compiler becomes part of the assembly language result,
 // so messages are prefixed with ";" making them assembler comments.
 const (
-	STDIN Word = Word(0)
+	STDIN  Word = Word(0)
 	STDOUT Word = Word(1)
 )
 
@@ -63,7 +63,7 @@ type Token Word
 
 // There are some maximum size constants below. The ultimate max of these
 // max sizes is 0xC000 because error codes are the values 0xC000 - 0xFFFF.
-// In fact, likely none of these can be greater than 0x8000, if even that, 
+// In fact, likely none of these can be greater than 0x8000, if even that,
 // because the tables in this file need to be stored simultaneously in a
 // 64k address space during the first pass. The symbol length max, now 15,
 // cannot ultimately exceed 255.
@@ -72,16 +72,16 @@ type Token Word
 // the length is relevant, or they maybe constant values where the length
 // is 0.
 type Syment struct {
-	Val Word          // index in string table or lit value
-	Len Byte          // Length of name or 0 for numeric constant
-	Info Byte         // Type information
+	Val  Word // index in string table or lit value
+	Len  Byte // Length of name or 0 for numeric constant
+	Info Byte // Type information
 }
 
-type SymIndex Word    // symbol table index
+type SymIndex Word // symbol table index
 const SYMTAB_MAX SymIndex = 4096
 const SYMLEN_MAX Word = 16
 
-type StrIndex Word    // index in strings table
+type StrIndex Word // index in strings table
 const STRTAB_MAX StrIndex = 8192
 
 // AST nodes use RJ's data oriented tree design. The code knows which
@@ -92,17 +92,18 @@ const STRTAB_MAX StrIndex = 8192
 // a Block may have more than 255 Statement-like children. So it goes.
 
 type AstNode struct { // AST node
-	Sym SymIndex      // index of symbol table entry
-	Size Word         // size of this node (with all subnodes)
+	Sym  SymIndex // index of symbol table entry
+	Size Word     // size of this node (with all subnodes)
 	Kind Byte
 	Xtra Byte
 }
 
 type AstIndex Word
+
 const AstMaxNode AstIndex = 2048
 
 const (
-	AstKindNone = iota  // reserved
+	AstKindNone  = iota // reserved
 	AstKindError        // Error placeholder node
 	AstKindUsr          // user defined symbol
 )
@@ -129,4 +130,3 @@ func AsWord(q any) Word {
 	}
 	return w
 }
-

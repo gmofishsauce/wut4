@@ -20,8 +20,8 @@ package main
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -34,9 +34,9 @@ var fflag = flag.String("f", "", "fast disassemble option argument")
 // Table of mnemonics and their signatures
 
 type KeyEntry struct {
-	name string
-	nbits uint16     // number of high bits required to recognize
-	opcode uint16    // fixed opcode bits
+	name      string
+	nbits     uint16 // number of high bits required to recognize
+	opcode    uint16 // fixed opcode bits
 	signature uint16 // see below
 }
 
@@ -49,12 +49,12 @@ const RXX uint16 = 6 // register
 const XXX uint16 = 7 // no arguments
 
 // Names of the registers, indexed by field content
-var RegNames []string = []string {
+var RegNames []string = []string{
 	"r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
 }
 
 // Names of special registers, indexed by field content
-var SprNames []string = []string {
+var SprNames []string = []string{
 	"pc", "lnk", "err3", "err4", "err5", "err6", "err7",
 }
 
@@ -62,25 +62,25 @@ var SprNames []string = []string {
 // entered into the symbol table during initialization.
 // Keep the entires in this table in the same order, with the
 // same grouping, as the rules in ../asm/asm.
-var KeyTable []KeyEntry = []KeyEntry {
+var KeyTable []KeyEntry = []KeyEntry{
 	// Operations with two registers and a 7-bit immediate
-	{"ldw", 3,  0x0000, RRI},
-	{"ldb", 3,  0x2000, RRI},
-	{"stw", 3,  0x4000, RRI},
-	{"stb", 3,  0x6000, RRI},
-	{"beq", 3,  0x8000, RRI},
-	{"adi", 3,  0xA000, RRI}, // special case(s) in pass 2
-	{"lui", 3,  0xC000, RJX}, // special case(s) in pass 2
-	{"jlr", 4,  0xE000, RRI}, // special case(s) in pass 2
+	{"ldw", 3, 0x0000, RRI},
+	{"ldb", 3, 0x2000, RRI},
+	{"stw", 3, 0x4000, RRI},
+	{"stb", 3, 0x6000, RRI},
+	{"beq", 3, 0x8000, RRI},
+	{"adi", 3, 0xA000, RRI}, // special case(s) in pass 2
+	{"lui", 3, 0xC000, RJX}, // special case(s) in pass 2
+	{"jlr", 4, 0xE000, RRI}, // special case(s) in pass 2
 
 	// 3-operand XOPs
-	{"add", 7,  0xF000, RRR},
-	{"adc", 7,  0xF200, RRR},
-	{"sub", 7,  0xF400, RRR},
-	{"sbb", 7,  0xF600, RRR},
-	{"bic", 7,  0xF800, RRR},
-	{"bis", 7,  0xFA00, RRR},
-	{"xor", 7,  0xFC00, RRR},
+	{"add", 7, 0xF000, RRR},
+	{"adc", 7, 0xF200, RRR},
+	{"sub", 7, 0xF400, RRR},
+	{"sbb", 7, 0xF600, RRR},
+	{"bic", 7, 0xF800, RRR},
+	{"bis", 7, 0xFA00, RRR},
+	{"xor", 7, 0xFC00, RRR},
 
 	// 2 operand YOPs
 	{"lsp", 10, 0xFE00, RRX},
@@ -179,7 +179,7 @@ func main() {
 // the opposite ("shrinkage") never occurs. Pass 2 also places labels at
 // every target location detected in pass 1. Finally pass3 prints the list.
 
-const Ki64 int = 64*1024
+const Ki64 int = 64 * 1024
 
 func disassemble(f *os.File) error {
 	var instructions []string
@@ -226,10 +226,10 @@ func disassemble(f *os.File) error {
 }
 
 func forEachInst(f *os.File, instructions *[]string, op func(int, uint16, uint16, *[]string) error) error {
-	var b []byte = make([]byte, 2, 2) 
+	var b []byte = make([]byte, 2, 2)
 	var inst uint16
 	var prevInst uint16
-	var at int // instruction index, 0..64k-1
+	var at int    // instruction index, 0..64k-1
 	var pos int64 // file position, 0..128k-1
 	var err error
 	var n int
@@ -241,8 +241,8 @@ func forEachInst(f *os.File, instructions *[]string, op func(int, uint16, uint16
 		if err := op(at, prevInst, inst, instructions); err != nil {
 			return err
 		}
-		at++      // instruction index
-		pos += 2  // file position
+		at++     // instruction index
+		pos += 2 // file position
 		prevInst = inst
 	}
 	if err != nil && !errors.Is(err, io.EOF) {
@@ -253,34 +253,34 @@ func forEachInst(f *os.File, instructions *[]string, op func(int, uint16, uint16
 
 func condense(at int, prevInst uint16, inst uint16, pInstr *[]string) error {
 	instructions := *pInstr
-	luiSeen := bits(prevInst,15,13) == 6
+	luiSeen := bits(prevInst, 15, 13) == 6
 
 	// This first bit handles the messy case of trying to turn adi opcodes in lli or ldi.
 	// We don't try to reconstruct the lsi (load small immediate) and instead disassemble
 	// it as adi rT, r0, 6BitValue. We could have an "lsiSeen" kind of variable and disassemble
 	// the ior, iow, srr, srw aliases, but they're not required (like with jlr) and I'm really
 	// sick of this trixieness.
-	if bits(inst,15,13) == 5 && bits(inst,5,3) == bits(inst,2,0) && bits(inst,2,0) != 0 {
-	   if bits(inst,12,12) == 0 {
+	if bits(inst, 15, 13) == 5 && bits(inst, 5, 3) == bits(inst, 2, 0) && bits(inst, 2, 0) != 0 {
+		if bits(inst, 12, 12) == 0 {
 			// It's an lli, adding a positive 7-bit immediate += to rA.
 			// If previous was lui, condense to ldi. Otherwise, write as lli.
 			if luiSeen {
 				instructions[at-1] = "" // hide the lui
 				instructions[at] = fmt.Sprintf("ldi %s, 0x%04X",
-					RegNames[bits(inst,2,0)],
-					(bits(prevInst,12,3)<<6) | bits(inst,12,6))
+					RegNames[bits(inst, 2, 0)],
+					(bits(prevInst, 12, 3)<<6)|bits(inst, 12, 6))
 			} else {
 				// it's an lli, but without a leading lui. This could be
 				// written as either lli or adi. We write it as lli.
 				instructions[at] = fmt.Sprintf("lli %s, 0x%02X",
-					RegNames[bits(inst,2,0)], bits(inst,12,6))
+					RegNames[bits(inst, 2, 0)], bits(inst, 12, 6))
 			}
 		} else {
 			// it's an adi with a negative immediate. This can't be an lli
 			instructions[at] = fmt.Sprintf("adi %s, %s, 0x%02X",
-				RegNames[bits(inst,2,0)], RegNames[bits(inst,5,3)], bits(inst,12,6))
+				RegNames[bits(inst, 2, 0)], RegNames[bits(inst, 5, 3)], bits(inst, 12, 6))
 		}
-	} else if bits(inst,15,12) == 0xE { // jlr
+	} else if bits(inst, 15, 12) == 0xE { // jlr
 		// Replace with sys, jmp, or jsr, depending on the j2:j0 (rA) bits.
 		//
 		// The disassembler assumes the code was written by the assembler.
@@ -290,9 +290,9 @@ func condense(at int, prevInst uint16, inst uint16, pInstr *[]string) error {
 		// emits the 0xE... opcode as "jlr" in this case, but the assembler
 		// does not accept jlr.
 
-		rb := bits(inst,5,3)
-		imm := bits(inst,12,6)  // but we know bit 12 is 0
-		switch bits(inst,2,0) { // the j2:j0 bits in the rA field
+		rb := bits(inst, 5, 3)
+		imm := bits(inst, 12, 6)  // but we know bit 12 is 0
+		switch bits(inst, 2, 0) { // the j2:j0 bits in the rA field
 		case 0: // sys
 			if rb != 0 || imm&1 != 0 {
 				instructions[at] = fmt.Sprintf("die ; ILLEGAL OPCODE 0x%04X", inst)
@@ -300,25 +300,25 @@ func condense(at int, prevInst uint16, inst uint16, pInstr *[]string) error {
 				instructions[at] = fmt.Sprintf("sys %d", imm)
 			}
 		case 1: // jsr
-			if luiSeen && rb == bits(prevInst,2,0) {
+			if luiSeen && rb == bits(prevInst, 2, 0) {
 				// lui+jlr with j's == 1 becomes jsr rB, target
 				instructions[at-1] = "" // hide the lui
 				instructions[at] = fmt.Sprintf("jsr %s, 0x%04X",
-					RegNames[bits(inst,5,3)],
-					(bits(prevInst,12,3)<<6) | bits(inst,12,6))
+					RegNames[bits(inst, 5, 3)],
+					(bits(prevInst, 12, 3)<<6)|bits(inst, 12, 6))
 			} else if imm == 0 && rb != 0 { // becomes computed jsr rB
-				instructions[at] = fmt.Sprintf("jsr %s", RegNames[bits(inst,5,3)])
+				instructions[at] = fmt.Sprintf("jsr %s", RegNames[bits(inst, 5, 3)])
 			}
 			// else do nothing - nonstandard sequence to be emitted as jlr
 		case 2: // jmp
-			if luiSeen && rb == bits(prevInst,2,0) {
+			if luiSeen && rb == bits(prevInst, 2, 0) {
 				// lui+jlr with j's == 2 becomes jmp rB, target
 				instructions[at-1] = "" // hide the lui
 				instructions[at] = fmt.Sprintf("jmp %s, %d",
-					RegNames[bits(inst,5,3)],
-					(bits(prevInst,12,3)<<6) | bits(inst,12,6))
+					RegNames[bits(inst, 5, 3)],
+					(bits(prevInst, 12, 3)<<6)|bits(inst, 12, 6))
 			} else if imm == 0 && rb != 0 { // becomes computed jmp rB
-				instructions[at] = fmt.Sprintf("jmp %s", RegNames[bits(inst,5,3)])
+				instructions[at] = fmt.Sprintf("jmp %s", RegNames[bits(inst, 5, 3)])
 			}
 			// else do nothing - nonstandard sequence to be emitted as jlr
 		default: // illegal
@@ -342,7 +342,7 @@ func decode(op uint16, at int) string {
 
 	var found KeyEntry
 	for _, ke := range KeyTable {
-		mask := uint16(1 << ke.nbits) - 1
+		mask := uint16(1<<ke.nbits) - 1
 		mask <<= (16 - ke.nbits)
 		if op&mask == ke.opcode&mask {
 			found = ke
@@ -361,23 +361,23 @@ func decode(op uint16, at int) string {
 	case RRI:
 		// Special case for computing the branch target. We don't want to emit
 		// the branch *offset* into the disassembly, we want the *target*.
-		imm := bits(op,12,6)
-		if bits(op,15,13) == 4 { // beq
-			imm = uint16((int(imm)+at+1)&0x7F)
+		imm := bits(op, 12, 6)
+		if bits(op, 15, 13) == 4 { // beq
+			imm = uint16((int(imm) + at + 1) & 0x7F)
 			format = "%s, %s, %d"
 		} else {
 			format = "%s, %s, 0x%02X"
 		}
-		args = fmt.Sprintf(format, RegNames[bits(op,2,0)], RegNames[bits(op,5,3)], imm)
+		args = fmt.Sprintf(format, RegNames[bits(op, 2, 0)], RegNames[bits(op, 5, 3)], imm)
 	case RJX:
-		args = fmt.Sprintf("%s, 0x%03X", RegNames[bits(op,2,0)], bits(op,12,3))
+		args = fmt.Sprintf("%s, 0x%03X", RegNames[bits(op, 2, 0)], bits(op, 12, 3))
 	case RRR:
 		args = fmt.Sprintf("%s, %s, %s",
-			RegNames[bits(op,2,0)], RegNames[bits(op,5,3)], RegNames[bits(op,8,6)])
+			RegNames[bits(op, 2, 0)], RegNames[bits(op, 5, 3)], RegNames[bits(op, 8, 6)])
 	case RRX:
-		args = fmt.Sprintf("%s, %s", RegNames[bits(op,2,0)], RegNames[bits(op,5,3)])
+		args = fmt.Sprintf("%s, %s", RegNames[bits(op, 2, 0)], RegNames[bits(op, 5, 3)])
 	case RXX:
-		args = fmt.Sprintf("%s", RegNames[bits(op,2,0)])
+		args = fmt.Sprintf("%s", RegNames[bits(op, 2, 0)])
 	case XXX:
 		args = ""
 	default:
@@ -389,9 +389,9 @@ func decode(op uint16, at int) string {
 
 // Hi and lo are inclusive bit numbers - "15,13" is the 3 MS bits of a uint16
 func bits(op uint16, hi uint16, lo uint16) uint16 {
-	b := hi - lo + 1 // if hi, low == 5,3 then b == 3
+	b := hi - lo + 1           // if hi, low == 5,3 then b == 3
 	var mask uint16 = 1<<b - 1 // 1<<3 == 8 so mask == 7 == 0b111
-	return (op>>lo)&mask
+	return (op >> lo) & mask
 }
 
 func usage() {
@@ -399,4 +399,3 @@ func usage() {
 	flag.PrintDefaults()
 	os.Exit(1)
 }
-

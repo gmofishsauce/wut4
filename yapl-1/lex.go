@@ -20,16 +20,16 @@ func LexInit(fd Word) {
 // of the constant is stored in the symbol table; numeric
 // constants do not exist in the strings table.)
 
-const T_TYPE Word = 0xC000    // Type bits
-const T_IDX  Word = 0x3FFF    // Index (in strtab, symtab, or ast respectively)
+const T_TYPE Word = 0xC000 // Type bits
+const T_IDX Word = 0x3FFF  // Index (in strtab, symtab, or ast respectively)
 const TT_TYPE Token = Token(T_TYPE)
 const TT_IDX Token = Token(T_IDX)
 
 const (
-	T_USR Word = 0x0000       // user symbols from the source
-	T_KEY Word = 0x4000       // language defined symbols TODO maybe TT_LANG?
-	T_NUM Word = 0x8000       // numeric valued symbols
-	T_ERR Word = ErrBase      // error tokens
+	T_USR Word = 0x0000  // user symbols from the source
+	T_KEY Word = 0x4000  // language defined symbols TODO maybe TT_LANG?
+	T_NUM Word = 0x8000  // numeric valued symbols
+	T_ERR Word = ErrBase // error tokens
 )
 
 const (
@@ -44,19 +44,19 @@ const (
 // e.g. (t >> 14) if we can help it, because this will have to compile
 // to swap bytes; swap nybbles in low byte; shift right; shift right.
 func IsUsrTok(t Token) Bool {
-	return (t&TT_USR) == TT_USR
+	return (t & TT_USR) == TT_USR
 }
 
 func IsKeyTok(t Token) Bool {
-	return (t&TT_KEY) == TT_KEY
+	return (t & TT_KEY) == TT_KEY
 }
 
 func IsNumTok(t Token) Bool {
-	return (t&TT_NUM) == TT_NUM
+	return (t & TT_NUM) == TT_NUM
 }
 
 func IsErrTok(t Token) Bool {
-	return (t&TT_ERR) == TT_ERR
+	return (t & TT_ERR) == TT_ERR
 }
 
 // Tokens match if they are language symbols and then are the same.
@@ -64,7 +64,7 @@ func IsErrTok(t Token) Bool {
 // are the same. Errors never match match any other token, even the
 // same error.
 func IsMatch(m Token, t Token) Bool {
-	switch (m&TT_TYPE) {
+	switch m & TT_TYPE {
 	case TT_USR, TT_NUM:
 		return t&TT_TYPE == m&TT_TYPE
 	case TT_KEY:
@@ -113,7 +113,7 @@ func TokenAsSymIndex(t Token) SymIndex {
 
 var lineCount Word = 1
 
-var tTypes []string = []string {"TT_USR", "TT_KEY", "TT_NUM", "TT_ERR", }
+var tTypes []string = []string{"TT_USR", "TT_KEY", "TT_NUM", "TT_ERR"}
 
 func TokenToString(t Token) string {
 	return "TODO TokenToString()"
@@ -193,7 +193,7 @@ func internalGetToken() Token {
 			val := convert(Byte(b))
 			// Yeah, the cast from StrIndex to Word can't
 			// change any bits. Compromises must be made.
-			return TT_NUM|Token(SymEnter(Word(val), 0))
+			return TT_NUM | Token(SymEnter(Word(val), 0))
 		}
 
 		strtab[pos+n] = Byte(b)
@@ -202,7 +202,7 @@ func internalGetToken() Token {
 
 		if isLowerLetter(b) {
 			n := SymEnter(Word(pos), 1)
-			return TT_USR|Token(n)
+			return TT_USR | Token(n)
 		}
 
 		// All the language-defined symbols are entered into
@@ -210,7 +210,7 @@ func internalGetToken() Token {
 		// now, but for the YAPL-2 need to identify keywords
 		// by their symbol table index < var FirstUserSymbol.
 		if isUpperLetter(b) || isPunctuation(b) {
-			return TT_KEY|Token(SymEnter(Word(pos), 1))
+			return TT_KEY | Token(SymEnter(Word(pos), 1))
 		}
 
 		StrtabDiscard()

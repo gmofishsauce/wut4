@@ -46,9 +46,9 @@ func NewTestFile(socket string, nano *dev.Arduino) *TestFile {
 	}
 	return &TestFile{
 		// Per-vector file state
-		socket:   socket,
-		size:     size,
-		nano:     nano,
+		socket: socket,
+		size:   size,
+		nano:   nano,
 		// Per-vector state:
 		clockPin: 0, // means "no clock"
 		toUUT:    NewFixedBitVec(size),

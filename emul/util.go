@@ -190,7 +190,7 @@ func rundis(arg string) string {
 	}
 	result := string(disOut)
 	if result[len(result)-1:] == "\n" {
-		result = result[0:len(result)-1]
+		result = result[0 : len(result)-1]
 	}
 	return result
 }
