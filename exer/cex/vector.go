@@ -44,12 +44,17 @@ func DoVectorFile(filePath string, nano *dev.Arduino) (int, error) {
 func scan(scanner *bufio.Scanner, nano *dev.Arduino) (int, error) {
 	var tf *utils.TestFile
 	var totalErrors int
+	var vectorsApplied int
 
 	for scanner.Scan() {
 		// First check for empty lines and comments. Lines must
 		// be left-justified. Lines starting with spaces are empty.
 		line := scanner.Text()
-		if len(line) == 0 || line[0] == '#' || line[0] == SPACE {
+		if len(line) == 0 || line[0] == '#' {
+			continue
+		}
+		if line[0] == SPACE {
+			log.Printf("warning: non-empty line starts with a space: %s", line)
 			continue
 		}
 
@@ -66,6 +71,7 @@ func scan(scanner *bufio.Scanner, nano *dev.Arduino) (int, error) {
 			if tf != nil || len(tokens) != 2 {
 				return 0, fmt.Errorf("bad 'socket' statement")
 			}
+			log.Printf("socket %s\n", tokens[1])
 			tf = utils.NewTestFile(tokens[1], nano)
 			if tf == nil {
 				return 0, fmt.Errorf("bad socket type")
@@ -90,11 +96,22 @@ func scan(scanner *bufio.Scanner, nano *dev.Arduino) (int, error) {
 		}
 
 		// Successfully parsed one vector; apply it
+		vectorsApplied++
 		errorCount, err := applyVector(tf)
 		if err != nil {
 			return errorCount, err
 		}
 		totalErrors += errorCount
+	}
+
+	if vectorsApplied == 0 {
+		log.Printf("warning: no test vectors were applied to the hardware")
+	} else {
+		s := "s"
+		if vectorsApplied == 1 {
+			s = ""
+		}
+		log.Printf("%d vector%s applied", vectorsApplied, s)
 	}
 
 	return totalErrors, nil
@@ -343,7 +360,8 @@ func applyPLCC(tf *utils.TestFile) (int, error) {
 // failures do not cause an "error".
 func applyZIF(tf *utils.TestFile) (int, error) {
     // Pins 1 - 8: U5:0..7
-    if err := doSetCmd(fmt.Sprintf("s 5 %02X", tf.GetByteToUUT(0)), tf.Nano()); err != nil {
+	b := tf.GetByteToUUT(0)
+    if err := doSetCmd(fmt.Sprintf("s 5 %02X", b), tf.Nano()); err != nil {
         return 0, err
     }
 
@@ -357,7 +375,7 @@ func applyZIF(tf *utils.TestFile) (int, error) {
 	// toggle it.
 	//
     // Pins 9 - 11, 13 - 15: U4:0..2, 4..6 (U4:3, U4:7 not connected)
-	b := tf.GetByteToUUT(1)
+	b = tf.GetByteToUUT(1)
 	if (tf.HasClock()) {
 		b |= 0x10
 	}
@@ -387,15 +405,15 @@ func applyZIF(tf *utils.TestFile) (int, error) {
 
 	errorCount := 0
 	shift := 0
-	for i := pinToPos(15); i <= pinToPos(23); i++ {
+	for i := pinToPos(16); i <= pinToPos(23); i++ {
 		if (results>>shift)&1 != byte(tf.GetFromUUT(i)) {
 			if tf.IsIgnored(i) == 0 {
-				log.Printf("    fail pin %d expected %d", i, tf.GetFromUUT(i))
+				log.Printf("    fail pin %d expected %d", 1+i, tf.GetFromUUT(i))
 				errorCount++
 			}
 		}
 		shift++
 	}
 
-	return 0, nil
+	return errorCount, nil
 }

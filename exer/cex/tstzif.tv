@@ -1,0 +1,9 @@
+# TestVector (.tv) file that tests the tester - the ZIF socket.
+
+socket ZIF
+
+# Inputs...on 1-11, 13-15;         13=CLK/In   Outputs.............
+#                               GND   In In Out ...             Out Vcc
+#  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
+0  1  0  1  0  1  0  1  0  1  0  G  0  0  0  H  L  H  L  H  L  H  L  V
+0  1  0  1  0  1  0  1  0  1  0  G  0  0  0  L  L  L  L  L  L  L  L  V
