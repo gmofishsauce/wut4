@@ -338,7 +338,64 @@ func applyPLCC(tf *utils.TestFile) (int, error) {
 	return errorCount, nil
 }
 
+// Apply one vector, which is stored in the TestFile, to the hardware.
+// Return a count of hardware failures and an error value. Hardware
+// failures do not cause an "error".
 func applyZIF(tf *utils.TestFile) (int, error) {
-	log.Println("applyZIF()")
+    // Pins 1 - 8: U5:0..7
+    if err := doSetCmd(fmt.Sprintf("s 5 %02X", tf.GetByteToUUT(0)), tf.Nano()); err != nil {
+        return 0, err
+    }
+
+	// The next 7 pins 9..14 are inputs except that pin 12 is ground.
+	// The part is wired so the bits line up, e.g. bit 3 of the port
+	// is not connected to anything so bit 4 is on pin 13.
+	//
+	// Circuits in 22v10s may be clocked or combinational. So there may
+	// be a clock. If there is a clock, by my own convention it's on pin
+	// 13, which is bit 3 of port U4. So we have to set this now, and then
+	// toggle it.
+	//
+    // Pins 9 - 11, 13 - 15: U4:0..2, 4..6 (U4:3, U4:7 not connected)
+	b := tf.GetByteToUUT(1)
+	if (tf.HasClock()) {
+		b |= 0x10
+	}
+    if err := doSetCmd(fmt.Sprintf("s 4 %02X", b), tf.Nano()); err != nil {
+        return 0, err
+    }
+
+	if (tf.HasClock()) {
+		b &^= 0x10
+		if err := doSetCmd(fmt.Sprintf("s 4 %02X", b), tf.Nano()); err != nil {
+			return 0, err
+		}
+		b |= 0x10
+		if err := doSetCmd(fmt.Sprintf("s 4 %02X", b), tf.Nano()); err != nil {
+			return 0, err
+		}
+	}
+
+	// Pins 16 - 23: U11:0..4: clock bit 0xB, read port 0xC.
+	if err := doToggleCmd("t 1 B", tf.Nano()); err != nil {
+		return 0, err
+	}
+	results, err := doGetCmd("g C", tf.Nano())
+	if err != nil {
+		return 0, err
+	}
+
+	errorCount := 0
+	shift := 0
+	for i := pinToPos(15); i <= pinToPos(23); i++ {
+		if (results>>shift)&1 != byte(tf.GetFromUUT(i)) {
+			if tf.IsIgnored(i) == 0 {
+				log.Printf("    fail pin %d expected %d", i, tf.GetFromUUT(i))
+				errorCount++
+			}
+		}
+		shift++
+	}
+
 	return 0, nil
 }
