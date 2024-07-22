@@ -10,6 +10,9 @@
 *.swp
 *.prof
 
+# Garbage created by well-meaning but moronic system vendors
+*.DS_Store
+
 # Test binary, built with `go test -c`
 *.test
 
