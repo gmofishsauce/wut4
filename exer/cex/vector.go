@@ -361,6 +361,15 @@ func applyPLCC(tf *utils.TestFile) (int, error) {
 func applyZIF(tf *utils.TestFile) (int, error) {
     // Pins 1 - 8: U5:0..7
 	b := tf.GetByteToUUT(0)
+
+	// The 22V10 component we're exercising can be programmed as either
+	// a combinational circuit or a clocked register with combinational
+	// logic. When the 22V10 is a clocked circuit, the clock is always
+	// on pin 1. We must make sure the initial value of the clock line
+	// is logic HIGH so we can clock the part by toggling LOW, HIGH.
+	if (tf.HasClock()) {
+		b |= 0x01
+	}
     if err := doSetCmd(fmt.Sprintf("s 5 %02X", b), tf.Nano()); err != nil {
         return 0, err
     }
@@ -376,25 +385,25 @@ func applyZIF(tf *utils.TestFile) (int, error) {
 	//
     // Pins 9 - 11, 13 - 15: U4:0..2, 4..6 (U4:3, U4:7 not connected)
 	b = tf.GetByteToUUT(1)
-	if (tf.HasClock()) {
-		b |= 0x10
-	}
     if err := doSetCmd(fmt.Sprintf("s 4 %02X", b), tf.Nano()); err != nil {
         return 0, err
     }
 
 	if (tf.HasClock()) {
-		b &^= 0x10
-		if err := doSetCmd(fmt.Sprintf("s 4 %02X", b), tf.Nano()); err != nil {
+		// Toggle the clock line
+		b &^= 0x01
+		if err := doSetCmd(fmt.Sprintf("s 5 %02X", b), tf.Nano()); err != nil {
 			return 0, err
 		}
-		b |= 0x10
-		if err := doSetCmd(fmt.Sprintf("s 4 %02X", b), tf.Nano()); err != nil {
+		b |= 0x01
+		if err := doSetCmd(fmt.Sprintf("s 5 %02X", b), tf.Nano()); err != nil {
 			return 0, err
 		}
 	}
 
 	// Pins 16 - 23: U11:0..4: clock bit 0xB, read port 0xC.
+	// Again, see table in README for relationship between clock
+	// lines, input ports, and outputs.
 	if err := doToggleCmd("t 1 B", tf.Nano()); err != nil {
 		return 0, err
 	}
