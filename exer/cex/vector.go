@@ -360,7 +360,7 @@ func applyPLCC(tf *utils.TestFile) (int, error) {
 // failures do not cause an "error".
 func applyZIF(tf *utils.TestFile) (int, error) {
     // Pins 1 - 8: U5:0..7
-	b := tf.GetByteToUUT(0)
+	port5 := tf.GetByteToUUT(0)
 
 	// The 22V10 component we're exercising can be programmed as either
 	// a combinational circuit or a clocked register with combinational
@@ -368,9 +368,9 @@ func applyZIF(tf *utils.TestFile) (int, error) {
 	// on pin 1. We must make sure the initial value of the clock line
 	// is logic HIGH so we can clock the part by toggling LOW, HIGH.
 	if (tf.HasClock()) {
-		b |= 0x01
+		port5 |= 0x01
 	}
-    if err := doSetCmd(fmt.Sprintf("s 5 %02X", b), tf.Nano()); err != nil {
+    if err := doSetCmd(fmt.Sprintf("s 5 %02X", port5), tf.Nano()); err != nil {
         return 0, err
     }
 
@@ -379,24 +379,25 @@ func applyZIF(tf *utils.TestFile) (int, error) {
 	// is not connected to anything so bit 4 is on pin 13.
 	//
 	// Circuits in 22v10s may be clocked or combinational. So there may
-	// be a clock. If there is a clock, by my own convention it's on pin
-	// 13, which is bit 3 of port U4. So we have to set this now, and then
-	// toggle it.
+	// be a clock. If there is a clock, it must be on pin 1. If the part
+	// has data inputs, conventionally they are D0 on pin 2, ..., so D7
+	// is not the high order bit of port 5, it's the low order bit of
+	// port 4.
 	//
     // Pins 9 - 11, 13 - 15: U4:0..2, 4..6 (U4:3, U4:7 not connected)
-	b = tf.GetByteToUUT(1)
-    if err := doSetCmd(fmt.Sprintf("s 4 %02X", b), tf.Nano()); err != nil {
+	port4 := tf.GetByteToUUT(8)
+    if err := doSetCmd(fmt.Sprintf("s 4 %02X", port4), tf.Nano()); err != nil {
         return 0, err
     }
 
 	if (tf.HasClock()) {
-		// Toggle the clock line
-		b &^= 0x01
-		if err := doSetCmd(fmt.Sprintf("s 5 %02X", b), tf.Nano()); err != nil {
+		// Toggle the clock line - pin 1 (the low order bit), so it's on port 5.
+		port5 &^= 0x01
+		if err := doSetCmd(fmt.Sprintf("s 5 %02X", port5), tf.Nano()); err != nil {
 			return 0, err
 		}
-		b |= 0x01
-		if err := doSetCmd(fmt.Sprintf("s 5 %02X", b), tf.Nano()); err != nil {
+		port5 |= 0x01
+		if err := doSetCmd(fmt.Sprintf("s 5 %02X", port5), tf.Nano()); err != nil {
 			return 0, err
 		}
 	}
@@ -412,16 +413,40 @@ func applyZIF(tf *utils.TestFile) (int, error) {
 		return 0, err
 	}
 
+	if debug {
+		log.Printf("pin: %2d %2d %2d %2d %2d %2d %2d %2d",
+			16, 17, 18, 19, 20, 21, 22, 23)
+		log.Printf("exp: %2d %2d %2d %2d %2d %2d %2d %2d",
+			tf.GetFromUUT(pinToPos(16)),
+			tf.GetFromUUT(pinToPos(17)),
+			tf.GetFromUUT(pinToPos(18)),
+			tf.GetFromUUT(pinToPos(19)),
+			tf.GetFromUUT(pinToPos(20)),
+			tf.GetFromUUT(pinToPos(21)),
+			tf.GetFromUUT(pinToPos(22)),
+			tf.GetFromUUT(pinToPos(23)) )
+		log.Printf("got: %2d %2d %2d %2d %2d %2d %2d %2d",
+			(results>>0)&1,
+			(results>>1)&1,
+			(results>>2)&1,
+			(results>>3)&1,
+			(results>>4)&1,
+			(results>>5)&1,
+			(results>>6)&1,
+			(results>>7)&1 )
+	}
+
 	errorCount := 0
 	shift := 0
 	for i := pinToPos(16); i <= pinToPos(23); i++ {
-		if (results>>shift)&1 != byte(tf.GetFromUUT(i)) {
-			if tf.IsIgnored(i) == 0 {
+		if tf.IsIgnored(i) == 0 {
+			singleBit := byte(tf.GetFromUUT(i)) // value is 0 or 1
+			if ((results>>shift)&1 != singleBit) {
 				log.Printf("    fail pin %d expected %d", 1+i, tf.GetFromUUT(i))
 				errorCount++
 			}
+			shift++
 		}
-		shift++
 	}
 
 	return errorCount, nil

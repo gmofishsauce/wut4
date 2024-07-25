@@ -12,34 +12,43 @@ GAL22V10 ; first line; required by galasm
 CLK D0  D1  D2  D3  D4  D5  D6  D7  CLR EN  GND
 OE  SET RST Q7  Q6  Q5  Q4  Q3  Q2  Q1  Q0  VCC
 
-Q0.R = CLR * /EN * D0
-     + CLR *  EN * Q0
-Q1.R = CLR * /EN * D1
-     + CLR *  EN * Q1
-Q2.R = CLR * /EN * D2
-     + CLR *  EN * Q2
-Q3.R = CLR * /EN * D3
-     + CLR *  EN * Q3
-Q4.R = CLR * /EN * D4
-     + CLR *  EN * Q4
-Q5.R = CLR * /EN * D5
-     + CLR *  EN * Q5
-Q6.R = CLR * /EN * D6
-     + CLR *  EN * Q6
-Q7.R = CLR * /EN * D7
-     + CLR *  EN * Q7
+Q0.R = D0
+Q1.R = D1
+Q2.R = D2
+Q3.R = D3
+Q4.R = D4
+Q5.R = D5
+Q6.R = D6
+Q7.R = D7
 
-Q0.E = /OE
-Q1.E = /OE
-Q2.E = /OE
-Q3.E = /OE
-Q4.E = /OE
-Q5.E = /OE
-Q6.E = /OE
-Q7.E = /OE
+;Q0.R = CLR * /EN * D0
+;     + CLR *  EN * Q0
+;Q1.R = CLR * /EN * D1
+;     + CLR *  EN * Q1
+;Q2.R = CLR * /EN * D2
+;     + CLR *  EN * Q2
+;Q3.R = CLR * /EN * D3
+;     + CLR *  EN * Q3
+;Q4.R = CLR * /EN * D4
+;     + CLR *  EN * Q4
+;Q5.R = CLR * /EN * D5
+;     + CLR *  EN * Q5
+;Q6.R = CLR * /EN * D6
+;     + CLR *  EN * Q6
+;Q7.R = CLR * /EN * D7
+;     + CLR *  EN * Q7
 
-AR   = /RST
-SP   = /SET
+;Q0.E = /OE
+;Q1.E = /OE
+;Q2.E = /OE
+;Q3.E = /OE
+;Q4.E = /OE
+;Q5.E = /OE
+;Q6.E = /OE
+;Q7.E = /OE
+;
+;AR   = /RST
+;SP   = /SET
 
 DESCRIPTION
 

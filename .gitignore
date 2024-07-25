@@ -39,7 +39,7 @@ exer/ki/exer/exer-backups
 _Test*
 
 # log files
-exer/cex/Nano.log
+Nano.log
 
 # executables. asm/asm is not a binary executable and must be committed.
 sim/sim

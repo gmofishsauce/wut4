@@ -138,6 +138,7 @@ func (tf *TestFile) Clear() {
 	tf.clockPin = 0 // default none
 	tf.toUUT = NewFixedBitVec(tf.size)
 	tf.fromUUT = NewFixedBitVec(tf.size)
+	tf.ignored = NewFixedBitVec(tf.size)
 	tf.clockPin = 0 // "none"
 }
 
