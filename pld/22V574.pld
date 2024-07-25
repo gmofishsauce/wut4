@@ -1,0 +1,49 @@
+GAL22V10 ; first line; required by galasm
+22V574-2 ; any 8 characters; burned to chip
+
+; Synchronous 8-bit D register. Functional superset of all 74x parts.
+; The register has synchonous clear pin 10, clock enable pin 11, output
+; enable pin 13, synchronous set pin 14, and asynchronous clear pin 15.
+; All control signals are active LOW. Clock is on pin 1 as required for
+; all GAL22V10 components.
+
+; Pin definitions. These are read top to bottom, left to right; they
+; don't "wrap around" the part. But galasm produces a .chp file with
+; a picture of the part that allows a sanity check.
+;
+;1  2   3   4   5   6   7   8   9   10  11  12
+;13 14  15  16  17  18  19  20  21  21  23  24
+
+CLK D0  D1  D2  D3  D4  D5  D6  D7  CLR EN  GND
+OE  SET RST Q7  Q6  Q5  Q4  Q3  Q2  Q1  Q0  VCC
+
+Q0.R = CLR * /EN * D0
+     + CLR *  EN * Q0
+Q1.R = CLR * /EN * D1
+     + CLR *  EN * Q1
+Q2.R = CLR * /EN * D2
+     + CLR *  EN * Q2
+Q3.R = CLR * /EN * D3
+     + CLR *  EN * Q3
+Q4.R = CLR * /EN * D4
+     + CLR *  EN * Q4
+Q5.R = CLR * /EN * D5
+     + CLR *  EN * Q5
+Q6.R = CLR * /EN * D6
+     + CLR *  EN * Q6
+Q7.R = CLR * /EN * D7
+     + CLR *  EN * Q7
+
+Q0.E = /OE
+Q1.E = /OE
+Q2.E = /OE
+Q3.E = /OE
+Q4.E = /OE
+Q5.E = /OE
+Q6.E = /OE
+Q7.E = /OE
+
+AR   = /RST
+SP   = /SET
+
+DESCRIPTION

@@ -15,8 +15,8 @@
   11   | EN       | Input
   12   | GND      | GND
   13   | OE       | Input
-  14   | SET      | NC
-  15   | RST      | NC
+  14   | SET      | Input
+  15   | RST      | Input
   16   | Q7       | Output
   17   | Q6       | Output
   18   | Q5       | Output
