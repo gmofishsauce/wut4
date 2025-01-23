@@ -1,0 +1,18 @@
+GAL22V10 ; first line; required by galasm
+22V10-01 ; any 8 characters; burned to chip
+
+; Decoding JEDEC files.
+;
+; Pin definitions. These are read top to bottom, left to right; they
+; don't "wrap around" the part. But galasm produces a .chp file with
+; a picture of the part that allows a sanity check.
+;
+;1  2   3   4   5   6   7   8   9   10  11  12
+;13 14  15  16  17  18  19  20  21  21  23  24
+
+I1  NC  NC  NC  NC  NC  NC  NC  NC  NC  NC  GND
+NC  NC  NC  NC  NC  NC  NC  NC  NC  NC  Q1  VCC
+
+Q1 = I1
+
+DESCRIPTION
