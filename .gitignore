@@ -48,6 +48,7 @@ itf/itf
 func/func
 yapl-1/yapl-1
 exer/cex/cex
+sim/tsp/tsp
 
 # more executables - in the save/ directory, stuff I'm not using.
 save/asm/asm
