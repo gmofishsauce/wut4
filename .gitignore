@@ -42,9 +42,6 @@ _Test*
 # log files
 Nano.log
 
-# Generated files
-sim/tsp/Gen
-
 # executables. asm/asm is not a binary executable and must be committed.
 sim/sim
 dis/dis
