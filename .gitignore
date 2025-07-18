@@ -32,6 +32,7 @@ w4.out
 wut4.out
 
 # KiCad backup zips
+SampleKiCad/Sample-backups
 ki/hs_pcb/hs_pcb-backups
 exer/ki/exer/exer-backups
 sim/KiCad/Sample-backups
