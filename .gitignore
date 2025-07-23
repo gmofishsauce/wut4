@@ -30,6 +30,7 @@ log.bin
 y4.out
 w4.out
 wut4.out
+trace.bin
 
 # KiCad backup zips
 SampleKiCad/Sample-backups
