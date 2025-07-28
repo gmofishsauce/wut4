@@ -2,6 +2,10 @@
 
 The content of this repo is [licensed](./LICENSE).
 
+(July 2025): most of the attention for the last several months has been
+on the digital simulator in the sim/ directory. Everything else in this
+repo is old and needs to be revised.
+
 ## [SAVE](./SAVE) - abandoned work
 
 The contents may be useful in the future.
