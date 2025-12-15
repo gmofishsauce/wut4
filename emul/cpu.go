@@ -94,11 +94,6 @@ func (cpu *CPU) Reset() {
 // Run executes the fetch-decode-execute loop
 func (cpu *CPU) Run() error {
 	for cpu.running {
-		// Check for double fault
-		if cpu.pendingException && !cpu.intEnabled && cpu.mode == ModeKernel {
-			return fmt.Errorf("double fault: exception 0x%04X in kernel mode with interrupts disabled", cpu.exceptionVector)
-		}
-
 		// Trace instruction before execution
 		if cpu.tracer != nil {
 			cpu.tracer.TracePreInstruction(cpu)
@@ -183,6 +178,19 @@ func (cpu *CPU) handleException() {
 
 // raiseException sets up an exception to be handled
 func (cpu *CPU) raiseException(vector uint16, data uint16) {
+	// Check for double fault: exception while in kernel mode with interrupts disabled
+	if cpu.mode == ModeKernel && !cpu.intEnabled {
+		// Log double fault to trace file before halting
+		if cpu.tracer != nil {
+			cpu.tracer.TraceDoubleFault(cpu, vector, data)
+		}
+		fmt.Fprintf(cpu.consoleOut, "\n\n*** DOUBLE FAULT ***\n")
+		fmt.Fprintf(cpu.consoleOut, "Exception 0x%04X (data=0x%04X) in kernel mode with interrupts disabled\n", vector, data)
+		fmt.Fprintf(cpu.consoleOut, "PC=0x%04X, Cycle=%d\n\n", cpu.pc, cpu.cycles)
+		cpu.running = false
+		return
+	}
+
 	cpu.pendingException = true
 	cpu.exceptionVector = vector
 	cpu.exceptionData = data

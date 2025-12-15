@@ -190,6 +190,26 @@ func (t *Tracer) TraceConsoleOutput(value uint16) {
 	}
 }
 
+// TraceDoubleFault traces a double fault (fault in kernel mode)
+func (t *Tracer) TraceDoubleFault(cpu *CPU, vector uint16, data uint16) {
+	fmt.Fprintf(t.out, "\n")
+	fmt.Fprintf(t.out, "========================================\n")
+	fmt.Fprintf(t.out, "*** DOUBLE FAULT ***\n")
+	fmt.Fprintf(t.out, "========================================\n")
+	fmt.Fprintf(t.out, "Exception occurred in kernel mode\n")
+	fmt.Fprintf(t.out, "Vector: 0x%04X\n", vector)
+	fmt.Fprintf(t.out, "Data: 0x%04X\n", data)
+	fmt.Fprintf(t.out, "PC: 0x%04X\n", cpu.pc)
+	fmt.Fprintf(t.out, "Cycles: %d\n", cpu.cycles)
+	fmt.Fprintf(t.out, "Interrupts enabled: %v\n", cpu.intEnabled)
+	fmt.Fprintf(t.out, "\nKernel registers:\n")
+	for i := 0; i < 8; i++ {
+		fmt.Fprintf(t.out, "  r%d = 0x%04X\n", i, cpu.gen[ModeKernel][i])
+	}
+	fmt.Fprintf(t.out, "\nEmulator halting.\n")
+	fmt.Fprintf(t.out, "========================================\n")
+}
+
 // Helper methods
 
 func (t *Tracer) formatDecode(inst *Instruction) string {
