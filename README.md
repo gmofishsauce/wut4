@@ -6,18 +6,11 @@ The content of this repo is [licensed](./LICENSE).
 on the digital simulator in the sim/ directory. Everything else in this
 repo is old and needs to be revised.
 
-## [SAVE](./SAVE) - abandoned work
-
-The contents may be useful in the future.
-
+#
 ## [asm](./asm) - wut4 assembler
 
 Assembler based on [customasm](https://github.com/hlorenzi/customasm)
 
-## [dig](./dig) - simulations in hneeman/Digital
-
-Digital is a graphical logic simulator. Some parts (or all)
-of the WUT-4 may be simulated in Digital.
 
 ## [dsm](./dsm) - wut4 disassembler
 
@@ -35,22 +28,7 @@ the KiCad schematic for the chip exerciser in `ki` and the Nano
 firmware in `fw`. The firmware is a simplified version of the
 YARC firmware.
 
-## [itf](./itf) - test framework for assembler and disassembler
 
-A simple test framework that assembles a test file, disassembles
-the binary, reassembles the disassembly creating a second binary,
-and checks that the first and second binaries are identical.
+## pld - 22v10 experiments
 
-## [ki](./ki) - KiCad files for the WUT-4
-
-Schematics and board designs, some merely experiments with KiCad,
-board layout practice, surface mount technology, etc.
-
-## [yapl-1](./yapl-1) - wut4 compiler version 1
-
-The first version of the compiler for YAPL, Yet Another Programming
-Language, targeted at the WUT-4.
-
-## [yapl-2](./yapl-2) - wut4 compiler version 2
-
-Second version of YAPL compiler.
+including a general 8-bit register.
