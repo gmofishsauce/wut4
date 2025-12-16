@@ -108,7 +108,17 @@ cat > ${RULES} << 'EOF'
     r6 => 0o6
     r7 => 0o7
 }
-
+#subruledef brc
+{
+    abs => 0o0
+    sub => 0o1
+    eq  => 0o2
+    neq => 0o3
+    uge => 0o4
+    ult => 0o5
+    sge => 0o6
+    slt => 0o7 
+}
 #subruledef imm6 ; for positive 6-bit immediates in a 7-bit field
 {
     {imm: i6} => imm
@@ -119,7 +129,7 @@ cat > ${RULES} << 'EOF'
     {imm: i7} => imm
 }
 
-#subruledef imm10 ; 10-bit immediate used in lui only
+#subruledef imm10 ; 10-bit immediate used in lui and br
 {
     {imm: i10} => imm
 }
@@ -135,12 +145,10 @@ cat > ${RULES} << 'EOF'
     ldb {ra: reg}, {rb: reg}, {imm: imm7}   => le(0b001   @ imm @ rb @ ra)
     stw {ra: reg}, {rb: reg}, {imm: imm7}   => le(0b010   @ imm @ rb @ ra)
     stb {ra: reg}, {rb: reg}, {imm: imm7}   => le(0b011   @ imm @ rb @ ra)
-    beq {ra: reg}, {rb: reg}, {adr: imm16}   => {
-        reladdr = adr - $ - 1
-        le(0b100   @ reladdr`7 @ rb @ ra)
-    }
-    adi {ra: reg}, {rb: reg}, {imm: imm7}   => le(0b101   @ imm @ rb @ ra)
-    lui {ra: reg}, {imm: imm10}             => le(0b110   @ imm @ ra)
+    adi {ra: reg}, {rb: reg}, {imm: imm7}   => le(0b100   @ imm @ rb @ ra)
+    lui {ra: reg}, {imm: imm10}             => le(0b101   @ imm @ ra)
+    br {ra: brc {imm: im10}                 => le(0b110   @ imm @ ra)
+
 
     ; jlr has 0b1110 in the upper four bits.
     ; jlr doesn't exist in assembler. Instead, it becomes jsr, jmp, or sys
@@ -165,11 +173,11 @@ cat > ${RULES} << 'EOF'
 #ruledef ; YOPs are two-register operations affecting special registers and IO.
 {
     lsp {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b000 @ rb @ ra) ; load rA from SPR@rb
-    lio {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b001 @ rb @ ra) ; load rA from IO@rb
+    lsi {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b001 @ rb @ ra) ; load SPR@rA from mem@rb
     ssp {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b010 @ rb @ ra) ; store rA to SPR@rb
-    sio {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b011 @ rb @ ra) ; store rA to IO@rb
-    y04 {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b100 @ rb @ ra)
-    y05 {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b101 @ rb @ ra)
+    ssi {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b011 @ rb @ ra) ; store SPR@rA to mem@rb
+    lcw {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b100 @ rb @ ra)
+    sys {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b101 @ rb @ ra)
     y06 {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b110 @ rb @ ra)
 }
 
@@ -179,11 +187,11 @@ cat > ${RULES} << 'EOF'
 {
     not {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b000 @ ra)
     neg {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b001 @ ra)
-    sxt {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b010 @ ra)
-    swb {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b011 @ ra)
-    lsr {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b100 @ ra)
-    lsl {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b101 @ ra)
-    asr {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b110 @ ra)
+    zxt {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b010 @ ra)
+    sxt {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b011 @ ra)
+    sra {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b100 @ ra)
+    srl {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b101 @ ra)
+    dub {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b110 @ ra)
 }
 
 ; The remaining instructions have 1's in the top 13 bits and no operands.
@@ -194,13 +202,13 @@ cat > ${RULES} << 'EOF'
 
 #ruledef ; VOPs are zero-register operations.
 {
-    rti => le(0xF @ 0b111 @ 0b111 @0b111 @ 0b000)
-    rtl => le(0xF @ 0b111 @ 0b111 @0b111 @ 0b001)
+    ccf => le(0xF @ 0b111 @ 0b111 @0b111 @ 0b000)
+    scf => le(0xF @ 0b111 @ 0b111 @0b111 @ 0b001)
     di  => le(0xF @ 0b111 @ 0b111 @0b111 @ 0b010)
     ei  => le(0xF @ 0b111 @ 0b111 @0b111 @ 0b011)
     hlt => le(0xF @ 0b111 @ 0b111 @0b111 @ 0b100)
     brk => le(0xF @ 0b111 @ 0b111 @0b111 @ 0b101)
-    v06 => le(0xF @ 0b111 @ 0b111 @0b111 @ 0b110)
+    rti => le(0xF @ 0b111 @ 0b111 @0b111 @ 0b110)
     die => le(0xF @ 0b111 @ 0b111 @0b111 @ 0b111)
 }
 
