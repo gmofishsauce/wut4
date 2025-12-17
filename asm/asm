@@ -100,6 +100,7 @@ cat > ${RULES} << 'EOF'
 #subruledef reg
 {
     r0 => 0o0
+    link => 0o0    ; r0 is reinterpreted for certain instructions
     r1 => 0o1
     r2 => 0o2
     r3 => 0o3
@@ -108,7 +109,8 @@ cat > ${RULES} << 'EOF'
     r6 => 0o6
     r7 => 0o7
 }
-#subruledef brc
+
+#subruledef condition
 {
     abs => 0o0
     sub => 0o1
@@ -117,42 +119,46 @@ cat > ${RULES} << 'EOF'
     uge => 0o4
     ult => 0o5
     sge => 0o6
-    slt => 0o7 
-}
-#subruledef imm6 ; for positive 6-bit immediates in a 7-bit field
-{
-    {imm: i6} => imm
+    slt => 0o7
 }
 
-#subruledef imm7 ; 7-bit immediate used in several instructions
+; all the ops with immediate fields, opcodes 0 through 0xExxx    
+#ruledef ; branches
 {
-    {imm: i7} => imm
+	br {c: condition}, {t: i16} =>
+	{
+	    rel = t - $ - 1
+	    ;assert((rel&0x3ff)==rel, "branch target too far")
+	    le(0b110 @ t`10 @ c)
+	}
 }
 
-#subruledef imm10 ; 10-bit immediate used in lui and br
+#ruledef ; jal
 {
-    {imm: i10} => imm
+    jal {r: reg} => { le(0xE @ 0b000000 @r @r) }
+    jal {t: i16} =>
+    {; lui; jal
+	0b101 @ ((t&0xFFC0)>>6)`10 @ 0b000 @ 0xE @ (t&0x3F)`6 @ 0b000 @ 0b000
+    }
+    jal {r: reg}, {t: i16} =>
+    {; lui; jal
+	0b101 @ ((t&0xFFC0)>>6)`10 @r @ 0xE @ (t&0x3F)`6 @ r @ r
+    }
+    jal {rT},{rS}, {t: i16} =>
+    {; lui; jal
+	0b101 @ ((t&0xFFC0)>>6)`10 @rT @ 0xE @ (t&0x3F)`6 @ rT @ rS
+    }
 }
 
-#subruledef imm16 ; 16-bit immediate used in pseudos
+#ruledef 
 {
-    {imm: i16} => imm
-}
+    ldw {ra: reg}, {rb: reg}, {imm: i7}   => le(0b000   @imm @rb @ra)
+    ldb {ra: reg}, {rb: reg}, {imm: i7}   => le(0b001   @imm @rb @ra)
+    stw {ra: reg}, {rb: reg}, {imm: i7}   => le(0b010   @imm @rb @ra)
+    stb {ra: reg}, {rb: reg}, {imm: i7}   => le(0b011   @imm @rb @ra)
+    adi {ra: reg}, {rb: reg}, {imm: i7}   => le(0b100   @imm @rb @ra)
+    lui {ra: reg}, {imm: i10}             => le(0b101   @imm @ra)
 
-#ruledef ; all the ops with immediate fields, opcodes 0 through 0xExxx
-{
-    ldw {ra: reg}, {rb: reg}, {imm: imm7}   => le(0b000   @ imm @ rb @ ra)
-    ldb {ra: reg}, {rb: reg}, {imm: imm7}   => le(0b001   @ imm @ rb @ ra)
-    stw {ra: reg}, {rb: reg}, {imm: imm7}   => le(0b010   @ imm @ rb @ ra)
-    stb {ra: reg}, {rb: reg}, {imm: imm7}   => le(0b011   @ imm @ rb @ ra)
-    adi {ra: reg}, {rb: reg}, {imm: imm7}   => le(0b100   @ imm @ rb @ ra)
-    lui {ra: reg}, {imm: imm10}             => le(0b101   @ imm @ ra)
-    br {ra: brc {imm: im10}                 => le(0b110   @ imm @ ra)
-
-
-    ; jlr has 0b1110 in the upper four bits.
-    ; jlr doesn't exist in assembler. Instead, it becomes jsr, jmp, or sys
-    ; these are defined under instruction aliases, below.
 }
 
 ; All remaining opcodes have 0b1111 = 0xF in the upper four bits.
@@ -177,7 +183,7 @@ cat > ${RULES} << 'EOF'
     ssp {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b010 @ rb @ ra) ; store rA to SPR@rb
     ssi {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b011 @ rb @ ra) ; store SPR@rA to mem@rb
     lcw {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b100 @ rb @ ra)
-    sys {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b101 @ rb @ ra)
+    sys {ra: i3}              => le(0xF @ 0b111  @ 0b101 @ 0b000 @ ra)
     y06 {ra: reg}, {rb: reg}  => le(0xF @ 0b111  @ 0b110 @ rb @ ra)
 }
 
@@ -211,86 +217,58 @@ cat > ${RULES} << 'EOF'
     rti => le(0xF @ 0b111 @ 0b111 @0b111 @ 0b110)
     die => le(0xF @ 0b111 @ 0b111 @0b111 @ 0b111)
 }
-
+; that is all the opcodes
 ; aliases
 
-#ruledef ; aliases
-{
+;#ruledef ; aliases
+;{
     ; load lower immediate actually add the immediate value to the target
     ; register. Since the immediate is positive, no carry out of the low
     ; six bits occurs. It can be used with lui to form ldi.
-    lli {ra: reg}, {imm: imm6} => asm { adi {ra}, {ra}, {imm} }
+    ;lli {ra: reg}, {imm: imm6} => asm { adi {ra}, {ra}, {imm} }
 
     ; ldi loads a 16-bit value to the target register via lui ; lli.
-    ldi {ra: reg}, {imm: u16}  => 
-    {
-        upper_imm = (imm>>6)&0x3FF    ; imm10
-        lower_imm = (imm&0x3F)`6      ; imm6
-        asm { lui {ra}, {upper_imm} } @ asm { adi {ra}, {ra}, {lower_imm} }
-    }
+    ;ldi {ra: reg}, {imm: u16}  => 
+    ;{
+        ;upper_imm = (imm>>6)&0x3FF    ; imm10
+        ;lower_imm = (imm&0x3F)`6      ; imm6
+        ;asm { lui {ra}, {upper_imm} } @ asm { adi {ra}, {ra}, {lower_imm} }
+    ;}
 
     ; load short immediate adds the zero register to the immediate and 
     ; stores the 16-bit result in the target register. It is useful for
     ; addressing special register and IO spaces, each of which have 64
     ; elements. E.g. lsi r3, 6 ; lio r1, r3 to load IO address 6 to r1.
-    lsi {ra: reg}, {imm: imm6} => asm { adi {ra}, r0, {imm} }
+    ;lsi {ra: reg}, {imm: imm6} => asm { adi {ra}, r0, {imm} }
 
-    nop => asm { neg r0 }
+    ; nop - need to check flags (this might be wrong)
+    ;nop => asm { neg r0 }
+;;
 
-    ; for the instructions below, ms bits of 0b111_0 (0xE) is JLR.
+    ;jal {label: imm16} =>
+    ;{
+	;asm {lui link, (label&0xFFC0)>>6 ; jal (label&0x3F) link link }
+    ;}
+	
+    ;ret => asm { jmp link }
+;
+;    ior {ra: reg}, {rb: reg}, {imm: imm6} => { ; io register read
+;        asm{ lli {rb}, {imm} } @ asm{ lio {ra}, {rb} }
+;    }
+;
+;    iow {ra: reg}, {rb: reg}, {imm: imm6} => { ; io register write
+;        asm{ lli {rb}, {imm} } @ asm{ sio {ra}, {rb} }
+;    }
+;
+;    srr {ra: reg}, {rb: reg}, {imm: imm6} => { ; special register read
+;        asm{ lli {rb}, {imm} } @ asm{ lsp {ra}, {rb} }
+;    }
+;
+;    srw {ra: reg}, {rb: reg}, {imm: imm6} => { ; special register write
+;        asm{ lli {rb}, {imm} } @ asm{ ssp {ra}, {rb} }
+;    }
 
-    sys {imm: imm6} => { ; system call trap when both ra and rb are 0.
-        i=imm
-        assert(i>=0&&i<64, "sys: 64 > argument >= 0")
-        assert(i&1!=1, "sys: argument must be even")
-        le(0b111_0 @ i`6 @ 0b000 @ 0b000)
-    }
-
-    jsr {rb: reg}, {imm: u16} => { ; jsr rB, target (rB not zero)
-        i=rb
-        assert(i!=0, "r0 not permitted")
-        upper_imm = (imm>>6)&0x3FF   ; imm10
-        lower_imm = (imm&0x3F)`6     ; imm6
-        asm{ lui {rb}, {upper_imm} } @ le(0b111_0 @ lower_imm @ rb @ 0b001)
-    }
-
-    jsr {rb: reg} =>  { ; jsr rB convenince syntax for imm == 0 (no lui)
-        i=rb
-        assert(i!=0, "r0 not permitted")
-        le(0b111_0 @ 0b000_000 @ rb @ 0b001)
-    }
-
-    jmp {rb: reg}, {imm: u16} => { ; jmp rB, target (rB not zero)
-        i=rb
-        assert(i!=0, "r0 not permitted")
-        upper_imm = (imm>>6)&0x3FF   ; imm10
-        lower_imm = (imm&0x3F)`6     ; imm6
-        asm{ lui {rb}, {upper_imm} } @ le(0b111_0 @ lower_imm @ rb @ 0b010)
-    }
-
-    jmp {rb: reg} => { ; jmp rB convenince syntax for imm == 0 (no lui)
-        i=rb
-        assert(i!=0, "r0 not permitted")
-        le(0b111_0 @ 0b000_000 @ rb @  0b010)
-    }
-
-    ior {ra: reg}, {rb: reg}, {imm: imm6} => { ; io register read
-        asm{ lli {rb}, {imm} } @ asm{ lio {ra}, {rb} }
-    }
-
-    iow {ra: reg}, {rb: reg}, {imm: imm6} => { ; io register write
-        asm{ lli {rb}, {imm} } @ asm{ sio {ra}, {rb} }
-    }
-
-    srr {ra: reg}, {rb: reg}, {imm: imm6} => { ; special register read
-        asm{ lli {rb}, {imm} } @ asm{ lsp {ra}, {rb} }
-    }
-
-    srw {ra: reg}, {rb: reg}, {imm: imm6} => { ; special register write
-        asm{ lli {rb}, {imm} } @ asm{ ssp {ra}, {rb} }
-    }
-
-}
+;}
 
 ; Pseudos
 ; section switching is #bank code or #bank data
