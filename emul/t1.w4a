@@ -1,0 +1,6 @@
+start:
+     ldi r1, 7
+loop:
+     adi r1, r1, 1
+     br nz, loop
+     die

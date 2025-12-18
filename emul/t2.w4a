@@ -1,0 +1,19 @@
+outport = 96
+start:
+    br cont
+msg:
+    #d "hello, world\n\0"
+cont:
+    ldi r2, outport
+    ldi r3, msg
+    ldb r1, r3, 0
+    adi r1, r1, 0
+    br z, done
+    ssi r2, r3
+    adi r3, r3, 1
+    br cont
+done:
+    die
+#bank data
+    #d "hello, world\n\0"
+

@@ -53,6 +53,7 @@ func disassembleBase(inst *Instruction) string {
 		return fmt.Sprintf("STB r%d, r%d%+d", inst.rA, inst.rB, inst.imm7)
 
 	case 4: // ADI
+	/*
 		if inst.rB == 0 && inst.rA == 0 {
 			return fmt.Sprintf("LDI LINK, %d", inst.imm7)
 		} else if inst.rB == 0 {
@@ -60,6 +61,7 @@ func disassembleBase(inst *Instruction) string {
 		} else if inst.rA == 0 {
 			return fmt.Sprintf("ADI LINK, r%d, %d", inst.rB, inst.imm7)
 		}
+	*/
 		return fmt.Sprintf("ADI r%d, r%d, %d", inst.rA, inst.rB, inst.imm7)
 
 	case 5: // LUI

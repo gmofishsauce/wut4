@@ -115,9 +115,13 @@ cat > ${RULES} << 'EOF'
     abs => 0o0
     sub => 0o1
     eq  => 0o2
+    z   => 0o2
     neq => 0o3
+    nz  => 0o3
     uge => 0o4
+    c   => 0o4
     ult => 0o5
+    nc  => 0o5
     sge => 0o6
     slt => 0o7
 }
@@ -125,11 +129,18 @@ cat > ${RULES} << 'EOF'
 ; all the ops with immediate fields, opcodes 0 through 0xExxx    
 #ruledef ; branches
 {
+	br {t: i16} =>
+	{
+	    rel = t - $ - 1
+	    ;assert((rel&0x3ff)==rel, "branch target too far")
+	    le(0b110 @ rel`10 @ 0b000)
+        }
+
 	br {c: condition}, {t: i16} =>
 	{
 	    rel = t - $ - 1
 	    ;assert((rel&0x3ff)==rel, "branch target too far")
-	    le(0b110 @ t`10 @ c)
+	    le(0b110 @ rel`10 @ c)
 	}
 }
 
@@ -220,36 +231,26 @@ cat > ${RULES} << 'EOF'
 ; that is all the opcodes
 ; aliases
 
-;#ruledef ; aliases
-;{
+#ruledef ; aliases
+{
     ; load lower immediate actually add the immediate value to the target
     ; register. Since the immediate is positive, no carry out of the low
     ; six bits occurs. It can be used with lui to form ldi.
-    ;lli {ra: reg}, {imm: imm6} => asm { adi {ra}, {ra}, {imm} }
+    lli {ra: reg}, {imm: i6} => asm { adi {ra}, r0, {imm} }
 
     ; ldi loads a 16-bit value to the target register via lui ; lli.
-    ;ldi {ra: reg}, {imm: u16}  => 
-    ;{
-        ;upper_imm = (imm>>6)&0x3FF    ; imm10
-        ;lower_imm = (imm&0x3F)`6      ; imm6
-        ;asm { lui {ra}, {upper_imm} } @ asm { adi {ra}, {ra}, {lower_imm} }
-    ;}
+    ldi {ra: reg}, {imm: u16}  => 
+    {
+        upper_imm = (imm>>6)&0x3FF    ; imm10
+        lower_imm = (imm&0x3F)`6      ; imm6
+        asm { lui {ra}, {upper_imm} } @ asm { adi {ra}, {ra}, {lower_imm} }
+    }
 
-    ; load short immediate adds the zero register to the immediate and 
-    ; stores the 16-bit result in the target register. It is useful for
-    ; addressing special register and IO spaces, each of which have 64
-    ; elements. E.g. lsi r3, 6 ; lio r1, r3 to load IO address 6 to r1.
-    ;lsi {ra: reg}, {imm: imm6} => asm { adi {ra}, r0, {imm} }
+     ; nop - need to check flags (this might be wrong)
+    nop => asm { neg r0 }
+}
 
-    ; nop - need to check flags (this might be wrong)
-    ;nop => asm { neg r0 }
-;;
 
-    ;jal {label: imm16} =>
-    ;{
-	;asm {lui link, (label&0xFFC0)>>6 ; jal (label&0x3F) link link }
-    ;}
-	
     ;ret => asm { jmp link }
 ;
 ;    ior {ra: reg}, {rb: reg}, {imm: imm6} => { ; io register read
