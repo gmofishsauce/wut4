@@ -139,14 +139,16 @@ func (cpu *CPU) Run() error {
 
 // fetch fetches the next instruction from memory
 func (cpu *CPU) fetch() (uint16, error) {
-	// Translate PC through code MMU
-	physAddr, err := cpu.translateCode(cpu.pc)
+	// Translate PC (byte address) through code MMU to get physical byte address
+	physByteAddr, err := cpu.translateCode(cpu.pc)
 	if err != nil {
 		cpu.raiseException(0x0012, cpu.pc) // Page fault on code fetch
 		return 0, nil                       // Will be handled in next cycle
 	}
 
-	inst := cpu.physMem[physAddr]
+	// Convert byte address to word index
+	wordIndex := physByteAddr >> 1
+	inst := cpu.physMem[wordIndex]
 	return inst, nil
 }
 

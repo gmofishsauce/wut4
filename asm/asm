@@ -79,7 +79,7 @@ cat > ${RULES} << 'EOF'
 
 #bankdef code
 {
-    #bits 16
+    #bits 8
     #labelalign 16
     #addr 0x0000
     #addr_end 0xFFFF
@@ -131,16 +131,16 @@ cat > ${RULES} << 'EOF'
 {
 	br {t: i16} =>
 	{
-	    rel = t - $ - 1
-	    ;assert((rel&0x3ff)==rel, "branch target too far")
-	    le(0b110 @ rel`10 @ 0b000)
+		rel = (t - $ - 2)
+		;#assert rel&0x3ff==rel
+	        le(0b110 @ rel`10 @ 0b000)
         }
 
 	br {c: condition}, {t: i16} =>
 	{
-	    rel = t - $ - 1
-	    ;assert((rel&0x3ff)==rel, "branch target too far")
-	    le(0b110 @ rel`10 @ c)
+		rel = (t - $ - 2)
+		;#assert rel&0x3ff==rel
+	        le(0b110 @ rel`10 @ c)
 	}
 }
 

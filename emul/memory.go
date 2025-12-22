@@ -28,17 +28,18 @@ const (
 	PAGE_MASK  = 0x0FFF
 )
 
-// translateCode translates a virtual code address to a physical address
+// translateCode translates a virtual code address (byte address) to a physical byte address
 func (cpu *CPU) translateCode(virtAddr uint16) (uint32, error) {
 	return cpu.translate(virtAddr, false)
 }
 
-// translateData translates a virtual data address to a physical address
+// translateData translates a virtual data address (byte address) to a physical byte address
 func (cpu *CPU) translateData(virtAddr uint16) (uint32, error) {
 	return cpu.translate(virtAddr, true)
 }
 
-// translate converts a virtual address to physical address through the MMU
+// translate converts a virtual address to physical byte address through the MMU
+// Both code and data virtAddr are byte addresses
 func (cpu *CPU) translate(virtAddr uint16, isData bool) (uint32, error) {
 	// Extract page number (bits 15-12)
 	pageNum := (virtAddr >> PAGE_SHIFT) & 0x0F // 0-15
@@ -77,16 +78,19 @@ func (cpu *CPU) translate(virtAddr uint16, isData bool) (uint32, error) {
 		return 0, fmt.Errorf("page fault: reserved permission at vaddr=0x%04X", virtAddr)
 	}
 
-	// Compute physical address
-	pageOffset := virtAddr & PAGE_MASK
-	physAddr := (uint32(physPage) << PAGE_SHIFT) | uint32(pageOffset)
+	// Compute physical byte address
+	// Physical pages are 4KB (4096 bytes = 2048 words)
+	// Both code and data addresses are byte addresses
+	pageOffset := virtAddr & PAGE_MASK // bits 11-0, byte offset (0-4095)
+	physByteAddr := (uint32(physPage) << PAGE_SHIFT) | uint32(pageOffset)
 
 	// Ensure physical address is within bounds
-	if physAddr >= uint32(len(cpu.physMem)) {
-		return 0, fmt.Errorf("physical address 0x%06X out of bounds", physAddr)
+	// physMem is word-indexed, so multiply length by 2 for byte comparison
+	if physByteAddr >= uint32(len(cpu.physMem))*2 {
+		return 0, fmt.Errorf("physical address 0x%06X out of bounds", physByteAddr)
 	}
 
-	return physAddr, nil
+	return physByteAddr, nil
 }
 
 // loadWord loads a 16-bit word from virtual data address
@@ -97,17 +101,19 @@ func (cpu *CPU) loadWord(virtAddr uint16) (uint16, error) {
 		return 0, nil
 	}
 
-	physAddr, err := cpu.translateData(virtAddr)
+	physByteAddr, err := cpu.translateData(virtAddr)
 	if err != nil {
 		cpu.raiseException(0x0012, virtAddr) // Page fault
 		return 0, nil
 	}
 
-	value := cpu.physMem[physAddr]
+	// Convert byte address to word index
+	wordIndex := physByteAddr >> 1
+	value := cpu.physMem[wordIndex]
 
 	// Trace memory read
 	if cpu.tracer != nil {
-		cpu.tracer.TraceMemoryRead(virtAddr, physAddr, value, false)
+		cpu.tracer.TraceMemoryRead(virtAddr, physByteAddr, value, false)
 	}
 
 	return value, nil
@@ -115,18 +121,18 @@ func (cpu *CPU) loadWord(virtAddr uint16) (uint16, error) {
 
 // loadByte loads an 8-bit byte from virtual data address (sign extended)
 func (cpu *CPU) loadByte(virtAddr uint16) (uint16, error) {
-	// Bytes are stored in little-endian format
-	// Even addresses are low byte, odd addresses are high byte
-	wordAddr := virtAddr & 0xFFFE
-	isOdd := (virtAddr & 1) != 0
-
-	physAddr, err := cpu.translateData(wordAddr)
+	// Translate the byte address directly
+	physByteAddr, err := cpu.translateData(virtAddr)
 	if err != nil {
 		cpu.raiseException(0x0012, virtAddr) // Page fault
 		return 0, nil
 	}
 
-	word := cpu.physMem[physAddr]
+	// Convert byte address to word index and determine which byte
+	wordIndex := physByteAddr >> 1
+	isOdd := (physByteAddr & 1) != 0
+
+	word := cpu.physMem[wordIndex]
 	var value uint16
 
 	if isOdd {
@@ -144,7 +150,7 @@ func (cpu *CPU) loadByte(virtAddr uint16) (uint16, error) {
 
 	// Trace memory read
 	if cpu.tracer != nil {
-		cpu.tracer.TraceMemoryRead(virtAddr, physAddr, value, true)
+		cpu.tracer.TraceMemoryRead(virtAddr, physByteAddr, value, true)
 	}
 
 	return value, nil
@@ -158,7 +164,7 @@ func (cpu *CPU) storeWord(virtAddr uint16, value uint16) error {
 		return nil
 	}
 
-	physAddr, err := cpu.translateData(virtAddr)
+	physByteAddr, err := cpu.translateData(virtAddr)
 	if err != nil {
 		cpu.raiseException(0x0012, virtAddr) // Page fault
 		return nil
@@ -184,26 +190,25 @@ func (cpu *CPU) storeWord(virtAddr uint16, value uint16) error {
 
 	// Trace memory write
 	if cpu.tracer != nil {
-		cpu.tracer.TraceMemoryWrite(virtAddr, physAddr, value, false)
+		cpu.tracer.TraceMemoryWrite(virtAddr, physByteAddr, value, false)
 	}
 
-	cpu.physMem[physAddr] = value
+	// Convert byte address to word index
+	wordIndex := physByteAddr >> 1
+	cpu.physMem[wordIndex] = value
 	return nil
 }
 
 // storeByte stores an 8-bit byte to virtual data address
 func (cpu *CPU) storeByte(virtAddr uint16, value uint16) error {
-	wordAddr := virtAddr & 0xFFFE
-	isOdd := (virtAddr & 1) != 0
-
-	physAddr, err := cpu.translateData(wordAddr)
+	physByteAddr, err := cpu.translateData(virtAddr)
 	if err != nil {
 		cpu.raiseException(0x0012, virtAddr) // Page fault
 		return nil
 	}
 
 	// Check write permission
-	pageNum := (wordAddr >> PAGE_SHIFT) & 0x0F
+	pageNum := (virtAddr >> PAGE_SHIFT) & 0x0F
 	slot := 16 + int(pageNum)
 	var mmuEntry uint16
 	if cpu.mode == ModeKernel {
@@ -218,8 +223,12 @@ func (cpu *CPU) storeByte(virtAddr uint16, value uint16) error {
 		return nil
 	}
 
+	// Convert byte address to word index and determine which byte
+	wordIndex := physByteAddr >> 1
+	isOdd := (physByteAddr & 1) != 0
+
 	// Read-modify-write
-	word := cpu.physMem[physAddr]
+	word := cpu.physMem[wordIndex]
 	if isOdd {
 		// High byte
 		word = (word & 0x00FF) | ((value & 0xFF) << 8)
@@ -230,31 +239,28 @@ func (cpu *CPU) storeByte(virtAddr uint16, value uint16) error {
 
 	// Trace memory write
 	if cpu.tracer != nil {
-		cpu.tracer.TraceMemoryWrite(virtAddr, physAddr, value&0xFF, true)
+		cpu.tracer.TraceMemoryWrite(virtAddr, physByteAddr, value&0xFF, true)
 	}
 
-	cpu.physMem[physAddr] = word
+	cpu.physMem[wordIndex] = word
 	return nil
 }
 
 // loadCodeWord loads a word from code space (LCW instruction)
 func (cpu *CPU) loadCodeWord(virtAddr uint16) (uint16, error) {
-	// Check alignment
-	if virtAddr&1 != 0 {
-		cpu.raiseException(0x0014, virtAddr)
-		return 0, nil
-	}
-
-	physAddr, err := cpu.translateCode(virtAddr)
+	// virtAddr is a byte address in code space
+	physByteAddr, err := cpu.translateCode(virtAddr)
 	if err != nil {
 		cpu.raiseException(0x0012, virtAddr)
 		return 0, nil
 	}
 
-	value := cpu.physMem[physAddr]
+	// Convert byte address to word index
+	wordIndex := physByteAddr >> 1
+	value := cpu.physMem[wordIndex]
 
 	if cpu.tracer != nil {
-		cpu.tracer.TraceMemoryRead(virtAddr, physAddr, value, false)
+		cpu.tracer.TraceMemoryRead(virtAddr, physByteAddr, value, false)
 	}
 
 	return value, nil

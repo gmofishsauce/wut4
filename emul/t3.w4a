@@ -1,0 +1,8 @@
+outport = 96
+start:
+    adi r1, r0, 0x20
+    ldi r2, outport
+loop:
+	ssp r1, r2
+	adi r1, r1, 1
+	br loop

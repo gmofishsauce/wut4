@@ -54,7 +54,7 @@ func (cpu *CPU) executeBase(inst *Instruction) error {
 			return err
 		}
 		regs[inst.rA] = value
-		cpu.pc++
+		cpu.pc += 2 // Advance to next instruction (byte address)
 
 	case 1: // LDB - Load byte (sign extended)
 		addr := uint16(int32(regs[inst.rB]) + int32(inst.imm7))
@@ -63,7 +63,7 @@ func (cpu *CPU) executeBase(inst *Instruction) error {
 			return err
 		}
 		regs[inst.rA] = value
-		cpu.pc++
+		cpu.pc += 2
 
 	case 2: // STW - Store word
 		addr := uint16(int32(regs[inst.rB]) + int32(inst.imm7))
@@ -71,7 +71,7 @@ func (cpu *CPU) executeBase(inst *Instruction) error {
 		if err != nil {
 			return err
 		}
-		cpu.pc++
+		cpu.pc += 2
 
 	case 3: // STB - Store byte
 		addr := uint16(int32(regs[inst.rB]) + int32(inst.imm7))
@@ -79,7 +79,7 @@ func (cpu *CPU) executeBase(inst *Instruction) error {
 		if err != nil {
 			return err
 		}
-		cpu.pc++
+		cpu.pc += 2
 
 	case 4: // ADI - Add immediate
 		var src uint16
@@ -104,7 +104,7 @@ func (cpu *CPU) executeBase(inst *Instruction) error {
 		} else {
 			regs[inst.rA] = uint16(result)
 		}
-		cpu.pc++
+		cpu.pc += 2
 
 	case 5: // LUI - Load upper immediate
 		value := inst.imm10 << 6
@@ -113,21 +113,21 @@ func (cpu *CPU) executeBase(inst *Instruction) error {
 		} else {
 			regs[inst.rA] = value
 		}
-		cpu.pc++
+		cpu.pc += 2
 
 	case 6: // BRx - Conditional branch
 		condition := cpu.evaluateBranchCondition(inst.branchCond)
 		if condition {
-			// PC has already been incremented by fetch, so offset is from PC+1
+			// Branch offset is in bytes, relative to next instruction (PC+2)
 			offset := int32(int16(inst.imm10))
-			cpu.pc = uint16(int32(cpu.pc) + 1 + offset)
+			cpu.pc = uint16(int32(cpu.pc+2) + offset)
 
 			// If this is BRL (branch and link), save return address
 			if inst.branchCond == BR_LINK {
 				cpu.spr[cpu.mode][SPR_LINK] = cpu.pc
 			}
 		} else {
-			cpu.pc++
+			cpu.pc += 2
 		}
 
 	case 7: // JAL - Jump and link
@@ -141,7 +141,7 @@ func (cpu *CPU) executeBase(inst *Instruction) error {
 
 		targetAddr := (baseReg & 0xFFC0) | (inst.imm10 & 0x003F)
 
-		// Save return address (PC + 2 because PC was incremented in fetch)
+		// Save return address (PC + 2 advances to next instruction in byte addressing)
 		returnAddr := cpu.pc + 2
 		if inst.rA == 0 {
 			cpu.spr[cpu.mode][SPR_LINK] = returnAddr
@@ -241,7 +241,7 @@ func (cpu *CPU) executeXOP(inst *Instruction) error {
 
 	cpu.updateFlags(result, carry, overflow)
 	regs[inst.rA] = uint16(result)
-	cpu.pc++
+	cpu.pc += 2
 	return nil
 }
 
@@ -257,20 +257,20 @@ func (cpu *CPU) executeYOP(inst *Instruction) error {
 			return err
 		}
 		regs[inst.rA] = value
-		cpu.pc++
+		cpu.pc += 2
 
 	case 1: // LSI - Load special register indirect
-		addr := regs[inst.rB]
-		sprValue, err := cpu.loadSPR(addr)
+		sprAddr := regs[inst.rA]
+		memAddr := regs[inst.rB]
+		value, err := cpu.loadSPR(sprAddr)
 		if err != nil {
 			return err
 		}
-		value, err := cpu.loadWord(sprValue)
+		err = cpu.storeWord(memAddr, value)
 		if err != nil {
 			return err
 		}
-		regs[inst.rA] = value
-		cpu.pc++
+		cpu.pc += 2
 
 	case 2: // SSP - Store special register
 		addr := regs[inst.rB]
@@ -279,20 +279,20 @@ func (cpu *CPU) executeYOP(inst *Instruction) error {
 		if err != nil {
 			return err
 		}
-		cpu.pc++
+		cpu.pc += 2
 
 	case 3: // SSI - Store special register indirect
-		addr := regs[inst.rB]
-		sprValue, err := cpu.loadSPR(addr)
+		sprAddr := regs[inst.rA]
+		memAddr := regs[inst.rB]
+		value, err := cpu.loadWord(memAddr)
 		if err != nil {
 			return err
 		}
-		value := regs[inst.rA]
-		err = cpu.storeWord(sprValue, value)
+		err = cpu.storeSPR(sprAddr, value)
 		if err != nil {
 			return err
 		}
-		cpu.pc++
+		cpu.pc += 2
 
 	case 4: // LCW - Load code word
 		addr := regs[inst.rB]
@@ -301,7 +301,7 @@ func (cpu *CPU) executeYOP(inst *Instruction) error {
 			return err
 		}
 		regs[inst.rA] = value
-		cpu.pc++
+		cpu.pc += 2
 
 	case 5: // SYS - System call
 		// rB must be 0, rA selects vector 0-7
@@ -373,7 +373,7 @@ func (cpu *CPU) executeZOP(inst *Instruction) error {
 	}
 
 	regs[inst.rA] = result
-	cpu.pc++
+	cpu.pc += 2
 	return nil
 }
 
@@ -382,11 +382,11 @@ func (cpu *CPU) executeVOP(inst *Instruction) error {
 	switch inst.vop {
 	case 0: // CCF - Clear carry flag
 		cpu.setFlags(cpu.getFlags() & 0xFFFE)
-		cpu.pc++
+		cpu.pc += 2
 
 	case 1: // SCF - Set carry flag
 		cpu.setFlags(cpu.getFlags() | FLAG_C)
-		cpu.pc++
+		cpu.pc += 2
 
 	case 2: // DI - Disable interrupts
 		if cpu.mode != ModeKernel {
@@ -394,7 +394,7 @@ func (cpu *CPU) executeVOP(inst *Instruction) error {
 			return nil
 		}
 		cpu.intEnabled = false
-		cpu.pc++
+		cpu.pc += 2
 
 	case 3: // EI - Enable interrupts
 		if cpu.mode != ModeKernel {
@@ -402,7 +402,7 @@ func (cpu *CPU) executeVOP(inst *Instruction) error {
 			return nil
 		}
 		cpu.intEnabled = true
-		cpu.pc++
+		cpu.pc += 2
 
 	case 4: // HLT - Halt
 		if cpu.mode != ModeKernel {
@@ -410,12 +410,12 @@ func (cpu *CPU) executeVOP(inst *Instruction) error {
 			return nil
 		}
 		cpu.running = false
-		cpu.pc++
+		cpu.pc += 2
 
 	case 5: // BRK - Breakpoint (emulator support)
 		// In emulator, this can be used for debugging
 		// For now, treat as NOP
-		cpu.pc++
+		cpu.pc += 2
 
 	case 6: // RTI - Return from interrupt
 		if cpu.mode != ModeKernel {

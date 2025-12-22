@@ -54,7 +54,7 @@ func main() {
 	// Create CPU
 	cpu := NewCPU()
 	cpu.consoleIn = os.Stdin
-	cpu.consoleOut = os.Stdout
+	cpu.consoleOut = os.Stderr
 
 	// Set up tracing if requested
 	if *traceFile != "" {
@@ -177,6 +177,6 @@ func usage() {
 	flag.PrintDefaults()
 	fmt.Fprintf(os.Stderr, "\nArguments:\n")
 	fmt.Fprintf(os.Stderr, "  <binary-file>    WUT-4 binary file to execute\n")
-	fmt.Fprintf(os.Stderr, "\nThe emulator executes the binary and connects console I/O to stdin/stdout.\n")
+	fmt.Fprintf(os.Stderr, "\nThe emulator executes the binary and connects console I/O to stdin/stderr.\n")
 	fmt.Fprintf(os.Stderr, "Use -trace to generate a detailed execution trace file.\n")
 }

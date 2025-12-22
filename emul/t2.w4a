@@ -1,19 +1,18 @@
+#bank code
+; thisdiagnostic  program loads as a bootstrap so physical page 0 is double mapped
 outport = 96
-start:
-    br cont
-msg:
-    #d "hello, world\n\0"
-cont:
     ldi r2, outport
-    ldi r3, msg
+    ldi r3, data ;  address of msg
+loop:
     ldb r1, r3, 0
-    adi r1, r1, 0
+    adi r0, r1, 0
     br z, done
-    ssi r2, r3
+    ssp r1, r2
     adi r3, r3, 1
-    br cont
+    br loop
 done:
-    die
-#bank data
-    #d "hello, world\n\0"
+    hlt
+#addr 0x40
+data:
+#d "hello, world\n\0"
 

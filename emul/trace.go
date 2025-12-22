@@ -52,7 +52,9 @@ func (t *Tracer) TracePreInstruction(cpu *CPU) {
 	// Fetch and disassemble instruction
 	physAddr, err := cpu.translateCode(cpu.pc)
 	if err == nil {
-		inst := cpu.physMem[physAddr]
+		// Convert byte address to word index
+		wordIndex := physAddr >> 1
+		inst := cpu.physMem[wordIndex]
 		decoded := decode(inst)
 		t.currentInstruction = decoded
 
