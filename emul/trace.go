@@ -76,8 +76,8 @@ func (t *Tracer) TracePreInstruction(cpu *CPU) {
 	z := (t.prevFlags & FLAG_Z) != 0
 	n := (t.prevFlags & FLAG_N) != 0
 	v := (t.prevFlags & FLAG_V) != 0
-	fmt.Fprintf(t.out, "FLAGS BEFORE: C=%d Z=%d N=%d V=%d\n",
-		boolToInt(c), boolToInt(z), boolToInt(n), boolToInt(v))
+	fmt.Fprintf(t.out, "FLAGS BEFORE: C=%d Z=%d N=%d V=%d LINK=%04X\n",
+		boolToInt(c), boolToInt(z), boolToInt(n), boolToInt(v), cpu.spr[cpu.mode][SPR_LINK])
 }
 
 // TracePostInstruction traces state after instruction execution

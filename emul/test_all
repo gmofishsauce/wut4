@@ -1,0 +1,13 @@
+#!/bin/sh
+# run all the assembler tests. don't run th resulting code.
+
+for i in t*.w4a; do
+    rm -f wut4.out
+    ../asm/asm $i
+    if [ ! -r wut4.out ]; then
+        echo test $i failed.
+	exit 2
+    fi
+done
+echo 'assembler: passed'
+exit 0

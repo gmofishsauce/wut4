@@ -132,33 +132,55 @@ cat > ${RULES} << 'EOF'
 	br {t: i16} =>
 	{
 		rel = (t - $ - 2)
-		;#assert rel&0x3ff==rel
+		assert(rel >= !0x1f, "branch target too far backward")
+		assert(rel <= 0x1ff, "branch target too far forward")
 	        le(0b110 @ rel`10 @ 0b000)
         }
 
 	br {c: condition}, {t: i16} =>
 	{
 		rel = (t - $ - 2)
-		;#assert rel&0x3ff==rel
+		assert(rel >= !0x1ff, "branch target too far backward")
+		assert(rel <= 0x1ff, "branch target too far forward")
 	        le(0b110 @ rel`10 @ c)
 	}
 }
 
-#ruledef ; jal
+#ruledef ; JAL instruction and variants
 {
-    jal {r: reg} => { le(0xE @ 0b000000 @r @r) }
-    jal {t: i16} =>
-    {; lui; jal
-	0b101 @ ((t&0xFFC0)>>6)`10 @ 0b000 @ 0xE @ (t&0x3F)`6 @ 0b000 @ 0b000
-    }
-    jal {r: reg}, {t: i16} =>
-    {; lui; jal
-	0b101 @ ((t&0xFFC0)>>6)`10 @r @ 0xE @ (t&0x3F)`6 @ r @ r
-    }
-    jal {rT},{rS}, {t: i16} =>
-    {; lui; jal
-	0b101 @ ((t&0xFFC0)>>6)`10 @rT @ 0xE @ (t&0x3F)`6 @ rT @ rS
-    }
+; JAL rT, rS, label - most general form
+; Expands to LUI rT, (label&0xFFC0)>>6 ; JAL rT, rS, (label&0x3F)
+jal {rt: reg}, {rs: reg}, {label: i16} =>
+{
+  upper_imm = (label>>6)&0x3FF
+  lower_imm = (label&0x3F)`6
+  asm { lui {rt}, {upper_imm} } @ le(0b1110 @ lower_imm @ rs @ rt)
+}
+
+; JAL rT, label
+; Expands to LUI rT, (label&0xFFC0)>>6 ; JAL rT, rT, (label&0x3F)
+jal {rt: reg}, {label: i16} =>
+{
+  upper_imm = (label>>6)&0x3FF
+  lower_imm = (label&0x3F)`6
+  asm { lui {rt}, {upper_imm} } @ le(0b1110 @ lower_imm @ rt @ rt)
+}
+
+; JAL rT, rS, imm6 - base instruction form
+jal {rt: reg}, {rs: reg}, {imm: i6} => le(0b1110 @ imm @ rs @ rt)
+
+; JAL label - shorthand for JAL LINK, label
+; Expands to LUI LINK, (label&0xFFC0)>>6 ; JAL LINK, LINK, (label&0x3F)
+jal {label: i16} =>
+{
+  upper_imm = (label>>6)&0x3FF
+  lower_imm = (label&0x3F)`6
+  asm { lui link, {upper_imm} } @ le(0b1110 @ lower_imm @ 0o0 @ 0o0)
+}
+
+; JAL rT - jump to address in register
+; Expands to JAL rT, rT, 0
+jal {rt: reg} => le(0b1110 @ 0 @ rt @ rt)
 }
 
 #ruledef 
@@ -204,7 +226,7 @@ cat > ${RULES} << 'EOF'
 {
     not {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b000 @ ra)
     neg {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b001 @ ra)
-    zxt {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b010 @ ra)
+    ji  {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b010 @ ra)
     sxt {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b011 @ ra)
     sra {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b100 @ ra)
     srl {ra: reg} => le(0xF @ 0b111 @ 0b111 @0b101 @ ra)
@@ -251,7 +273,14 @@ cat > ${RULES} << 'EOF'
 }
 
 
-    ;ret => asm { jmp link }
+#ruledef
+{
+    ret {ra: reg} => asm { ji {ra} }
+    ret => asm { ji link }
+    rtn {ra: reg} => asm { ji {ra} }
+    rtn => asm { ji link }
+}
+
 ;
 ;    ior {ra: reg}, {rb: reg}, {imm: imm6} => { ; io register read
 ;        asm{ lli {rb}, {imm} } @ asm{ lio {ra}, {rb} }

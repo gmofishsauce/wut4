@@ -1,0 +1,17 @@
+; Test JI instruction and aliases
+start:
+    ldi r1, 42
+    jal test_func
+    hlt
+
+test_func:
+    ldi r2, 99
+    ji link      ; Direct use of ji
+
+test_func2:
+    ldi r3, 123
+    ret          ; Alias for ji link
+
+test_func3:
+    ldi r4, 200
+    rtn          ; Another alias for ji link

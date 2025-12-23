@@ -23,7 +23,7 @@ type Instruction struct {
 	rC uint8 // Bits 8-6
 
 	// Immediate values
-	imm7  int16  // 7-bit signed immediate
+	imm7  int16  // 7-bit signed immediate (bits 12-6; for JAL bit 12 is always 0)
 	imm10 uint16 // 10-bit unsigned immediate
 
 	// Extended opcode fields
@@ -116,8 +116,9 @@ func decode(inst uint16) *Instruction {
 		d.branchCond = d.rA
 
 	case 7: // JAL
-		// 6-bit unsigned immediate (bits 8-3)
-		d.imm10 = (inst >> 3) & 0x003F
+		// 6-bit unsigned immediate (bits 11-6), bit 12 is always 0 for JAL
+		// Extract as 7-bit field (bits 12-6) which will have high bit clear
+		d.imm7 = int16((inst >> 6) & 0x007F)
 	}
 
 	return d
@@ -156,7 +157,7 @@ var yopNames = []string{
 }
 
 var zopNames = []string{
-	"not", "neg", "zxt", "sxt", "sra", "srl", "dub", "???",
+	"not", "neg", "ji", "sxt", "sra", "srl", "dub", "???",
 }
 
 var vopNames = []string{

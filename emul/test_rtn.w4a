@@ -1,0 +1,9 @@
+; Test RTN instruction
+start:
+    ldi r1, 42
+    jal test_func
+    hlt
+
+test_func:
+    ldi r2, 99
+    rtn

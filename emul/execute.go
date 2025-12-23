@@ -12,6 +12,8 @@
 
 package main
 
+import "fmt"
+
 // execute executes a decoded instruction
 func (cpu *CPU) execute(inst *Instruction) error {
 	// Special case: 0x0000 is illegal instruction
@@ -139,12 +141,19 @@ func (cpu *CPU) executeBase(inst *Instruction) error {
 			baseReg = regs[inst.rB]
 		}
 
-		targetAddr := (baseReg & 0xFFC0) | (inst.imm10 & 0x003F)
+		targetAddr := (baseReg & 0xFFC0) | (uint16(inst.imm7) & 0x003F)
 
 		// Save return address (PC + 2 advances to next instruction in byte addressing)
 		returnAddr := cpu.pc + 2
+		if cpu.tracer != nil {
+			fmt.Fprintf(cpu.tracer.out, "JAL DEBUG: cpu.pc=0x%04X returnAddr=0x%04X targetAddr=0x%04X\n",
+				cpu.pc, returnAddr, targetAddr)
+		}
 		if inst.rA == 0 {
 			cpu.spr[cpu.mode][SPR_LINK] = returnAddr
+			if cpu.tracer != nil {
+				fmt.Fprintf(cpu.tracer.out, "JAL DEBUG: Set LINK = 0x%04X\n", returnAddr)
+			}
 		} else {
 			regs[inst.rA] = returnAddr
 		}
@@ -189,8 +198,19 @@ func (cpu *CPU) evaluateBranchCondition(cond uint8) bool {
 // executeXOP executes 3-operand ALU instructions
 func (cpu *CPU) executeXOP(inst *Instruction) error {
 	regs := &cpu.gen[cpu.mode]
-	rB := regs[inst.rB]
-	rC := regs[inst.rC]
+
+	// Register 0 always reads as 0
+	var rB, rC uint16
+	if inst.rB == 0 {
+		rB = 0
+	} else {
+		rB = regs[inst.rB]
+	}
+	if inst.rC == 0 {
+		rC = 0
+	} else {
+		rC = regs[inst.rC]
+	}
 
 	var result uint32
 	var carry, overflow bool
@@ -337,10 +357,19 @@ func (cpu *CPU) executeZOP(inst *Instruction) error {
 		result = uint16(-int16(value))
 		cpu.updateFlags(uint32(result), false, false)
 
-	case 2: // ZXT - Zero extend lower byte
-		result = value & 0x00FF
-		carry = false
-		cpu.updateFlags(uint32(result), carry, false)
+	case 2: // JI - Jump indirect (load PC from register)
+		// If rA is 0, load from LINK special register
+		var jumpAddr uint16
+		if inst.rA == 0 {
+			jumpAddr = cpu.spr[cpu.mode][SPR_LINK]
+			if cpu.tracer != nil {
+				fmt.Fprintf(cpu.tracer.out, "RTN DEBUG: Reading LINK = 0x%04X\n", jumpAddr)
+			}
+		} else {
+			jumpAddr = regs[inst.rA]
+		}
+		cpu.pc = jumpAddr
+		return nil
 
 	case 3: // SXT - Sign extend lower byte
 		if value&0x80 != 0 {
