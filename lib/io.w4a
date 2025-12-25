@@ -1,14 +1,12 @@
-outport = 96
+OUTPORT = 96
+INPORT = 97
 start:
-;=======
-    ldi r1, data
-    jal Outstr
-    hlt
+; output string@R1
 ; data address in R1
+; reurn address in link
 ; r1 r2 r3 altered
-; address in r1
 Outstr:
-    ldi r2, outport
+    ldi r2, OUTPORT
 loop:
     ldb r3, r1, 0
     sub r0, r3, r0
@@ -18,7 +16,24 @@ loop:
     br loop
 done:
     rtn
-#addr 0x40
-data:
-#d "hi\n\0"
 
+Instr:
+; read couny bytes from stdin into buf.
+; buf in r1, max count in r2
+; stops if 0 valued byte read or max count reached.
+; returns count of bytes actually read in r4.
+    xor r4, r4, r4
+    ldi r5, INPORT  ; port address in r5, last word (byte) read in r3
+loop2:
+    sub r4, r2, r4  ;   first check count
+    br uge, done2   ; branch if buffer full
+    lsp r3, r5      ; get next byte
+    sub r0, r3, r0
+    br z, done2     ; branch if nul return or error
+    stb r3, r1, 0   ; save  valid byte @r1
+    adi r4, r4, 1   ; inc count
+    adi r1, r1, 1
+    br loop2
+done2:
+    ret
+    

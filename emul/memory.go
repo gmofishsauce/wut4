@@ -266,23 +266,45 @@ func (cpu *CPU) loadCodeWord(virtAddr uint16) (uint16, error) {
 	return value, nil
 }
 
-// LoadBinary loads a binary file into physical memory starting at address 0
+// LoadBinary loads a binary file into physical memory
+// The file format has two sections:
+//   - Code section: file offset 0x00000-0x1FFFF → loads to physical address 0
+//   - Data section: file offset 0x20000+        → loads to physical address 0 (overlapping)
+// The MMU separates code and data address spaces via different page mappings
 func (cpu *CPU) LoadBinary(data []byte) error {
 	// Data is little-endian 16-bit words
 	if len(data)%2 != 0 {
 		return fmt.Errorf("binary size must be even (got %d bytes)", len(data))
 	}
 
-	wordCount := len(data) / 2
-	if wordCount > len(cpu.physMem) {
-		return fmt.Errorf("binary too large: %d words (max %d)", wordCount, len(cpu.physMem))
+	const CODE_SECTION_SIZE = 0x20000 // 128KB (64K words)
+	const DATA_SECTION_OFFSET = 0x20000
+
+	// Load code section (file offset 0 to 0x1FFFF) into physical memory at 0
+	codeSize := CODE_SECTION_SIZE
+	if len(data) < codeSize {
+		codeSize = len(data)
 	}
 
-	// Load words in little-endian format
-	for i := 0; i < wordCount; i++ {
+	for i := 0; i < codeSize/2; i++ {
 		low := uint16(data[i*2])
 		high := uint16(data[i*2+1])
 		cpu.physMem[i] = (high << 8) | low
+	}
+
+	// Load data section (file offset 0x20000+) into physical memory at 0 (overlapping with code)
+	if len(data) > DATA_SECTION_OFFSET {
+		dataSize := len(data) - DATA_SECTION_OFFSET
+		if dataSize > len(cpu.physMem)*2 {
+			return fmt.Errorf("data section too large: %d bytes (max %d)", dataSize, len(cpu.physMem)*2)
+		}
+
+		for i := 0; i < dataSize/2; i++ {
+			offset := DATA_SECTION_OFFSET + i*2
+			low := uint16(data[offset])
+			high := uint16(data[offset+1])
+			cpu.physMem[i] = (high << 8) | low
+		}
 	}
 
 	return nil

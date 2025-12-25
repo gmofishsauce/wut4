@@ -442,8 +442,8 @@ func (cpu *CPU) executeVOP(inst *Instruction) error {
 		cpu.pc += 2
 
 	case 5: // BRK - Breakpoint (emulator support)
-		// In emulator, this can be used for debugging
-		// For now, treat as NOP
+		// Print all accessible special registers
+		cpu.printSpecialRegisters()
 		cpu.pc += 2
 
 	case 6: // RTI - Return from interrupt

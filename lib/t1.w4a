@@ -1,0 +1,17 @@
+; remember the physical page containing this program is double maaped at 0
+#bank data
+#addr 0x800
+buf:
+#d "uninitialized buffer\n\0"
+BUFSIZE = $ - buf
+#bank code
+startprog:
+    ldi r1, buf
+    jal Outstr
+    ldi r1, buf
+    ldi r2, BUFSIZE
+    brk
+    jal Instr
+    jal Outstr
+
+

@@ -261,7 +261,7 @@ jal {rt: reg} => le(0b1110 @ 0 @ rt @ rt)
     lli {ra: reg}, {imm: i6} => asm { adi {ra}, r0, {imm} }
 
     ; ldi loads a 16-bit value to the target register via lui ; lli.
-    ldi {ra: reg}, {imm: u16}  => 
+    ldi {ra: reg}, {imm: i16}  => 
     {
         upper_imm = (imm>>6)&0x3FF    ; imm10
         lower_imm = (imm&0x3F)`6      ; imm6

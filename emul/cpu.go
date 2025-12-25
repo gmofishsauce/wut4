@@ -234,3 +234,103 @@ func (cpu *CPU) updateFlags(result uint32, carry bool, overflow bool) {
 
 	cpu.setFlags(flags)
 }
+
+// printSpecialRegisters prints all accessible special registers to trace file
+func (cpu *CPU) printSpecialRegisters() {
+	// Only write to trace file if tracer is enabled
+	if cpu.tracer == nil {
+		return
+	}
+
+	out := cpu.tracer.out
+
+	fmt.Fprintf(out, "\n=== Special Registers Dump ===\n")
+	fmt.Fprintf(out, "Mode: %s, Context: %d, Cycle: %d\n",
+		map[uint8]string{ModeKernel: "Kernel", ModeUser: "User"}[cpu.mode],
+		cpu.context, cpu.cycles)
+
+	// Kernel mode registers (always accessible in kernel mode)
+	fmt.Fprintf(out, "\n--- Kernel Mode Registers ---\n")
+	fmt.Fprintf(out, "SPR 0 (LINK):    0x%04X\n", cpu.spr[ModeKernel][SPR_LINK])
+
+	flags := cpu.spr[ModeKernel][SPR_FLAGS]
+	if cpu.mode == ModeKernel {
+		// Add IE flag for display
+		if cpu.intEnabled {
+			flags |= FLAG_IE
+		}
+	}
+	fmt.Fprintf(out, "SPR 1 (FLAGS):   0x%04X [C=%d Z=%d N=%d V=%d T=%d IE=%d]\n",
+		flags,
+		(flags&FLAG_C)>>0, (flags&FLAG_Z)>>1, (flags&FLAG_N)>>2, (flags&FLAG_V)>>3,
+		(flags&FLAG_T)>>8, (flags&FLAG_IE)>>9)
+
+	fmt.Fprintf(out, "SPR 6 (CYCLO):   0x%04X\n", uint16(cpu.cycles&0xFFFF))
+	fmt.Fprintf(out, "SPR 7 (CYCHI):   0x%04X\n", uint16((cpu.cycles>>16)&0xFFFF))
+	fmt.Fprintf(out, "SPR 8 (IRR):     0x%04X\n", cpu.spr[ModeKernel][SPR_IRR])
+	fmt.Fprintf(out, "SPR 9 (ICR):     0x%04X\n", cpu.spr[ModeKernel][SPR_ICR])
+	fmt.Fprintf(out, "SPR 10 (IDR):    0x%04X\n", cpu.spr[ModeKernel][SPR_IDR])
+	fmt.Fprintf(out, "SPR 11 (ISR):    0x%04X\n", cpu.spr[ModeKernel][SPR_ISR])
+	fmt.Fprintf(out, "SPR 15 (CONTEXT): 0x%04X\n", uint16(cpu.context))
+
+	// User mode registers for current context
+	fmt.Fprintf(out, "\n--- User Mode Registers (Context %d) ---\n", cpu.context)
+	fmt.Fprintf(out, "SPR 0 (LINK):    0x%04X\n", cpu.spr[ModeUser][SPR_LINK])
+
+	userFlags := cpu.spr[ModeUser][SPR_FLAGS]
+	if cpu.mode == ModeUser {
+		// Add IE flag for display
+		if cpu.intEnabled {
+			userFlags |= FLAG_IE
+		}
+	}
+	fmt.Fprintf(out, "SPR 1 (FLAGS):   0x%04X [C=%d Z=%d N=%d V=%d]\n",
+		userFlags,
+		(userFlags&FLAG_C)>>0, (userFlags&FLAG_Z)>>1, (userFlags&FLAG_N)>>2, (userFlags&FLAG_V)>>3)
+
+	// Kernel general registers (not SPRs, but part of kernel state)
+	fmt.Fprintf(out, "\n--- Kernel General Registers ---\n")
+	for i := 0; i < 8; i++ {
+		fmt.Fprintf(out, "R%d: 0x%04X\n", i, cpu.gen[ModeKernel][i])
+	}
+
+	// User general registers (SPR 16-23, kernel view of user regs)
+	fmt.Fprintf(out, "\n--- User General Registers ---\n")
+	for i := 0; i < 8; i++ {
+		fmt.Fprintf(out, "SPR %d (R%d):     0x%04X\n",
+			SPR_USERGEN_BASE+i, i, cpu.gen[ModeUser][i])
+	}
+
+	// User MMU for current context
+	fmt.Fprintf(out, "\n--- User MMU (Context %d) ---\n", cpu.context)
+	fmt.Fprintf(out, "Code MMU (SPR 32-47):\n")
+	for i := 0; i < 16; i++ {
+		slot := i
+		fmt.Fprintf(out, "  SPR %d: 0x%04X\n", SPR_USER_CODE_MMU_BASE+i, cpu.mmu[cpu.context][slot])
+	}
+	fmt.Fprintf(out, "Data MMU (SPR 48-63):\n")
+	for i := 0; i < 16; i++ {
+		slot := 16 + i
+		fmt.Fprintf(out, "  SPR %d: 0x%04X\n", SPR_USER_DATA_MMU_BASE+i, cpu.mmu[cpu.context][slot])
+	}
+
+	// Kernel MMU
+	fmt.Fprintf(out, "\n--- Kernel MMU (Context 0) ---\n")
+	fmt.Fprintf(out, "Code MMU (SPR 64-79):\n")
+	for i := 0; i < 16; i++ {
+		slot := i
+		fmt.Fprintf(out, "  SPR %d: 0x%04X\n", SPR_KERN_CODE_MMU_BASE+i, cpu.mmu[0][slot])
+	}
+	fmt.Fprintf(out, "Data MMU (SPR 80-95):\n")
+	for i := 0; i < 16; i++ {
+		slot := 16 + i
+		fmt.Fprintf(out, "  SPR %d: 0x%04X\n", SPR_KERN_DATA_MMU_BASE+i, cpu.mmu[0][slot])
+	}
+
+	// I/O registers (only show non-zero or interesting ones)
+	fmt.Fprintf(out, "\n--- I/O Registers (SPR 96-127) ---\n")
+	fmt.Fprintf(out, "SPR 96 (CONSOLE_OUT): write-only\n")
+	fmt.Fprintf(out, "SPR 97 (CONSOLE_IN):  read-only\n")
+
+	fmt.Fprintf(out, "==============================\n\n")
+}
