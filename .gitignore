@@ -9,6 +9,7 @@
 *.dylib
 *.swp
 *.prof
+foo
 
 # Garbage created by well-meaning but moronic system vendors
 *.DS_Store

@@ -178,9 +178,6 @@ jal {label: i16} =>
   asm { lui link, {upper_imm} } @ le(0b1110 @ lower_imm @ 0o0 @ 0o0)
 }
 
-; JAL rT - jump to address in register
-; Expands to JAL rT, rT, 0
-jal {rt: reg} => le(0b1110 @ 0 @ rt @ rt)
 }
 
 #ruledef 
@@ -198,13 +195,13 @@ jal {rt: reg} => le(0b1110 @ 0 @ rt @ rt)
 
 #ruledef ; XOPs are three-register ops. bic and bis are NAND and OR (PDP-11).
 {
-    add {ra: reg}, {rb: reg}, {rc: reg}  => le(0xF @ 0b000  @ rc @ rb @ ra)
+    sbb {ra: reg}, {rb: reg}, {rc: reg}  => le(0xF @ 0b000  @ rc @ rb @ ra)
     adc {ra: reg}, {rb: reg}, {rc: reg}  => le(0xF @ 0b001  @ rc @ rb @ ra)
     sub {ra: reg}, {rb: reg}, {rc: reg}  => le(0xF @ 0b010  @ rc @ rb @ ra)
-    sbb {ra: reg}, {rb: reg}, {rc: reg}  => le(0xF @ 0b011  @ rc @ rb @ ra)
-    bic {ra: reg}, {rb: reg}, {rc: reg}  => le(0xF @ 0b100  @ rc @ rb @ ra)
-    bis {ra: reg}, {rb: reg}, {rc: reg}  => le(0xF @ 0b101  @ rc @ rb @ ra)
-    xor {ra: reg}, {rb: reg}, {rc: reg}  => le(0xF @ 0b110  @ rc @ rb @ ra)
+    add {ra: reg}, {rb: reg}, {rc: reg}  => le(0xF @ 0b011  @ rc @ rb @ ra)
+    xor {ra: reg}, {rb: reg}, {rc: reg}  => le(0xF @ 0b100  @ rc @ rb @ ra)
+     or {ra: reg}, {rb: reg}, {rc: reg}  => le(0xF @ 0b101  @ rc @ rb @ ra)
+    and {ra: reg}, {rb: reg}, {rc: reg}  => le(0xF @ 0b110  @ rc @ rb @ ra)
 }
 
 ; All remaining opcodes have 0b1111_111 in the upper seven bits.
@@ -319,5 +316,5 @@ EOF
 # but occasionally necessary. It can be added at the end of the customasm line.
 # 2>&1 >/dev/null | (grep -E 'error|^[0-9]' || true)
 
-customasm --color=off -o "${OUTPUT}" "${RULES}" $@
+customasm --color=off -- -f symbols -o wut4.sym m -o "${OUTPUT}" "${RULES}" $@
 

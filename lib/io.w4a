@@ -24,16 +24,30 @@ Instr:
 ; returns count of bytes actually read in r4.
     xor r4, r4, r4
     ldi r5, INPORT  ; port address in r5, last word (byte) read in r3
-loop2:
+.loop:
     sub r4, r2, r4  ;   first check count
-    br uge, done2   ; branch if buffer full
+    br ult, .done   ; branch if buffer full
     lsp r3, r5      ; get next byte
     sub r0, r3, r0
-    br z, done2     ; branch if nul return or error
+    br z, .done     ; branch if nul return or error
     stb r3, r1, 0   ; save  valid byte @r1
     adi r4, r4, 1   ; inc count
     adi r1, r1, 1
-    br loop2
-done2:
+    br .loop
+.done:
     ret
-    
+; get a byte from the console.  Return 16-bit value
+; that is -1 for error including EOF or else a positive
+; int that has the byte read in low 8 bits. Does not
+; return 0 (Reading a null at the console is considered an error)
+; return value in r1. r1, r2, r3 modified.
+Getb:
+    ldi r2, INPORT
+    lsp r1, r2
+    xor r3, r3, r3
+    add r3, r1, r3
+    br  z, .error
+    ret
+.error:
+    adi r1, r3, -1
+    ret
