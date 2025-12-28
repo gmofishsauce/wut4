@@ -1,0 +1,19 @@
+I would like you to write me an assembler  for the instruction set architecture
+described in the local document wut4arch.pdf.
+The assembler program should be written in Golang in this directory
+so the binary will be called "asm". 
+Please also implement a disassembler function accessed by "asm -d wut4-binary-file".
+
+The assembler will eventually be self hosted on the WUT-4.
+To do this it will be rewritten in a simple programming language
+like a stripped down version of C.
+So please use C-like constructs in the Golang code.
+Please do not use closures or other constructs that require dynamic memory allocation an
+would be difficult to express in C.
+
+
+Syntax for the assembler is defined in the local document wut4asm.pdf.
+The opcodes are defined in wut4arch.pdf. I have made a number of recent revisions to this document which should take priority over previous data that may be in your context.
+
+
+
