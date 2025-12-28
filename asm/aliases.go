@@ -30,9 +30,16 @@ func (a *Assembler) processBranch(opcode string, tokens []Token, pos int, lineNu
 			target = addr - (a.codeDollar + 2)
 		} else {
 			/* Forward reference - add fixup */
-			/* For now, emit 0 and add fixup */
 			target = 0
-			/* TODO: Add proper fixup handling for branches */
+			fixup := Fixup{
+				addr:       a.codeDollar,
+				label:      args[0].value,
+				line:       lineNum,
+				isInCode:   1,
+				isBranch:   1,
+				branchCond: cond,
+			}
+			a.fixups = append(a.fixups, fixup)
 		}
 	} else {
 		target, err = a.parseImmArg(args, 0)

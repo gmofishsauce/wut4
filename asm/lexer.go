@@ -46,8 +46,14 @@ func tokenizeLine(line string, lineNum int) []Token {
 			continue
 		}
 		if line[i] == '-' {
-			i++
-			continue
+			/* Check if this is a negative number */
+			if i+1 < n && unicode.IsDigit(rune(line[i+1])) {
+				/* Fall through to number parsing below */
+			} else {
+				tokens = append(tokens, Token{typ: TOK_MINUS, line: lineNum, col: i})
+				i++
+				continue
+			}
 		}
 		if line[i] == '*' {
 			tokens = append(tokens, Token{typ: TOK_STAR, line: lineNum, col: i})

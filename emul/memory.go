@@ -267,40 +267,70 @@ func (cpu *CPU) loadCodeWord(virtAddr uint16) (uint16, error) {
 }
 
 // LoadBinary loads a binary file into physical memory
-// The file format has two sections:
-//   - Code section: file offset 0x00000-0x1FFFF → loads to physical address 0
-//   - Data section: file offset 0x20000+        → loads to physical address 0 (overlapping)
+// The new file format has a 16-byte header:
+//   - Offset 0-1: Magic number 0xDDD1 (uint16 little-endian)
+//   - Offset 2-3: Code size in bytes (uint16 little-endian)
+//   - Offset 4-5: Data size in bytes (uint16 little-endian)
+//   - Offset 6-15: Reserved (10 bytes)
+//   - Code section starts at offset 16
+//   - Data section follows code section immediately
+// Both code and data load to physical address 0 (overlapping)
 // The MMU separates code and data address spaces via different page mappings
 func (cpu *CPU) LoadBinary(data []byte) error {
-	// Data is little-endian 16-bit words
-	if len(data)%2 != 0 {
-		return fmt.Errorf("binary size must be even (got %d bytes)", len(data))
+	const HEADER_SIZE = 16
+	const MAGIC_NUMBER = 0xDDD1
+
+	// Validate minimum size (must have header)
+	if len(data) < HEADER_SIZE {
+		return fmt.Errorf("binary file too small: %d bytes (minimum %d)", len(data), HEADER_SIZE)
 	}
 
-	const CODE_SECTION_SIZE = 0x20000 // 128KB (64K words)
-	const DATA_SECTION_OFFSET = 0x20000
+	// Parse header (little-endian)
+	magic := uint16(data[0]) | (uint16(data[1]) << 8)
+	codeSize := uint16(data[2]) | (uint16(data[3]) << 8)
+	dataSize := uint16(data[4]) | (uint16(data[5]) << 8)
 
-	// Load code section (file offset 0 to 0x1FFFF) into physical memory at 0
-	codeSize := CODE_SECTION_SIZE
-	if len(data) < codeSize {
-		codeSize = len(data)
+	// Validate magic number
+	if magic != MAGIC_NUMBER {
+		return fmt.Errorf("invalid magic number: 0x%04X (expected 0x%04X)", magic, MAGIC_NUMBER)
 	}
 
-	for i := 0; i < codeSize/2; i++ {
-		low := uint16(data[i*2])
-		high := uint16(data[i*2+1])
+	// Validate sizes
+	expectedSize := HEADER_SIZE + int(codeSize) + int(dataSize)
+	if len(data) < expectedSize {
+		return fmt.Errorf("binary file size mismatch: got %d bytes, expected %d (header=%d + code=%d + data=%d)",
+			len(data), expectedSize, HEADER_SIZE, codeSize, dataSize)
+	}
+
+	// Code size and data size must be even (16-bit words)
+	if codeSize%2 != 0 {
+		return fmt.Errorf("code size must be even: %d bytes", codeSize)
+	}
+	if dataSize%2 != 0 {
+		return fmt.Errorf("data size must be even: %d bytes", dataSize)
+	}
+
+	// Load code section (file offset 16+) into physical memory at address 0
+	codeOffset := HEADER_SIZE
+	for i := 0; i < int(codeSize)/2; i++ {
+		offset := codeOffset + i*2
+		low := uint16(data[offset])
+		high := uint16(data[offset+1])
 		cpu.physMem[i] = (high << 8) | low
 	}
 
-	// Load data section (file offset 0x20000+) into physical memory at 0 (overlapping with code)
-	if len(data) > DATA_SECTION_OFFSET {
-		dataSize := len(data) - DATA_SECTION_OFFSET
-		if dataSize > len(cpu.physMem)*2 {
+	// Load data section (follows code) into physical memory at address 0 (overlapping with code)
+	// The MMU will separate these via different page mappings
+	if dataSize > 0 {
+		dataOffset := codeOffset + int(codeSize)
+
+		// Validate data doesn't exceed physical memory
+		if dataSize > uint16(len(cpu.physMem)*2) {
 			return fmt.Errorf("data section too large: %d bytes (max %d)", dataSize, len(cpu.physMem)*2)
 		}
 
-		for i := 0; i < dataSize/2; i++ {
-			offset := DATA_SECTION_OFFSET + i*2
+		for i := 0; i < int(dataSize)/2; i++ {
+			offset := dataOffset + i*2
 			low := uint16(data[offset])
 			high := uint16(data[offset+1])
 			cpu.physMem[i] = (high << 8) | low

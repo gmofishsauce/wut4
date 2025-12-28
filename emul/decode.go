@@ -153,11 +153,11 @@ var xopNames = []string{
 }
 
 var yopNames = []string{
-	"lsp", "lsi", "ssp", "ssi", "lcw", "sys", "???", "???",
+	"lsp", "lsi", "ssp", "ssi", "lcw", "sys", "tst", "???",
 }
 
 var zopNames = []string{
-	"not", "neg", "ji", "sxt", "sra", "srl", "dub", "???",
+	"not", "neg", "dub", "sxt", "sra", "srl", "ji", "???",
 }
 
 var vopNames = []string{

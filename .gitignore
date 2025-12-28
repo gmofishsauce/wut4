@@ -10,6 +10,7 @@
 *.swp
 *.prof
 foo
+out.bin
 
 # Garbage created by well-meaning but moronic system vendors
 *.DS_Store

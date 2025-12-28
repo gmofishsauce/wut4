@@ -59,11 +59,33 @@ func assemble(inputFile string, outputFile string) error {
 
 		/* Patch the address in the output */
 		if fixup.isInCode != 0 {
-			/* Patch code segment - this is a simplified version */
-			/* For now, we'll just store the address as a 16-bit value */
-			if fixup.addr+1 < len(a.codeBytes) {
-				a.codeBytes[fixup.addr] = byte(addr & 0xFF)
-				a.codeBytes[fixup.addr+1] = byte((addr >> 8) & 0xFF)
+			if fixup.isBranch != 0 {
+				/* Branch instruction - calculate PC-relative offset */
+				/* offset = target - (PC + 2) where PC is the branch instruction address */
+				offset := addr - (fixup.addr + 2)
+
+				/* Check if offset fits in 10 bits signed */
+				if fitsInSigned(offset, 10) == 0 {
+					a.errors = append(a.errors, fmt.Sprintf("Line %d: branch offset %d to label %s does not fit in 10 bits", fixup.line, offset, fixup.label))
+					continue
+				}
+
+				/* Encode branch instruction: [15:13]=110 [12:3]=imm10 [2:0]=cond */
+				word := uint16(0xC000)                          /* 110 in top 3 bits */
+				word |= uint16((offset & 0x3FF) << 3)           /* 10-bit offset in bits 12-3 */
+				word |= uint16(fixup.branchCond & 0x7)          /* condition in bits 2-0 */
+
+				/* Write the patched instruction */
+				if fixup.addr+1 < len(a.codeBytes) {
+					a.codeBytes[fixup.addr] = byte(word & 0xFF)
+					a.codeBytes[fixup.addr+1] = byte((word >> 8) & 0xFF)
+				}
+			} else {
+				/* Non-branch code fixup - store address as 16-bit value */
+				if fixup.addr+1 < len(a.codeBytes) {
+					a.codeBytes[fixup.addr] = byte(addr & 0xFF)
+					a.codeBytes[fixup.addr+1] = byte((addr >> 8) & 0xFF)
+				}
 			}
 		} else {
 			/* Patch data segment */
@@ -193,8 +215,11 @@ func (a *Assembler) parseImmArg(tokens []Token, pos int) (int, error) {
 	if pos >= len(tokens) {
 		return 0, fmt.Errorf("expected immediate value")
 	}
+	/* Find the end of this expression (until next comma or end of tokens) */
+	/* Note: getArgs already removed commas, so we evaluate to end of tokens */
+	end := len(tokens)
 	/* Try to evaluate as expression */
-	val, err := a.evalExpr(tokens, pos, pos+1)
+	val, err := a.evalExpr(tokens, pos, end)
 	if err != nil {
 		return 0, err
 	}

@@ -31,6 +31,19 @@ func (a *Assembler) evalExpr(tokens []Token, start int, end int) (int, error) {
 		}
 	}
 
+	/* Handle unary operators at the start */
+	if tokens[start].typ == TOK_MINUS || tokens[start].typ == TOK_PLUS {
+		/* Unary minus or plus */
+		val, err := a.evalExpr(tokens, start+1, end)
+		if err != nil {
+			return 0, err
+		}
+		if tokens[start].typ == TOK_MINUS {
+			return -val, nil
+		}
+		return val, nil
+	}
+
 	/* Handle binary operators - simple left-to-right evaluation */
 	/* Find lowest precedence operator */
 	depth := 0
@@ -45,7 +58,8 @@ func (a *Assembler) evalExpr(tokens []Token, start int, end int) (int, error) {
 			depth--
 		} else if depth == 0 {
 			prec := getOpPrecedence(t.typ)
-			if prec >= 0 && prec <= opPrec {
+			/* Skip if this looks like a unary operator (at start or after another operator) */
+			if prec >= 0 && i > start && prec <= opPrec {
 				opPos = i
 				opPrec = prec
 			}

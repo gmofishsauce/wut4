@@ -1,53 +1,32 @@
-OUTPORT = 96
-INPORT = 97
-start:
-; output string@R1
-; data address in R1
-; reurn address in link
-; r1 r2 r3 altered
-Outstr:
-    ldi r2, OUTPORT
-loop:
-    ldb r3, r1, 0
-    sub r0, r3, r0
-    br z, done
-    ssp r3, r2
-    adi r1, r1, 1
-    br loop
-done:
-    rtn
+; input and output. r1 r2 r3 are caller-save. 
+.set INPORT 97
+.code
+.set OUTPORT 96
+.bytes 
 
-Instr:
-; read couny bytes from stdin into buf.
-; buf in r1, max count in r2
-; stops if 0 valued byte read or max count reached.
-; returns count of bytes actually read in r4.
-    xor r4, r4, r4
-    ldi r5, INPORT  ; port address in r5, last word (byte) read in r3
-.loop:
-    sub r4, r2, r4  ;   first check count
-    br ult, .done   ; branch if buffer full
-    lsp r3, r5      ; get next byte
-    sub r0, r3, r0
-    br z, .done     ; branch if nul return or error
-    stb r3, r1, 0   ; save  valid byte @r1
-    adi r4, r4, 1   ; inc count
-    adi r1, r1, 1
-    br .loop
-.done:
+boot_time_IOTest:
+	jal link link Getc
+	jal link link Putc
+	hlt
+buf:
+.bytes	"UN\n\0"; page is double mapped at 0 as both data nd code.
+
+
+; get a byte from the emulator console and return it in r1.
+; return -1 for error. In emulator, blocks reading console.
+; 
+Getc:
+    ldi r2 INPORT
+    lsp r1 r2
+    tst r1 r1
+    brz getcErr
     ret
-; get a byte from the console.  Return 16-bit value
-; that is -1 for error including EOF or else a positive
-; int that has the byte read in low 8 bits. Does not
-; return 0 (Reading a null at the console is considered an error)
-; return value in r1. r1, r2, r3 modified.
-Getb:
-    ldi r2, INPORT
-    lsp r1, r2
-    xor r3, r3, r3
-    add r3, r1, r3
-    br  z, .error
+; return -1 for error
+getcErr:
+    ldi r1 -1
     ret
-.error:
-    adi r1, r3, -1
+
+Putc:
+    ldi r2 OUTPORT
+    ssp r1 r2
     ret

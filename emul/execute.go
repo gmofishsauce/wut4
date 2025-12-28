@@ -333,6 +333,28 @@ func (cpu *CPU) executeYOP(inst *Instruction) error {
 		vector := EX_SYSCALL_BASE + (uint16(inst.rA) * 2)
 		cpu.raiseException(vector, 0)
 
+	case 6: // TST - Test (compare rA - rB, set flags, discard result)
+		var rAval, rBval uint16
+		if inst.rA == 0 {
+			rAval = 0
+		} else {
+			rAval = regs[inst.rA]
+		}
+		if inst.rB == 0 {
+			rBval = 0
+		} else {
+			rBval = regs[inst.rB]
+		}
+
+		// Perform subtraction: rA - rB
+		result := uint32(rAval) - uint32(rBval)
+		carry := (result & 0x10000) == 0 // Borrow for subtraction
+		overflow := ((rAval^rBval)&0x8000) != 0 && ((rAval^uint16(result))&0x8000) != 0
+
+		// Update flags but don't store result
+		cpu.updateFlags(result, carry, overflow)
+		cpu.pc += 2
+
 	default:
 		cpu.raiseException(EX_ILLEGAL_INST, cpu.pc)
 	}
@@ -357,19 +379,11 @@ func (cpu *CPU) executeZOP(inst *Instruction) error {
 		result = uint16(-int16(value))
 		cpu.updateFlags(uint32(result), false, false)
 
-	case 2: // JI - Jump indirect (load PC from register)
-		// If rA is 0, load from LINK special register
-		var jumpAddr uint16
-		if inst.rA == 0 {
-			jumpAddr = cpu.spr[cpu.mode][SPR_LINK]
-			if cpu.tracer != nil {
-				fmt.Fprintf(cpu.tracer.out, "RTN DEBUG: Reading LINK = 0x%04X\n", jumpAddr)
-			}
-		} else {
-			jumpAddr = regs[inst.rA]
-		}
-		cpu.pc = jumpAddr
-		return nil
+	case 2: // DUB - Duplicate upper byte
+		upperByte := (value >> 8) & 0xFF
+		result = (upperByte << 8) | upperByte
+		carry = false
+		cpu.updateFlags(uint32(result), carry, false)
 
 	case 3: // SXT - Sign extend lower byte
 		if value&0x80 != 0 {
@@ -390,11 +404,19 @@ func (cpu *CPU) executeZOP(inst *Instruction) error {
 		result = value >> 1
 		cpu.setFlags((cpu.getFlags() & 0xFFFE) | boolToUint16(carry))
 
-	case 6: // DUB - Duplicate upper byte
-		upperByte := (value >> 8) & 0xFF
-		result = (upperByte << 8) | upperByte
-		carry = false
-		cpu.updateFlags(uint32(result), carry, false)
+	case 6: // JI - Jump indirect (load PC from register)
+		// If rA is 0, load from LINK special register
+		var jumpAddr uint16
+		if inst.rA == 0 {
+			jumpAddr = cpu.spr[cpu.mode][SPR_LINK]
+			if cpu.tracer != nil {
+				fmt.Fprintf(cpu.tracer.out, "RTN DEBUG: Reading LINK = 0x%04X\n", jumpAddr)
+			}
+		} else {
+			jumpAddr = regs[inst.rA]
+		}
+		cpu.pc = jumpAddr
+		return nil
 
 	default:
 		cpu.raiseException(EX_ILLEGAL_INST, cpu.pc)

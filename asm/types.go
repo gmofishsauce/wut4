@@ -57,10 +57,12 @@ type Assembler struct {
 
 /* Fixup for forward references */
 type Fixup struct {
-	addr     int    /* Address to fix up */
-	label    string /* Label being referenced */
-	line     int    /* Line number for error reporting */
-	isInCode int    /* 1 if in code segment, 0 if in data segment */
+	addr       int    /* Address to fix up */
+	label      string /* Label being referenced */
+	line       int    /* Line number for error reporting */
+	isInCode   int    /* 1 if in code segment, 0 if in data segment */
+	isBranch   int    /* 1 if this is a branch instruction fixup */
+	branchCond int    /* Branch condition code (for branch fixups) */
 }
 
 /* Instruction definition */
