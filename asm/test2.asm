@@ -1,16 +1,26 @@
 .code
+.set OUTPORT 96
 
 start:
-	ldi r1, 42
-	ldi r2, 0x100
-	add r3, r1, r2
-	ldw r4, r3, 0
-	stw r4, r3, 4
-	br end
-
-end:
+	ldi r2  OUTPORT
+	ldi r3  data
+unrolled:
+	ldb r1 r3 0
+	ssp r1 r2
+	ldb r1 r3 1
+	ssp r1 r2
+	ldb r1 r3 2
+	ssp r1 r2
+	ldb r1 r3 3
+	ssp r1 r2
+	ldb r1 r3 4
+	ssp r1 r2
+	ldb r1 r3 5
+	ssp r1 r2
+	ldb r1 r3 6
+	ssp r1 r2
 	hlt
 
-.data
-	.words 0x1234, 0x5678
-	.bytes "Hello", 0
+data:
+
+	.bytes "Hello\n", 0

@@ -12,6 +12,8 @@
 
 package main
 
+import "os"
+
 // readConsole reads a single byte from console input (stdin)
 // Returns 0 if no input is available (non-blocking)
 func (cpu *CPU) readConsole() uint16 {
@@ -43,6 +45,11 @@ func (cpu *CPU) writeConsole(value uint16) {
 
 	buf := []byte{byte(value & 0xFF)}
 	cpu.consoleOut.Write(buf)
+
+	// Flush output immediately so character appears without waiting for newline
+	if f, ok := cpu.consoleOut.(*os.File); ok {
+		f.Sync()
+	}
 
 	// Trace console output
 	if cpu.tracer != nil {

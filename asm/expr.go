@@ -116,6 +116,10 @@ func (ep *ExprParser) parsePrimary() (int, error) {
 
 	case TOK_DOLLAR:
 		ep.advance()
+		/* In bootstrap mode, only one PC value exists */
+		if ep.asm.bootstrapMode {
+			return ep.asm.codePC, nil
+		}
 		if ep.asm.currentSeg == SEG_CODE {
 			return ep.asm.codePC, nil
 		}

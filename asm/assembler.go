@@ -161,10 +161,23 @@ func (asm *Assembler) processDirective(stmt *Statement) error {
 		}
 
 	case DIR_CODE:
+		if asm.bootstrapMode {
+			return fmt.Errorf(".code directive not permitted in .bootstrap programs")
+		}
 		asm.currentSeg = SEG_CODE
 
 	case DIR_DATA:
+		if asm.bootstrapMode {
+			return fmt.Errorf(".data directive not permitted in .bootstrap programs")
+		}
 		asm.currentSeg = SEG_DATA
+
+	case DIR_BOOTSTRAP:
+		if asm.seenCode {
+			return fmt.Errorf(".bootstrap must appear first in the file")
+		}
+		asm.bootstrapMode = true
+		asm.currentSeg = SEG_CODE
 
 	case DIR_SET:
 		if asm.pass != 1 {
@@ -188,16 +201,31 @@ func (asm *Assembler) processDirective(stmt *Statement) error {
 }
 
 func (asm *Assembler) processStatement(stmt *Statement) error {
+	/* Mark that we've seen code (unless it's just a label or .bootstrap) */
+	if stmt.hasDir && stmt.directive != DIR_BOOTSTRAP {
+		asm.seenCode = true
+	}
+	if stmt.hasInstr {
+		asm.seenCode = true
+	}
+
 	/* Handle label - only in pass 1 */
 	if stmt.label != "" && asm.pass == 1 {
-		value := asm.codePC
-		segment := SEG_CODE
-		if asm.currentSeg == SEG_DATA {
-			value = asm.dataPC
-			segment = SEG_DATA
-		}
-		if err := asm.addSymbol(stmt.label, value, segment); err != nil {
-			return err
+		/* In bootstrap mode, everything uses codePC */
+		if asm.bootstrapMode {
+			if err := asm.addSymbol(stmt.label, asm.codePC, SEG_CODE); err != nil {
+				return err
+			}
+		} else {
+			value := asm.codePC
+			segment := SEG_CODE
+			if asm.currentSeg == SEG_DATA {
+				value = asm.dataPC
+				segment = SEG_DATA
+			}
+			if err := asm.addSymbol(stmt.label, value, segment); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -221,6 +249,7 @@ func (asm *Assembler) pass1(input string) error {
 	asm.currentSeg = SEG_CODE
 	asm.codeSize = 0
 	asm.dataSize = 0
+	asm.seenCode = false
 
 	lines := strings.Split(input, "\n")
 	for _, line := range lines {
@@ -253,6 +282,7 @@ func (asm *Assembler) pass2(input string) error {
 	asm.currentSeg = SEG_CODE
 	asm.codeSize = 0
 	asm.dataSize = 0
+	asm.seenCode = false
 
 	lines := strings.Split(input, "\n")
 	for _, line := range lines {

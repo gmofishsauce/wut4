@@ -55,6 +55,7 @@ const (
 	DIR_CODE
 	DIR_DATA
 	DIR_SET
+	DIR_BOOTSTRAP
 )
 
 type Token struct {
@@ -91,21 +92,23 @@ type Statement struct {
 }
 
 type Assembler struct {
-	symbols     []Symbol
-	numSymbols  int
-	codePC      int
-	dataPC      int
-	currentSeg  int
-	codeBuf     []byte
-	dataBuf     []byte
-	codeSize    int
-	dataSize    int
-	codeCap     int
-	dataCap     int
-	pass        int
-	errors      int
-	inputFile   string
-	outputFile  string
+	symbols       []Symbol
+	numSymbols    int
+	codePC        int
+	dataPC        int
+	currentSeg    int
+	codeBuf       []byte
+	dataBuf       []byte
+	codeSize      int
+	dataSize      int
+	codeCap       int
+	dataCap       int
+	pass          int
+	errors        int
+	inputFile     string
+	outputFile    string
+	bootstrapMode bool
+	seenCode      bool
 }
 
 type Disassembler struct {

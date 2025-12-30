@@ -120,7 +120,8 @@ func (asm *Assembler) evaluateExpr(exprStr string, allowFwd bool) (int, error) {
 }
 
 func (asm *Assembler) emitWord(word uint16) {
-	if asm.currentSeg == SEG_CODE {
+	/* In bootstrap mode, everything goes to code segment */
+	if asm.bootstrapMode || asm.currentSeg == SEG_CODE {
 		asm.ensureCodeCapacity(asm.codeSize + 2)
 		asm.codeBuf[asm.codeSize] = byte(word & 0xFF)
 		asm.codeBuf[asm.codeSize+1] = byte((word >> 8) & 0xFF)
@@ -136,7 +137,8 @@ func (asm *Assembler) emitWord(word uint16) {
 }
 
 func (asm *Assembler) emitByte(b byte) {
-	if asm.currentSeg == SEG_CODE {
+	/* In bootstrap mode, everything goes to code segment */
+	if asm.bootstrapMode || asm.currentSeg == SEG_CODE {
 		asm.ensureCodeCapacity(asm.codeSize + 1)
 		asm.codeBuf[asm.codeSize] = b
 		asm.codeSize++
@@ -212,7 +214,7 @@ func (asm *Assembler) genBase(stmt *Statement, instr *Instruction) error {
 
 	imm := 0
 	if stmt.numArgs >= 3 {
-		imm, err = asm.evaluateExpr(stmt.args[2], false)
+		imm, err = asm.evaluateExpr(stmt.args[2], true)
 		if err != nil {
 			return err
 		}
@@ -244,7 +246,7 @@ func (asm *Assembler) genLUI(stmt *Statement, instr *Instruction) error {
 		return err
 	}
 
-	imm, err := asm.evaluateExpr(stmt.args[1], false)
+	imm, err := asm.evaluateExpr(stmt.args[1], true)
 	if err != nil {
 		return err
 	}
@@ -366,7 +368,7 @@ func (asm *Assembler) genLDI(stmt *Statement) error {
 		return err
 	}
 
-	imm, err := asm.evaluateExpr(stmt.args[1], false)
+	imm, err := asm.evaluateExpr(stmt.args[1], true)
 	if err != nil {
 		return err
 	}

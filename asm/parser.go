@@ -100,6 +100,9 @@ func (p *Parser) parseDirective(name string) (*Statement, error) {
 	case ".data":
 		stmt.directive = DIR_DATA
 
+	case ".bootstrap":
+		stmt.directive = DIR_BOOTSTRAP
+
 	case ".set":
 		stmt.directive = DIR_SET
 		if err := p.advance(); err != nil {
