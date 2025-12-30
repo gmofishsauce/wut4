@@ -1,46 +1,37 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		printUsage()
-		os.Exit(1)
-	}
+	disasm := flag.Bool("d", false, "disassemble mode")
+	output := flag.String("o", "wut4.out", "output file")
+	flag.Parse()
 
-	/* Disassembler mode */
-	if os.Args[1] == "-d" {
-		if len(os.Args) != 3 {
-			printUsage()
+	if *disasm {
+		if flag.NArg() < 1 {
+			fmt.Fprintf(os.Stderr, "Error: disassemble mode requires input file\n")
 			os.Exit(1)
 		}
-		err := disassemble(os.Args[2])
+		inputFile := flag.Arg(0)
+		err := disassemble(inputFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
-		return
+	} else {
+		if flag.NArg() < 1 {
+			fmt.Fprintf(os.Stderr, "Error: assemble mode requires input file\n")
+			os.Exit(1)
+		}
+		inputFile := flag.Arg(0)
+		err := assemble(inputFile, *output)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	}
-
-	/* Assembler mode */
-	inputFile := os.Args[1]
-	outputFile := "out.bin"
-	if len(os.Args) >= 3 {
-		outputFile = os.Args[2]
-	}
-
-	err := assemble(inputFile, outputFile)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-func printUsage() {
-	fmt.Fprintf(os.Stderr, "Usage:\n")
-	fmt.Fprintf(os.Stderr, "  asm <input.asm> [output.bin]  - Assemble a file\n")
-	fmt.Fprintf(os.Stderr, "  asm -d <binary-file>          - Disassemble a file\n")
 }

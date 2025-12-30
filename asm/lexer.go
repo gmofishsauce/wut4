@@ -4,239 +4,353 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"unicode"
 )
 
-/* Tokenize a single line */
-func tokenizeLine(line string, lineNum int) []Token {
-	tokens := make([]Token, 0, 16)
-	i := 0
-	n := len(line)
+type Lexer struct {
+	input  string
+	pos    int
+	line   int
+	column int
+	ch     byte
+}
 
-	for i < n {
-		/* Skip whitespace */
-		if line[i] == ' ' || line[i] == '\t' {
-			i++
-			continue
+func newLexer(input string) *Lexer {
+	lex := &Lexer{
+		input:  input,
+		pos:    0,
+		line:   1,
+		column: 1,
+		ch:     0,
+	}
+	if len(input) > 0 {
+		lex.ch = input[0]
+	}
+	return lex
+}
+
+func (lex *Lexer) advance() {
+	if lex.pos < len(lex.input)-1 {
+		lex.pos++
+		lex.ch = lex.input[lex.pos]
+		lex.column++
+		if lex.ch == '\n' {
+			lex.line++
+			lex.column = 1
 		}
+	} else {
+		lex.pos = len(lex.input)
+		lex.ch = 0
+	}
+}
 
-		/* Comment - rest of line */
-		if line[i] == ';' {
+func (lex *Lexer) peek() byte {
+	if lex.pos < len(lex.input)-1 {
+		return lex.input[lex.pos+1]
+	}
+	return 0
+}
+
+func (lex *Lexer) skipWhitespace() {
+	for lex.ch == ' ' || lex.ch == '\t' || lex.ch == '\r' {
+		lex.advance()
+	}
+}
+
+func (lex *Lexer) skipComment() {
+	/* Skip until end of line */
+	for lex.ch != '\n' && lex.ch != 0 {
+		lex.advance()
+	}
+}
+
+func isLetter(ch byte) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_'
+}
+
+func isDigit(ch byte) bool {
+	return ch >= '0' && ch <= '9'
+}
+
+func isHexDigit(ch byte) bool {
+	return isDigit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')
+}
+
+func (lex *Lexer) readIdentifier() string {
+	start := lex.pos
+	/* Handle leading '.' for directives */
+	if lex.ch == '.' {
+		lex.advance()
+	}
+	for isLetter(lex.ch) || isDigit(lex.ch) {
+		lex.advance()
+	}
+	return lex.input[start:lex.pos]
+}
+
+func (lex *Lexer) readNumber() (int, error) {
+	start := lex.pos
+	base := 10
+
+	if lex.ch == '0' && lex.pos < len(lex.input)-1 {
+		next := lex.peek()
+		if next == 'x' || next == 'X' {
+			/* Hexadecimal */
+			base = 16
+			lex.advance() /* skip '0' */
+			lex.advance() /* skip 'x' */
+			start = lex.pos
+		} else if next == 'b' || next == 'B' {
+			/* Binary */
+			base = 2
+			lex.advance() /* skip '0' */
+			lex.advance() /* skip 'b' */
+			start = lex.pos
+		} else if next == 'o' || next == 'O' {
+			/* Octal */
+			base = 8
+			lex.advance() /* skip '0' */
+			lex.advance() /* skip 'o' */
+			start = lex.pos
+		}
+	}
+
+	/* Read digits, allowing underscores */
+	for {
+		if base == 16 && isHexDigit(lex.ch) {
+			lex.advance()
+		} else if base == 10 && isDigit(lex.ch) {
+			lex.advance()
+		} else if base == 8 && lex.ch >= '0' && lex.ch <= '7' {
+			lex.advance()
+		} else if base == 2 && (lex.ch == '0' || lex.ch == '1') {
+			lex.advance()
+		} else if lex.ch == '_' {
+			lex.advance() /* skip underscores */
+		} else {
 			break
 		}
-
-		/* Colon */
-		if line[i] == ':' {
-			tokens = append(tokens, Token{typ: TOK_COLON, line: lineNum, col: i})
-			i++
-			continue
-		}
-
-		/* Comma */
-		if line[i] == ',' {
-			tokens = append(tokens, Token{typ: TOK_COMMA, line: lineNum, col: i})
-			i++
-			continue
-		}
-
-		/* Operators */
-		if line[i] == '+' {
-			tokens = append(tokens, Token{typ: TOK_PLUS, line: lineNum, col: i})
-			i++
-			continue
-		}
-		if line[i] == '-' {
-			/* Check if this is a negative number */
-			if i+1 < n && unicode.IsDigit(rune(line[i+1])) {
-				/* Fall through to number parsing below */
-			} else {
-				tokens = append(tokens, Token{typ: TOK_MINUS, line: lineNum, col: i})
-				i++
-				continue
-			}
-		}
-		if line[i] == '*' {
-			tokens = append(tokens, Token{typ: TOK_STAR, line: lineNum, col: i})
-			i++
-			continue
-		}
-		if line[i] == '/' {
-			tokens = append(tokens, Token{typ: TOK_SLASH, line: lineNum, col: i})
-			i++
-			continue
-		}
-		if line[i] == '(' {
-			tokens = append(tokens, Token{typ: TOK_LPAREN, line: lineNum, col: i})
-			i++
-			continue
-		}
-		if line[i] == ')' {
-			tokens = append(tokens, Token{typ: TOK_RPAREN, line: lineNum, col: i})
-			i++
-			continue
-		}
-
-		/* String literal */
-		if line[i] == '"' {
-			start := i
-			i++
-			for i < n && line[i] != '"' {
-				if line[i] == '\\' && i+1 < n {
-					i += 2
-				} else {
-					i++
-				}
-			}
-			if i >= n {
-				/* Unterminated string */
-				tokens = append(tokens, Token{typ: TOK_STRING, value: line[start:], line: lineNum, col: start})
-			} else {
-				i++ /* Skip closing quote */
-				tokens = append(tokens, Token{typ: TOK_STRING, value: line[start:i], line: lineNum, col: start})
-			}
-			continue
-		}
-
-		/* Number */
-		if unicode.IsDigit(rune(line[i])) || (line[i] == '-' && i+1 < n && unicode.IsDigit(rune(line[i+1]))) {
-			start := i
-			if line[i] == '-' {
-				i++
-			}
-			/* Hex number */
-			if i+1 < n && line[i] == '0' && (line[i+1] == 'x' || line[i+1] == 'X') {
-				i += 2
-				for i < n && isHexDigit(rune(line[i])) {
-					i++
-				}
-			} else {
-				/* Decimal number */
-				for i < n && unicode.IsDigit(rune(line[i])) {
-					i++
-				}
-			}
-			numStr := line[start:i]
-			val := parseNumber(numStr)
-			tokens = append(tokens, Token{typ: TOK_NUMBER, value: numStr, intval: val, line: lineNum, col: start})
-			continue
-		}
-
-		/* Identifier or label */
-		if unicode.IsLetter(rune(line[i])) || line[i] == '_' || line[i] == '.' {
-			start := i
-			for i < n && (unicode.IsLetter(rune(line[i])) || unicode.IsDigit(rune(line[i])) || line[i] == '_' || line[i] == '.') {
-				i++
-			}
-			ident := line[start:i]
-			tokens = append(tokens, Token{typ: TOK_IDENT, value: ident, line: lineNum, col: start})
-			continue
-		}
-
-		/* Unknown character - skip it */
-		i++
 	}
 
-	return tokens
-}
-
-func isHexDigit(r rune) bool {
-	if unicode.IsDigit(r) {
-		return true
-	}
-	if r >= 'a' && r <= 'f' {
-		return true
-	}
-	if r >= 'A' && r <= 'F' {
-		return true
-	}
-	return false
-}
-
-func parseNumber(s string) int {
-	s = strings.TrimSpace(s)
-	var val int64
-	var err error
-
-	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
-		val, err = strconv.ParseInt(s[2:], 16, 64)
-	} else if strings.HasPrefix(s, "-0x") || strings.HasPrefix(s, "-0X") {
-		val, err = strconv.ParseInt("-"+s[3:], 16, 64)
-	} else {
-		val, err = strconv.ParseInt(s, 10, 64)
-	}
-
+	numStr := strings.ReplaceAll(lex.input[start:lex.pos], "_", "")
+	val, err := strconv.ParseInt(numStr, base, 32)
 	if err != nil {
-		return 0
+		return 0, err
 	}
-	return int(val)
+	return int(val), nil
 }
 
-/* Parse a string literal, handling escape sequences */
-func parseString(s string) string {
-	if len(s) < 2 {
-		return s
-	}
-	/* Remove quotes */
-	s = s[1 : len(s)-1]
-
-	/* Handle escape sequences */
+func (lex *Lexer) readString() (string, error) {
 	var result strings.Builder
-	i := 0
-	for i < len(s) {
-		if s[i] == '\\' && i+1 < len(s) {
-			switch s[i+1] {
+	lex.advance() /* skip opening quote */
+
+	for lex.ch != '"' && lex.ch != 0 {
+		if lex.ch == '\\' {
+			lex.advance()
+			switch lex.ch {
+			case '0':
+				result.WriteByte(0)
 			case 'n':
 				result.WriteByte('\n')
-			case 't':
-				result.WriteByte('\t')
 			case 'r':
 				result.WriteByte('\r')
+			case 'b':
+				result.WriteByte('\b')
+			case 't':
+				result.WriteByte('\t')
 			case '\\':
 				result.WriteByte('\\')
 			case '"':
 				result.WriteByte('"')
-			case '0':
-				result.WriteByte(0)
 			default:
-				result.WriteByte(s[i+1])
+				/* Check for hex escape \xNN */
+				if lex.ch == 'x' || lex.ch == 'X' {
+					lex.advance()
+					hex1 := lex.ch
+					lex.advance()
+					hex2 := lex.ch
+					hexStr := string([]byte{hex1, hex2})
+					val, err := strconv.ParseInt(hexStr, 16, 32)
+					if err != nil {
+						return "", fmt.Errorf("invalid hex escape: \\x%s", hexStr)
+					}
+					result.WriteByte(byte(val))
+				} else {
+					return "", fmt.Errorf("invalid escape sequence: \\%c", lex.ch)
+				}
 			}
-			i += 2
+			lex.advance()
 		} else {
-			result.WriteByte(s[i])
-			i++
+			result.WriteByte(lex.ch)
+			lex.advance()
 		}
 	}
-	return result.String()
+
+	if lex.ch != '"' {
+		return "", fmt.Errorf("unterminated string")
+	}
+	lex.advance() /* skip closing quote */
+
+	return result.String(), nil
 }
 
-/* Print tokens for debugging */
-func printTokens(tokens []Token) {
-	for i := 0; i < len(tokens); i++ {
-		t := &tokens[i]
-		fmt.Printf("Token[%d]: ", i)
-		switch t.typ {
-		case TOK_EOF:
-			fmt.Printf("EOF\n")
-		case TOK_IDENT:
-			fmt.Printf("IDENT '%s'\n", t.value)
-		case TOK_NUMBER:
-			fmt.Printf("NUMBER %d (0x%x)\n", t.intval, t.intval)
-		case TOK_STRING:
-			fmt.Printf("STRING %s\n", t.value)
-		case TOK_COMMA:
-			fmt.Printf("COMMA\n")
-		case TOK_COLON:
-			fmt.Printf("COLON\n")
-		case TOK_PLUS:
-			fmt.Printf("PLUS\n")
-		case TOK_MINUS:
-			fmt.Printf("MINUS\n")
-		case TOK_STAR:
-			fmt.Printf("STAR\n")
-		case TOK_SLASH:
-			fmt.Printf("SLASH\n")
-		default:
-			fmt.Printf("OTHER (type %d)\n", t.typ)
-		}
+func (lex *Lexer) nextToken() (*Token, error) {
+	lex.skipWhitespace()
+
+	tok := &Token{
+		line:   lex.line,
+		column: lex.column,
 	}
+
+	if lex.ch == 0 {
+		tok.typ = TOK_EOF
+		return tok, nil
+	}
+
+	if lex.ch == ';' {
+		lex.skipComment()
+		if lex.ch == '\n' {
+			tok.typ = TOK_NEWLINE
+			lex.advance()
+			return tok, nil
+		}
+		tok.typ = TOK_EOF
+		return tok, nil
+	}
+
+	if lex.ch == '\n' {
+		tok.typ = TOK_NEWLINE
+		lex.advance()
+		return tok, nil
+	}
+
+	if lex.ch == ',' {
+		tok.typ = TOK_COMMA
+		tok.text = ","
+		lex.advance()
+		return tok, nil
+	}
+
+	if lex.ch == '(' {
+		tok.typ = TOK_LPAREN
+		tok.text = "("
+		lex.advance()
+		return tok, nil
+	}
+
+	if lex.ch == ')' {
+		tok.typ = TOK_RPAREN
+		tok.text = ")"
+		lex.advance()
+		return tok, nil
+	}
+
+	if lex.ch == '+' {
+		tok.typ = TOK_PLUS
+		tok.text = "+"
+		lex.advance()
+		return tok, nil
+	}
+
+	if lex.ch == '-' {
+		tok.typ = TOK_MINUS
+		tok.text = "-"
+		lex.advance()
+		return tok, nil
+	}
+
+	if lex.ch == '*' {
+		tok.typ = TOK_STAR
+		tok.text = "*"
+		lex.advance()
+		return tok, nil
+	}
+
+	if lex.ch == '/' {
+		tok.typ = TOK_SLASH
+		tok.text = "/"
+		lex.advance()
+		return tok, nil
+	}
+
+	if lex.ch == '&' {
+		tok.typ = TOK_AMP
+		tok.text = "&"
+		lex.advance()
+		return tok, nil
+	}
+
+	if lex.ch == '|' {
+		tok.typ = TOK_PIPE
+		tok.text = "|"
+		lex.advance()
+		return tok, nil
+	}
+
+	if lex.ch == '~' {
+		tok.typ = TOK_TILDE
+		tok.text = "~"
+		lex.advance()
+		return tok, nil
+	}
+
+	if lex.ch == '<' && lex.peek() == '<' {
+		tok.typ = TOK_LSHIFT
+		tok.text = "<<"
+		lex.advance()
+		lex.advance()
+		return tok, nil
+	}
+
+	if lex.ch == '>' && lex.peek() == '>' {
+		tok.typ = TOK_RSHIFT
+		tok.text = ">>"
+		lex.advance()
+		lex.advance()
+		return tok, nil
+	}
+
+	if lex.ch == '$' {
+		tok.typ = TOK_DOLLAR
+		tok.text = "$"
+		lex.advance()
+		return tok, nil
+	}
+
+	if lex.ch == '"' {
+		str, err := lex.readString()
+		if err != nil {
+			return nil, err
+		}
+		tok.typ = TOK_STRING
+		tok.text = str
+		return tok, nil
+	}
+
+	if isLetter(lex.ch) || lex.ch == '.' {
+		ident := lex.readIdentifier()
+		/* Check if this is a label (followed by colon) */
+		lex.skipWhitespace()
+		if lex.ch == ':' {
+			tok.typ = TOK_LABEL
+			tok.text = ident
+			lex.advance() /* skip colon */
+		} else {
+			tok.typ = TOK_IDENT
+			tok.text = ident
+		}
+		return tok, nil
+	}
+
+	if isDigit(lex.ch) {
+		val, err := lex.readNumber()
+		if err != nil {
+			return nil, err
+		}
+		tok.typ = TOK_NUMBER
+		tok.value = val
+		tok.text = fmt.Sprintf("%d", val)
+		return tok, nil
+	}
+
+	return nil, fmt.Errorf("unexpected character: %c", lex.ch)
 }

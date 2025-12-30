@@ -1,227 +1,316 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"strings"
 )
 
-/* Main assembler function */
-func assemble(inputFile string, outputFile string) error {
-	a := Assembler{
-		filename:   inputFile,
-		lines:      make([]string, 0, 1024),
-		codeDollar: 0,
-		dataDollar: 0,
-		inCodeSeg:  1,
-		codeBytes:  make([]byte, 0, 65536),
-		dataBytes:  make([]byte, 0, 65536),
-		labels:     make(map[string]int),
-		symbols:    make(map[string]int),
-		fixups:     make([]Fixup, 0, 256),
-		errors:     make([]string, 0, 64),
+func newAssembler(inputFile, outputFile string) *Assembler {
+	asm := &Assembler{
+		inputFile:  inputFile,
+		outputFile: outputFile,
+		symbols:    make([]Symbol, 1024),
+		numSymbols: 0,
+		codePC:     0,
+		dataPC:     0,
+		currentSeg: SEG_CODE,
+		codeBuf:    make([]byte, 4096),
+		dataBuf:    make([]byte, 4096),
+		codeSize:   0,
+		dataSize:   0,
+		codeCap:    4096,
+		dataCap:    4096,
+		pass:       1,
+		errors:     0,
 	}
+	return asm
+}
 
-	/* Read input file */
-	file, err := os.Open(inputFile)
-	if err != nil {
-		return err
+func (asm *Assembler) ensureCodeCapacity(needed int) {
+	for needed > asm.codeCap {
+		newCap := asm.codeCap * 2
+		newBuf := make([]byte, newCap)
+		copy(newBuf, asm.codeBuf[:asm.codeSize])
+		asm.codeBuf = newBuf
+		asm.codeCap = newCap
 	}
-	defer file.Close()
+}
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		a.lines = append(a.lines, scanner.Text())
+func (asm *Assembler) ensureDataCapacity(needed int) {
+	for needed > asm.dataCap {
+		newCap := asm.dataCap * 2
+		newBuf := make([]byte, newCap)
+		copy(newBuf, asm.dataBuf[:asm.dataSize])
+		asm.dataBuf = newBuf
+		asm.dataCap = newCap
 	}
+}
 
-	if err := scanner.Err(); err != nil {
-		return err
-	}
-
-	/* Pass 1: Process all lines */
-	for a.lineNum = 0; a.lineNum < len(a.lines); a.lineNum++ {
-		line := a.lines[a.lineNum]
-		err := a.processLine(line, a.lineNum+1)
-		if err != nil {
-			a.errors = append(a.errors, fmt.Sprintf("Line %d: %v", a.lineNum+1, err))
+func (asm *Assembler) addSymbol(name string, value int, segment int) error {
+	/* Check if symbol already exists */
+	for i := 0; i < asm.numSymbols; i++ {
+		if asm.symbols[i].name == name {
+			if asm.symbols[i].defined {
+				return fmt.Errorf("symbol %s already defined", name)
+			}
+			/* Update forward reference */
+			asm.symbols[i].value = value
+			asm.symbols[i].defined = true
+			asm.symbols[i].segment = segment
+			return nil
 		}
 	}
 
-	/* Resolve forward references */
-	for i := 0; i < len(a.fixups); i++ {
-		fixup := &a.fixups[i]
-		addr, ok := a.labels[fixup.label]
-		if !ok {
-			a.errors = append(a.errors, fmt.Sprintf("Line %d: undefined label: %s", fixup.line, fixup.label))
+	/* Add new symbol */
+	if asm.numSymbols >= len(asm.symbols) {
+		/* Grow symbol table */
+		newSymbols := make([]Symbol, len(asm.symbols)*2)
+		copy(newSymbols, asm.symbols)
+		asm.symbols = newSymbols
+	}
+
+	asm.symbols[asm.numSymbols] = Symbol{
+		name:    name,
+		value:   value,
+		defined: true,
+		segment: segment,
+	}
+	asm.numSymbols++
+	return nil
+}
+
+func (asm *Assembler) lookupSymbol(name string) *Symbol {
+	for i := 0; i < asm.numSymbols; i++ {
+		if asm.symbols[i].name == name {
+			return &asm.symbols[i]
+		}
+	}
+	return nil
+}
+
+func (asm *Assembler) processDirective(stmt *Statement) error {
+	switch stmt.directive {
+	case DIR_ALIGN:
+		if stmt.numArgs != 1 {
+			return fmt.Errorf(".align requires 1 argument")
+		}
+		align, err := asm.evaluateExpr(stmt.args[0], false)
+		if err != nil {
+			return err
+		}
+		if align <= 0 {
+			return fmt.Errorf("alignment must be positive")
+		}
+
+		currentPC := asm.codePC
+		if asm.currentSeg == SEG_DATA {
+			currentPC = asm.dataPC
+		}
+
+		remainder := currentPC % align
+		if remainder != 0 {
+			padding := align - remainder
+			for i := 0; i < padding; i++ {
+				asm.emitByte(0)
+			}
+		}
+
+	case DIR_BYTES:
+		for i := 0; i < stmt.numArgs; i++ {
+			arg := stmt.args[i]
+			/* Check if it's a string (starts and ends with quotes) */
+			if len(arg) >= 2 && arg[0] == '"' && arg[len(arg)-1] == '"' {
+				/* It's a string - strip quotes and emit bytes */
+				str := arg[1 : len(arg)-1]
+				for j := 0; j < len(str); j++ {
+					asm.emitByte(str[j])
+				}
+			} else {
+				/* It's a numeric expression */
+				val, err := asm.evaluateExpr(arg, false)
+				if err != nil {
+					return err
+				}
+				if val < -128 || val > 255 {
+					fmt.Fprintf(os.Stderr, "Warning: byte value %d truncated\n", val)
+				}
+				asm.emitByte(byte(val & 0xFF))
+			}
+		}
+
+	case DIR_WORDS:
+		for i := 0; i < stmt.numArgs; i++ {
+			val, err := asm.evaluateExpr(stmt.args[i], false)
+			if err != nil {
+				return err
+			}
+			asm.emitWord(uint16(val & 0xFFFF))
+		}
+
+	case DIR_SPACE:
+		if stmt.numArgs != 1 {
+			return fmt.Errorf(".space requires 1 argument")
+		}
+		count, err := asm.evaluateExpr(stmt.args[0], false)
+		if err != nil {
+			return err
+		}
+		for i := 0; i < count; i++ {
+			asm.emitByte(0)
+		}
+
+	case DIR_CODE:
+		asm.currentSeg = SEG_CODE
+
+	case DIR_DATA:
+		asm.currentSeg = SEG_DATA
+
+	case DIR_SET:
+		if asm.pass != 1 {
+			/* Only process .set in pass 1 to avoid duplicate symbol errors */
+			return nil
+		}
+		if stmt.numArgs != 2 {
+			return fmt.Errorf(".set requires 2 arguments")
+		}
+		symName := stmt.args[0]
+		val, err := asm.evaluateExpr(stmt.args[1], false)
+		if err != nil {
+			return err
+		}
+		if err := asm.addSymbol(symName, val, -1); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (asm *Assembler) processStatement(stmt *Statement) error {
+	/* Handle label - only in pass 1 */
+	if stmt.label != "" && asm.pass == 1 {
+		value := asm.codePC
+		segment := SEG_CODE
+		if asm.currentSeg == SEG_DATA {
+			value = asm.dataPC
+			segment = SEG_DATA
+		}
+		if err := asm.addSymbol(stmt.label, value, segment); err != nil {
+			return err
+		}
+	}
+
+	/* Handle directive */
+	if stmt.hasDir {
+		return asm.processDirective(stmt)
+	}
+
+	/* Handle instruction */
+	if stmt.hasInstr {
+		return asm.generateInstruction(stmt)
+	}
+
+	return nil
+}
+
+func (asm *Assembler) pass1(input string) error {
+	asm.pass = 1
+	asm.codePC = 0
+	asm.dataPC = 0
+	asm.currentSeg = SEG_CODE
+	asm.codeSize = 0
+	asm.dataSize = 0
+
+	lines := strings.Split(input, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
 			continue
 		}
 
-		/* Patch the address in the output */
-		if fixup.isInCode != 0 {
-			if fixup.isBranch != 0 {
-				/* Branch instruction - calculate PC-relative offset */
-				/* offset = target - (PC + 2) where PC is the branch instruction address */
-				offset := addr - (fixup.addr + 2)
+		parser := newParser(line, asm)
+		stmt, err := parser.parseStatement()
+		if err != nil {
+			return err
+		}
+		if stmt == nil {
+			continue
+		}
 
-				/* Check if offset fits in 10 bits signed */
-				if fitsInSigned(offset, 10) == 0 {
-					a.errors = append(a.errors, fmt.Sprintf("Line %d: branch offset %d to label %s does not fit in 10 bits", fixup.line, offset, fixup.label))
-					continue
-				}
-
-				/* Encode branch instruction: [15:13]=110 [12:3]=imm10 [2:0]=cond */
-				word := uint16(0xC000)                          /* 110 in top 3 bits */
-				word |= uint16((offset & 0x3FF) << 3)           /* 10-bit offset in bits 12-3 */
-				word |= uint16(fixup.branchCond & 0x7)          /* condition in bits 2-0 */
-
-				/* Write the patched instruction */
-				if fixup.addr+1 < len(a.codeBytes) {
-					a.codeBytes[fixup.addr] = byte(word & 0xFF)
-					a.codeBytes[fixup.addr+1] = byte((word >> 8) & 0xFF)
-				}
-			} else {
-				/* Non-branch code fixup - store address as 16-bit value */
-				if fixup.addr+1 < len(a.codeBytes) {
-					a.codeBytes[fixup.addr] = byte(addr & 0xFF)
-					a.codeBytes[fixup.addr+1] = byte((addr >> 8) & 0xFF)
-				}
-			}
-		} else {
-			/* Patch data segment */
-			if fixup.addr+1 < len(a.dataBytes) {
-				a.dataBytes[fixup.addr] = byte(addr & 0xFF)
-				a.dataBytes[fixup.addr+1] = byte((addr >> 8) & 0xFF)
-			}
+		if err := asm.processStatement(stmt); err != nil {
+			return fmt.Errorf("line %d: %v", stmt.line, err)
 		}
 	}
 
-	/* Report errors */
-	if len(a.errors) > 0 {
-		for i := 0; i < len(a.errors); i++ {
-			fmt.Fprintf(os.Stderr, "%s\n", a.errors[i])
+	return nil
+}
+
+func (asm *Assembler) pass2(input string) error {
+	asm.pass = 2
+	asm.codePC = 0
+	asm.dataPC = 0
+	asm.currentSeg = SEG_CODE
+	asm.codeSize = 0
+	asm.dataSize = 0
+
+	lines := strings.Split(input, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
 		}
-		return fmt.Errorf("assembly failed with %d errors", len(a.errors))
+
+		parser := newParser(line, asm)
+		stmt, err := parser.parseStatement()
+		if err != nil {
+			return err
+		}
+		if stmt == nil {
+			continue
+		}
+
+		/* Skip labels in pass 2 - they were handled in pass 1 */
+		if stmt.label != "" && !stmt.hasDir && !stmt.hasInstr {
+			continue
+		}
+
+		if err := asm.processStatement(stmt); err != nil {
+			return fmt.Errorf("line %d: %v", stmt.line, err)
+		}
+	}
+
+	return nil
+}
+
+func assemble(inputFile, outputFile string) error {
+	/* Read input file */
+	data, err := os.ReadFile(inputFile)
+	if err != nil {
+		return err
+	}
+
+	input := string(data)
+
+	asm := newAssembler(inputFile, outputFile)
+
+	/* Pass 1: collect labels and allocate space */
+	if err := asm.pass1(input); err != nil {
+		return fmt.Errorf("pass 1: %v", err)
+	}
+
+	/* Pass 2: generate code */
+	if err := asm.pass2(input); err != nil {
+		return fmt.Errorf("pass 2: %v", err)
 	}
 
 	/* Write output file */
-	return a.writeOutput(outputFile)
-}
-
-/* Process a single line */
-func (a *Assembler) processLine(line string, lineNum int) error {
-	tokens := tokenizeLine(line, lineNum)
-	if len(tokens) == 0 {
-		return nil
+	if err := writeOutput(outputFile, asm.codeBuf[:asm.codeSize], asm.dataBuf[:asm.dataSize]); err != nil {
+		return err
 	}
 
-	pos := 0
+	fmt.Printf("Assembly successful: %s -> %s\n", inputFile, outputFile)
+	fmt.Printf("Code: %d bytes, Data: %d bytes\n", asm.codeSize, asm.dataSize)
 
-	/* Check for label */
-	if len(tokens) >= 2 && tokens[1].typ == TOK_COLON {
-		label := tokens[0].value
-		if a.inCodeSeg != 0 {
-			a.labels[label] = a.codeDollar
-		} else {
-			a.labels[label] = a.dataDollar
-		}
-		pos = 2
-	}
-
-	/* Check for directive or instruction */
-	if pos >= len(tokens) {
-		return nil
-	}
-
-	opcode := tokens[pos].value
-	pos++
-
-	/* Check for directive */
-	if len(opcode) > 0 && opcode[0] == '.' {
-		return a.processDirective(opcode, tokens, pos, lineNum)
-	}
-
-	/* Check for branch instruction */
-	if strings.HasPrefix(opcode, "br") {
-		return a.processBranch(opcode, tokens, pos, lineNum)
-	}
-
-	/* Check for aliases */
-	if opcode == "ldi" {
-		return a.processLDI(tokens, pos, lineNum)
-	}
-	if opcode == "mv" {
-		return a.processMV(tokens, pos, lineNum)
-	}
-	if opcode == "ret" {
-		return a.processRET(tokens, pos, lineNum)
-	}
-	if opcode == "sla" || opcode == "sll" {
-		return a.processSHIFTLEFT(opcode, tokens, pos, lineNum)
-	}
-
-	/* Regular instruction */
-	return a.processInstruction(opcode, tokens, pos, lineNum)
-}
-
-/* Emit a 16-bit word to the current segment */
-func (a *Assembler) emitWord(word uint16) {
-	/* Little endian */
-	lo := byte(word & 0xFF)
-	hi := byte((word >> 8) & 0xFF)
-
-	if a.inCodeSeg != 0 {
-		a.codeBytes = append(a.codeBytes, lo, hi)
-		a.codeDollar += 2
-	} else {
-		a.dataBytes = append(a.dataBytes, lo, hi)
-		a.dataDollar += 2
-	}
-}
-
-/* Emit a byte to the current segment */
-func (a *Assembler) emitByte(b byte) {
-	if a.inCodeSeg != 0 {
-		a.codeBytes = append(a.codeBytes, b)
-		a.codeDollar++
-	} else {
-		a.dataBytes = append(a.dataBytes, b)
-		a.dataDollar++
-	}
-}
-
-/* Get argument tokens (skip commas) */
-func getArgs(tokens []Token, start int) []Token {
-	args := make([]Token, 0, 8)
-	for i := start; i < len(tokens); i++ {
-		if tokens[i].typ != TOK_COMMA {
-			args = append(args, tokens[i])
-		}
-	}
-	return args
-}
-
-/* Parse register argument */
-func (a *Assembler) parseRegArg(token *Token) (int, error) {
-	reg := parseRegister(token.value)
-	if reg < 0 {
-		return 0, fmt.Errorf("expected register, got: %s", token.value)
-	}
-	return reg, nil
-}
-
-/* Parse immediate value */
-func (a *Assembler) parseImmArg(tokens []Token, pos int) (int, error) {
-	if pos >= len(tokens) {
-		return 0, fmt.Errorf("expected immediate value")
-	}
-	/* Find the end of this expression (until next comma or end of tokens) */
-	/* Note: getArgs already removed commas, so we evaluate to end of tokens */
-	end := len(tokens)
-	/* Try to evaluate as expression */
-	val, err := a.evalExpr(tokens, pos, end)
-	if err != nil {
-		return 0, err
-	}
-	return val, nil
+	return nil
 }

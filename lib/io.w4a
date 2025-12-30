@@ -1,15 +1,17 @@
 ; input and output. r1 r2 r3 are caller-save. 
-.set INPORT 97
 .code
+.set INPORT 97
 .set OUTPORT 96
-.bytes 
 
 boot_time_IOTest:
-	jal link link Getc
-	jal link link Putc
-	hlt
+	jal Getc ; return value in r1
+	ldi r2, -1
+	tst r1 r2
+	brz done
+	jal Putc ; first argument (char to output) in r1
+done:	hlt
 buf:
-.bytes	"UN\n\0"; page is double mapped at 0 as both data nd code.
+.bytes	"UN\n\0"; page is double mapped at 0 as both data and code.
 
 
 ; get a byte from the emulator console and return it in r1.
@@ -20,7 +22,7 @@ Getc:
     lsp r1 r2
     tst r1 r1
     brz getcErr
-    ret
+    ret ; no error return
 ; return -1 for error
 getcErr:
     ldi r1 -1

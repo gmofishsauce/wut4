@@ -164,13 +164,15 @@ All multi-byte values are stored in little endian format.
 
 - Written in Go using C-like constructs for eventual self-hosting
 - Avoids closures and dynamic memory allocation where possible
-- Two-pass assembly (though currently implemented in one pass with forward reference handling)
+- Two-pass assembly for proper forward reference resolution:
+  - Pass 1 collects all labels and their addresses into the symbol table
+  - Pass 2 generates final code with all forward references resolved
+  - Forward references are fully supported for branch and jump instructions
 - Special handling for register `r0`/`link` per architecture specification
 - All instructions are 16-bit (2 bytes) and must be aligned on even addresses in code space
 
 ## Known Limitations
 
-- Forward reference handling for branch labels is basic (branch offset 0 for undefined labels)
 - Error messages could be more detailed
 - No listing file generation
 - No macro support

@@ -4,121 +4,184 @@ import (
 	"fmt"
 )
 
-/* Evaluate a constant expression from tokens */
-func (a *Assembler) evalExpr(tokens []Token, start int, end int) (int, error) {
-	if start >= end {
-		return 0, fmt.Errorf("empty expression")
+/* Pratt parser for constant expressions */
+
+/* Precedence levels */
+const (
+	PREC_LOWEST = iota
+	PREC_BITWISE_OR
+	PREC_ADDITIVE
+	PREC_MULTIPLICATIVE
+	PREC_UNARY
+)
+
+type ExprParser struct {
+	tokens    []*Token
+	pos       int
+	current   *Token
+	asm       *Assembler
+	allowFwd  bool /* allow forward references */
+}
+
+func newExprParser(tokens []*Token, asm *Assembler, allowFwd bool) *ExprParser {
+	ep := &ExprParser{
+		tokens:   tokens,
+		pos:      0,
+		asm:      asm,
+		allowFwd: allowFwd,
+	}
+	if len(tokens) > 0 {
+		ep.current = tokens[0]
+	}
+	return ep
+}
+
+func (ep *ExprParser) advance() {
+	if ep.pos < len(ep.tokens)-1 {
+		ep.pos++
+		ep.current = ep.tokens[ep.pos]
+	}
+}
+
+func (ep *ExprParser) precedence(tok *Token) int {
+	switch tok.typ {
+	case TOK_PIPE:
+		return PREC_BITWISE_OR
+	case TOK_PLUS, TOK_MINUS:
+		return PREC_ADDITIVE
+	case TOK_STAR, TOK_SLASH, TOK_AMP, TOK_LSHIFT, TOK_RSHIFT:
+		return PREC_MULTIPLICATIVE
+	default:
+		return PREC_LOWEST
+	}
+}
+
+func (ep *ExprParser) parseExpr(prec int) (int, error) {
+	left, err := ep.parsePrimary()
+	if err != nil {
+		return 0, err
 	}
 
-	/* Single token */
-	if end-start == 1 {
-		t := &tokens[start]
-		switch t.typ {
-		case TOK_NUMBER:
-			return t.intval, nil
-		case TOK_IDENT:
-			/* Check if it's a symbol */
-			if val, ok := a.symbols[t.value]; ok {
-				return val, nil
-			}
-			/* Check if it's a label */
-			if val, ok := a.labels[t.value]; ok {
-				return val, nil
-			}
-			return 0, fmt.Errorf("undefined symbol: %s", t.value)
-		default:
-			return 0, fmt.Errorf("unexpected token in expression")
-		}
-	}
+	for ep.current != nil && ep.precedence(ep.current) > prec {
+		op := ep.current.typ
+		opPrec := ep.precedence(ep.current)
+		ep.advance()
 
-	/* Handle unary operators at the start */
-	if tokens[start].typ == TOK_MINUS || tokens[start].typ == TOK_PLUS {
-		/* Unary minus or plus */
-		val, err := a.evalExpr(tokens, start+1, end)
-		if err != nil {
-			return 0, err
-		}
-		if tokens[start].typ == TOK_MINUS {
-			return -val, nil
-		}
-		return val, nil
-	}
-
-	/* Handle binary operators - simple left-to-right evaluation */
-	/* Find lowest precedence operator */
-	depth := 0
-	opPos := -1
-	opPrec := 999
-
-	for i := start; i < end; i++ {
-		t := &tokens[i]
-		if t.typ == TOK_LPAREN {
-			depth++
-		} else if t.typ == TOK_RPAREN {
-			depth--
-		} else if depth == 0 {
-			prec := getOpPrecedence(t.typ)
-			/* Skip if this looks like a unary operator (at start or after another operator) */
-			if prec >= 0 && i > start && prec <= opPrec {
-				opPos = i
-				opPrec = prec
-			}
-		}
-	}
-
-	/* If we found an operator, split and recurse */
-	if opPos >= 0 {
-		left, err := a.evalExpr(tokens, start, opPos)
-		if err != nil {
-			return 0, err
-		}
-		right, err := a.evalExpr(tokens, opPos+1, end)
+		right, err := ep.parseExpr(opPrec)
 		if err != nil {
 			return 0, err
 		}
 
-		op := tokens[opPos].typ
+		/* Apply operator */
 		switch op {
 		case TOK_PLUS:
-			return left + right, nil
+			left = left + right
 		case TOK_MINUS:
-			return left - right, nil
+			left = left - right
 		case TOK_STAR:
-			return left * right, nil
+			left = left * right
 		case TOK_SLASH:
 			if right == 0 {
 				return 0, fmt.Errorf("division by zero")
 			}
-			return left / right, nil
+			left = left / right
+		case TOK_AMP:
+			left = left & right
+		case TOK_PIPE:
+			left = left | right
+		case TOK_LSHIFT:
+			left = left << uint(right)
+		case TOK_RSHIFT:
+			left = left >> uint(right)
 		default:
-			return 0, fmt.Errorf("unknown operator")
+			return 0, fmt.Errorf("unexpected operator in expression")
 		}
 	}
 
-	/* Handle parentheses */
-	if tokens[start].typ == TOK_LPAREN && tokens[end-1].typ == TOK_RPAREN {
-		return a.evalExpr(tokens, start+1, end-1)
-	}
-
-	return 0, fmt.Errorf("invalid expression")
+	return left, nil
 }
 
-func getOpPrecedence(typ int) int {
-	switch typ {
-	case TOK_PLUS, TOK_MINUS:
-		return 1
-	case TOK_STAR, TOK_SLASH:
-		return 2
+func (ep *ExprParser) parsePrimary() (int, error) {
+	tok := ep.current
+
+	if tok == nil {
+		return 0, fmt.Errorf("unexpected end of expression")
+	}
+
+	switch tok.typ {
+	case TOK_NUMBER:
+		val := tok.value
+		ep.advance()
+		return val, nil
+
+	case TOK_DOLLAR:
+		ep.advance()
+		if ep.asm.currentSeg == SEG_CODE {
+			return ep.asm.codePC, nil
+		}
+		return ep.asm.dataPC, nil
+
+	case TOK_IDENT:
+		name := tok.text
+		ep.advance()
+		/* Look up symbol */
+		sym := ep.lookupSymbol(name)
+		if sym == nil {
+			if ep.allowFwd {
+				/* Forward reference - return 0 for now */
+				return 0, nil
+			}
+			return 0, fmt.Errorf("undefined symbol: %s", name)
+		}
+		if !sym.defined && !ep.allowFwd {
+			return 0, fmt.Errorf("symbol used before definition: %s", name)
+		}
+		return sym.value, nil
+
+	case TOK_LPAREN:
+		ep.advance()
+		val, err := ep.parseExpr(PREC_LOWEST)
+		if err != nil {
+			return 0, err
+		}
+		if ep.current == nil || ep.current.typ != TOK_RPAREN {
+			return 0, fmt.Errorf("expected ')' in expression")
+		}
+		ep.advance()
+		return val, nil
+
+	case TOK_MINUS:
+		/* Unary minus */
+		ep.advance()
+		val, err := ep.parseExpr(PREC_UNARY)
+		if err != nil {
+			return 0, err
+		}
+		return -val, nil
+
+	case TOK_TILDE:
+		/* Bitwise NOT */
+		ep.advance()
+		val, err := ep.parseExpr(PREC_UNARY)
+		if err != nil {
+			return 0, err
+		}
+		return ^val, nil
+
 	default:
-		return -1
+		return 0, fmt.Errorf("unexpected token in expression: %s", tok.text)
 	}
 }
 
-/* Try to evaluate an expression, return default value if it contains undefined symbols */
-func (a *Assembler) tryEvalExpr(tokens []Token, start int, end int, defaultVal int) int {
-	val, err := a.evalExpr(tokens, start, end)
-	if err != nil {
-		return defaultVal
+func (ep *ExprParser) lookupSymbol(name string) *Symbol {
+	for i := 0; i < ep.asm.numSymbols; i++ {
+		if ep.asm.symbols[i].name == name {
+			return &ep.asm.symbols[i]
+		}
 	}
-	return val
+	return nil
+}
+
+func (ep *ExprParser) parse() (int, error) {
+	return ep.parseExpr(PREC_LOWEST)
 }

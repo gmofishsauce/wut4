@@ -3,17 +3,21 @@ described in the local document wut4arch.pdf.
 The assembler program should be written in Golang in this directory
 so the binary will be called "asm". 
 Please also implement a disassembler function accessed by "asm -d wut4-binary-file".
-
+The assembly should produce a binary file that is called wut4.out by default.
 The assembler will eventually be self hosted on the WUT-4.
-To do this it will be rewritten in a simple programming language
+To do this it will be rewritten in a simple programming language of my own design
 like a stripped down version of C.
 So please use C-like constructs in the Golang code.
-Please do not use closures or other constructs that require dynamic memory allocation an
-would be difficult to express in C.
-
-
+Please do not use closures or other constructs that require dynamic memory allocation
+and would therefore be difficult to express in C.
 Syntax for the assembler is defined in the local document wut4asm.pdf.
-The opcodes are defined in wut4arch.pdf. I have made a number of recent revisions to this document which should take priority over previous data that may be in your context.
+The assembly includes a constant expression syntax.
+Be sure to separate lexical analysis from parsing correctly here.
+The lexer should not know anything about expression syntax.
+I recommend implementing a Pratt Parser for constant expresssions
+The opcodes are defined in wut4arch.pdf.
+I have made a number of recent revisions to this document
+which should take priority over previous versions that may be in your context.
 
 
 
