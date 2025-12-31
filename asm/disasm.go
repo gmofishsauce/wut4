@@ -12,103 +12,96 @@ func readWord(buf []byte, offset int) uint16 {
 	return uint16(buf[offset]) | (uint16(buf[offset+1]) << 8)
 }
 
-func signExtend7(val int) int {
-	if (val & 0x40) != 0 {
-		return val | 0xFFFFFF80
-	}
+func unsignedImm7(val int) int {
 	return val & 0x7F
 }
 
 func signExtend10(val int) int {
+	val = val & 0x3FF
 	if (val & 0x200) != 0 {
-		return val | 0xFFFFFC00
+		return val - 1024
 	}
-	return val & 0x3FF
+	return val
 }
 
 func disassembleInstruction(word uint16, pc int) string {
-	opHigh := (word >> 12) & 0xF
+	/* Decode based on bits 15:13 */
+	op3 := (word >> 13) & 0x7
 
-	switch opHigh {
-	case 0x0:
-		/* LDW */
+	switch op3 {
+	case 0: /* 000 - LDW */
 		rA := int(word & 0x7)
 		rB := int((word >> 3) & 0x7)
-		imm := signExtend7(int((word >> 6) & 0x7F))
+		imm := unsignedImm7(int((word >> 6) & 0x7F))
 		if word == 0x0000 {
 			return "die ; 0x0000 special case"
 		}
 		if imm == 0 {
 			return fmt.Sprintf("ldw r%d, r%d", rA, rB)
 		}
-		return fmt.Sprintf("ldw r%d, r%d, %d", rA, rB, imm)
+		return fmt.Sprintf("ldw r%d, r%d, 0x%x", rA, rB, imm)
 
-	case 0x2:
-		/* LDB */
+	case 1: /* 001 - LDB */
 		rA := int(word & 0x7)
 		rB := int((word >> 3) & 0x7)
-		imm := signExtend7(int((word >> 6) & 0x7F))
+		imm := unsignedImm7(int((word >> 6) & 0x7F))
 		if imm == 0 {
 			return fmt.Sprintf("ldb r%d, r%d", rA, rB)
 		}
-		return fmt.Sprintf("ldb r%d, r%d, %d", rA, rB, imm)
+		return fmt.Sprintf("ldb r%d, r%d, 0x%x", rA, rB, imm)
 
-	case 0x4:
-		/* STW */
+	case 2: /* 010 - STW */
 		rA := int(word & 0x7)
 		rB := int((word >> 3) & 0x7)
-		imm := signExtend7(int((word >> 6) & 0x7F))
+		imm := unsignedImm7(int((word >> 6) & 0x7F))
 		if imm == 0 {
 			return fmt.Sprintf("stw r%d, r%d", rA, rB)
 		}
-		return fmt.Sprintf("stw r%d, r%d, %d", rA, rB, imm)
+		return fmt.Sprintf("stw r%d, r%d, 0x%x", rA, rB, imm)
 
-	case 0x6:
-		/* STB */
+	case 3: /* 011 - STB */
 		rA := int(word & 0x7)
 		rB := int((word >> 3) & 0x7)
-		imm := signExtend7(int((word >> 6) & 0x7F))
+		imm := unsignedImm7(int((word >> 6) & 0x7F))
 		if imm == 0 {
 			return fmt.Sprintf("stb r%d, r%d", rA, rB)
 		}
-		return fmt.Sprintf("stb r%d, r%d, %d", rA, rB, imm)
+		return fmt.Sprintf("stb r%d, r%d, 0x%x", rA, rB, imm)
 
-	case 0x8:
-		/* ADI */
+	case 4: /* 100 - ADI */
 		rA := int(word & 0x7)
 		rB := int((word >> 3) & 0x7)
-		imm := signExtend7(int((word >> 6) & 0x7F))
+		imm := unsignedImm7(int((word >> 6) & 0x7F))
 		if imm == 0 {
 			return fmt.Sprintf("adi r%d, r%d", rA, rB)
 		}
-		return fmt.Sprintf("adi r%d, r%d, %d", rA, rB, imm)
+		return fmt.Sprintf("adi r%d, r%d, 0x%x", rA, rB, imm)
 
-	case 0xA, 0xB:
-		/* LUI - opcode can be 0xA or 0xB depending on bit 12 of immediate */
+	case 5: /* 101 - LUI */
 		rA := int(word & 0x7)
 		imm := int((word >> 3) & 0x3FF)
 		return fmt.Sprintf("lui r%d, 0x%x", rA, imm)
 
-	case 0xC:
-		/* BRx */
+	case 6: /* 110 - BRx */
 		cond := int(word & 0x7)
 		imm := signExtend10(int((word >> 3) & 0x3FF))
 		target := pc + 2 + imm
 		condNames := []string{"br", "brl", "brz", "brnz", "brc", "brnc", "brsge", "brslt"}
 		return fmt.Sprintf("%s 0x%x", condNames[cond], target)
 
-	case 0xE:
-		/* JAL */
-		rA := int(word & 0x7)
-		rB := int((word >> 3) & 0x7)
-		imm := int((word >> 6) & 0x3F)
-		if imm == 0 {
-			return fmt.Sprintf("jal r%d, r%d", rA, rB)
+	case 7: /* 111 - JAL or extended */
+		/* Check bit 12 to distinguish JAL (0) from extended (1) */
+		if (word & 0x1000) == 0 {
+			/* JAL: bit 12 = 0 */
+			rA := int(word & 0x7)
+			rB := int((word >> 3) & 0x7)
+			imm := int((word >> 6) & 0x3F)
+			if imm == 0 {
+				return fmt.Sprintf("jal r%d, r%d", rA, rB)
+			}
+			return fmt.Sprintf("jal r%d, r%d, 0x%x", rA, rB, imm)
 		}
-		return fmt.Sprintf("jal r%d, r%d, 0x%x", rA, rB, imm)
-
-	case 0xF:
-		/* Extended instructions */
+		/* Extended instructions: bit 12 = 1 */
 		return disassembleExtended(word)
 	}
 
@@ -137,7 +130,7 @@ func disassembleExtended(word uint16) string {
 
 	/* Check for YOPs (bits 15:9 = 0x7F) */
 	if bits15_9 == 0x7F {
-		yop := int((word >> 5) & 0x7)
+		yop := int((word >> 6) & 0x7)
 		rB := int((word >> 3) & 0x7)
 		rA := int(word & 0x7)
 		yopNames := []string{"lsp", "lsi", "ssp", "ssi", "lcw", "sys", "tst", "???"}
