@@ -37,12 +37,12 @@ var instructions = []Instruction{
 	{"and", FMT_XOP, 0xFC00, 3},
 	/* YOPs */
 	{"lsp", FMT_YOP, 0xFE00, 2},
-	{"lsi", FMT_YOP, 0xFE20, 2},
-	{"ssp", FMT_YOP, 0xFE40, 2},
-	{"ssi", FMT_YOP, 0xFE60, 2},
-	{"lcw", FMT_YOP, 0xFE80, 2},
-	{"sys", FMT_YOP, 0xFEA0, 2},
-	{"tst", FMT_YOP, 0xFEC0, 2},
+	{"lsi", FMT_YOP, 0xFE40, 2},
+	{"ssp", FMT_YOP, 0xFE80, 2},
+	{"ssi", FMT_YOP, 0xFEC0, 2},
+	{"lcw", FMT_YOP, 0xFF00, 2},
+	{"sys", FMT_YOP, 0xFF40, 2},
+	{"tst", FMT_YOP, 0xFF80, 2},
 	/* ZOPs */
 	{"not", FMT_ZOP, 0xFFC0, 1},
 	{"neg", FMT_ZOP, 0xFFC8, 1},
@@ -460,7 +460,7 @@ func (asm *Assembler) genSRR(stmt *Statement) error {
 	if err := asm.genLDI(&Statement{args: []string{stmt.args[1], stmt.args[2]}, numArgs: 2, instr: "ldi"}); err != nil {
 		return err
 	}
-	word := uint16(0xFE00) | uint16((rB&0x7)<<3) | uint16(rA&0x7)
+	word := uint16(0xFE00) | uint16((rB&0x7)<<3) | uint16(rA&0x7) /* lsp opcode */
 	asm.emitWord(word)
 	return nil
 }
@@ -484,7 +484,7 @@ func (asm *Assembler) genSRW(stmt *Statement) error {
 	if err := asm.genLDI(&Statement{args: []string{stmt.args[1], stmt.args[2]}, numArgs: 2, instr: "ldi"}); err != nil {
 		return err
 	}
-	word := uint16(0xFE40) | uint16((rB&0x7)<<3) | uint16(rA&0x7)
+	word := uint16(0xFE80) | uint16((rB&0x7)<<3) | uint16(rA&0x7) /* ssp opcode */
 	asm.emitWord(word)
 	return nil
 }

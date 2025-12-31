@@ -23,4 +23,4 @@ unrolled:
 
 data:
 
-	.bytes "Hello\n", 0
+	.bytes "Hello!\n", 0
