@@ -106,6 +106,9 @@ func disassembleYOP(inst *Instruction) string {
 		}
 		return fmt.Sprintf("SYS??? r%d, r%d", inst.rA, inst.rB)
 
+	case 6: // TST
+		return fmt.Sprintf("%s r%d, r%d", opName, inst.rA, inst.rB)
+
 	default:
 		return fmt.Sprintf("??? (0x%04X)", inst.raw)
 	}

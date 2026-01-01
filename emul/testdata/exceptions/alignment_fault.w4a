@@ -1,0 +1,42 @@
+; Test alignment fault exception
+; Attempt to load from odd address should cause alignment fault
+
+.bootstrap
+
+start:
+    ; Set up exception handler first
+    ; Exception vector for alignment fault is 0x0014
+    ; Install a handler that sets a flag and returns
+
+    lui r1, 0           ; Handler address
+    adi r1, r1, handler & 0x3F
+    lui r2, 0
+    adi r2, r2, 0x14 >> 1   ; Exception vector address (word aligned)
+    stw r1, r2, 0       ; Install handler at vector 0x0014
+
+    ; Enable interrupts so exception can be handled
+    ei
+
+    ; Try to load from odd address (should fault)
+    lui r2, 0x100       ; Base address 0x4000
+    adi r2, r2, 1       ; Make it odd: 0x4001
+    ldw r3, r2, 0       ; This should cause alignment fault
+
+    ; If we get here without faulting, test failed
+    ldi r1, 99
+    br write_fail
+
+handler:
+    ; Exception handler - just set success flag and halt
+    ; In a real handler, we'd use RTI, but for this test we just halt
+    ldi r1, 0           ; Success
+    lui r2, 0x1FF
+    adi r2, r2, 0x3F
+    stw r1, r2, 0
+    hlt
+
+write_fail:
+    lui r2, 0x1FF
+    adi r2, r2, 0x3F
+    stw r1, r2, 0
+    hlt

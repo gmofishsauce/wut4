@@ -1,0 +1,70 @@
+; Test basic ADD instruction and flag updates
+; Test convention: write 0x0000 to physical address 0xFFFE for success
+; or non-zero error code for failure
+
+.bootstrap
+
+start:
+    ; Test 1: Simple addition
+    ldi r1, 5
+    ldi r2, 7
+    add r3, r1, r2      ; r3 = 5 + 7 = 12
+    ldi r4, 12
+    tst r3, r4
+    bne fail_1          ; Branch if not equal
+
+    ; Test 2: Addition with zero result (should set Z flag)
+    ldi r1, 10
+    ldi r2, -10
+    add r3, r1, r2      ; r3 = 10 + (-10) = 0
+    tst r3, r3
+    brz test_3          ; Should take this branch (zero flag set)
+    br fail_2
+
+test_3:
+    ; Test 3: Addition with carry (overflow from bit 15)
+    lui r1, 0x3FF       ; r1 = 0xFFC0 (top 10 bits)
+    adi r1, r1, 0x3F    ; r1 = 0xFFFF
+    ldi r2, 1
+    add r3, r1, r2      ; r3 = 0xFFFF + 1 = 0x0000 (should set carry)
+    tst r3, r3
+    brz test_4
+    br fail_3
+
+test_4:
+    ; Test 4: Negative result (should set N flag)
+    ldi r1, 5
+    ldi r2, -10
+    add r3, r1, r2      ; r3 = 5 + (-10) = -5 (0xFFFB)
+    ; Check if result is negative (bit 15 set)
+    lui r4, 0x3FF       ; r4 = 0xFFC0
+    adi r4, r4, 0x3B    ; r4 = 0xFFFB (-5)
+    tst r3, r4
+    bne fail_4
+
+    ; All tests passed - write success code to test result address
+    ; Physical address 0xFFFE = word address 0x7FFF
+    ldi r1, 0           ; Success code
+    lui r2, 0x1FF       ; Upper bits of 0x7FFF
+    adi r2, r2, 0x3F    ; r2 = 0x7FFF
+    stw r1, r2, 0       ; Write success to physical[0x7FFF]
+    hlt
+
+fail_1:
+    ldi r1, 1
+    br write_fail
+fail_2:
+    ldi r1, 2
+    br write_fail
+fail_3:
+    ldi r1, 3
+    br write_fail
+fail_4:
+    ldi r1, 4
+
+write_fail:
+    ; Write failure code in r1 to test result address
+    lui r2, 0x1FF
+    adi r2, r2, 0x3F    ; r2 = 0x7FFF
+    stw r1, r2, 0
+    hlt

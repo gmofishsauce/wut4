@@ -1,0 +1,67 @@
+; Test load/store word operations
+; Tests LDW, STW, and memory integrity
+
+.bootstrap
+
+start:
+    ; Test 1: Store and load word
+    ldi r1, 0x1234
+    lui r2, 0x100       ; Address 0x4000
+    stw r1, r2, 0       ; Store 0x1234 to address 0x4000
+    ldw r3, r2, 0       ; Load back from 0x4000
+    tst r1, r3
+    bne fail_1          ; Should match
+
+    ; Test 2: Store and load with offset
+    ldi r1, 0xABCD
+    lui r2, 0x100       ; Base address 0x4000
+    stw r1, r2, 4       ; Store to 0x4004 (offset 4 bytes = 2 words)
+    ldw r3, r2, 4       ; Load from 0x4004
+    tst r1, r3
+    bne fail_2
+
+    ; Test 3: Multiple stores don't interfere
+    ldi r1, 0x1111
+    ldi r4, 0x2222
+    lui r2, 0x100       ; Base 0x4000
+    stw r1, r2, 0       ; Store 0x1111 to 0x4000
+    stw r4, r2, 2       ; Store 0x2222 to 0x4002
+    ldw r3, r2, 0       ; Load from 0x4000
+    tst r1, r3
+    bne fail_3          ; Should still be 0x1111
+    ldw r3, r2, 2       ; Load from 0x4002
+    tst r4, r3
+    bne fail_3          ; Should be 0x2222
+
+    ; Test 4: Register 0 always reads as 0
+    ldi r1, 42
+    add r0, r1, r1      ; Try to write to r0
+    tst r0, r0
+    brz success         ; r0 should still be 0
+    br fail_4
+
+success:
+    ; Write success code
+    ldi r1, 0
+    lui r2, 0x1FF
+    adi r2, r2, 0x3F    ; r2 = 0x7FFF
+    stw r1, r2, 0
+    hlt
+
+fail_1:
+    ldi r1, 1
+    br write_fail
+fail_2:
+    ldi r1, 2
+    br write_fail
+fail_3:
+    ldi r1, 3
+    br write_fail
+fail_4:
+    ldi r1, 4
+
+write_fail:
+    lui r2, 0x1FF
+    adi r2, r2, 0x3F
+    stw r1, r2, 0
+    hlt

@@ -1,0 +1,86 @@
+; Test conditional branch instructions
+; Tests BEQ, BNE, BR (unconditional)
+
+.bootstrap
+
+start:
+    ; Test 1: BEQ (branch if equal/zero)
+    ldi r1, 5
+    ldi r2, 5
+    sub r3, r1, r2      ; r3 = 0, sets Z flag
+    beq test_2          ; Should branch (Z flag set)
+    br fail_1           ; Should not reach here
+
+test_2:
+    ; Test 2: BNE (branch if not equal)
+    ldi r1, 5
+    ldi r2, 7
+    sub r3, r1, r2      ; r3 = -2, clears Z flag
+    bne test_3          ; Should branch (Z flag clear)
+    br fail_2
+
+test_3:
+    ; Test 3: BEQ should NOT branch when Z clear
+    ldi r1, 5
+    ldi r2, 7
+    sub r3, r1, r2      ; r3 = -2, clears Z flag
+    bne skip_3          ; Should branch
+    br fail_3
+skip_3:
+    beq fail_3          ; Should NOT branch (Z flag clear)
+    br test_4           ; Continue
+
+test_4:
+    ; Test 4: BR (unconditional branch)
+    br test_5
+    br fail_4           ; Should not execute
+
+test_5:
+    ; Test 5: BCS (branch if carry set)
+    ; Create a carry by adding 0xFFFF + 1
+    lui r1, 0x3FF
+    adi r1, r1, 0x3F    ; r1 = 0xFFFF
+    ldi r2, 1
+    add r3, r1, r2      ; Should set carry flag
+    bcs test_6
+    br fail_5
+
+test_6:
+    ; Test 6: BCC (branch if carry clear)
+    ldi r1, 5
+    ldi r2, 3
+    add r3, r1, r2      ; No carry
+    bcc success
+    br fail_6
+
+success:
+    ; All tests passed
+    ldi r1, 0
+    lui r2, 0x1FF
+    adi r2, r2, 0x3F
+    stw r1, r2, 0
+    hlt
+
+fail_1:
+    ldi r1, 1
+    br write_fail
+fail_2:
+    ldi r1, 2
+    br write_fail
+fail_3:
+    ldi r1, 3
+    br write_fail
+fail_4:
+    ldi r1, 4
+    br write_fail
+fail_5:
+    ldi r1, 5
+    br write_fail
+fail_6:
+    ldi r1, 6
+
+write_fail:
+    lui r2, 0x1FF
+    adi r2, r2, 0x3F
+    stw r1, r2, 0
+    hlt

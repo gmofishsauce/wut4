@@ -1,5 +1,5 @@
 ; input and output. r1 r2 r3 are caller-save. 
-.code
+.bootstrap
 .set INPORT 97
 .set OUTPORT 96
 
