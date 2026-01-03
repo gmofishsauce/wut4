@@ -9,6 +9,7 @@ boot_time_IOTest:
 	tst r1 r2
 	brz done
 	jal Putc ; first argument (char to output) in r1
+	jal boot_time_IOTest
 done:	hlt
 buf:
 .bytes	"UN\n\0"; page is double mapped at 0 as both data and code.
@@ -20,7 +21,7 @@ buf:
 Getc:
     ldi r2 INPORT
     lsp r1 r2
-    tst r1 r1
+    sub r0, r1, r0    ; Compare r1 to 0, set flags
     brz getcErr
     ret ; no error return
 ; return -1 for error

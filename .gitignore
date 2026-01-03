@@ -11,6 +11,8 @@
 *.prof
 foo
 out.bin
+asm
+emul
 
 # Garbage created by well-meaning but moronic system vendors
 *.DS_Store
