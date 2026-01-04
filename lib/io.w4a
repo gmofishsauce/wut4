@@ -22,16 +22,17 @@ buf:
 ; 
 Getc:
     ldi r2  INSTAT  ; clear and ignore underflow bit if set.
+    ldi r3,  0x8000  ; we dont have and-immediate so we need this below
 waitForChar:
-    ldi r1,  0x8000
-    ldi r2,  INSTAT   ; get data available bit
-    and r0, r1,r2     ; set flags
+    ldi r2,  INSTAT   ; get data available bit 0x8000
+    lsp r1, r2        ; in r1
+    and r0, r1,r3     ; set flags
     brz waitForChar   ; loop. Fall through if data is available.
     ldi r2 INPORT
     lsp r1  r2
     sub r0, r1, r0    ; Compare r1 to 0, set flags
     brz getcErr
-    ret ; no error return
+    ret ; no-error return: char in r1
 ; return -1 for error
 getcErr:
     ldi r1 -1

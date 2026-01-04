@@ -76,8 +76,30 @@ func (t *Tracer) TracePreInstruction(cpu *CPU) {
 	z := (t.prevFlags & FLAG_Z) != 0
 	n := (t.prevFlags & FLAG_N) != 0
 	v := (t.prevFlags & FLAG_V) != 0
-	fmt.Fprintf(t.out, "FLAGS BEFORE: C=%d Z=%d N=%d V=%d LINK=%04X\n",
-		boolToInt(c), boolToInt(z), boolToInt(n), boolToInt(v), cpu.spr[cpu.mode][SPR_LINK])
+
+	// Get UART status (without side effects - don't clear flags)
+	var txStatus, rxStatus uint16
+	if cpu.uart != nil {
+		cpu.uart.mu.Lock()
+		// TX Status: bit 0 = overflow, bit 15 = FIFO empty
+		if cpu.uart.txOverflow {
+			txStatus |= 0x0001
+		}
+		if len(cpu.uart.txChan) == 0 {
+			txStatus |= 0x8000
+		}
+		// RX Status: bit 0 = underflow, bit 15 = data available
+		if cpu.uart.rxUnderflow {
+			rxStatus |= 0x0001
+		}
+		if len(cpu.uart.rxChan) > 0 {
+			rxStatus |= 0x8000
+		}
+		cpu.uart.mu.Unlock()
+	}
+
+	fmt.Fprintf(t.out, "FLAGS BEFORE: C=%d Z=%d N=%d V=%d LINK=%04X TXStatus=%04X RXStatus=%04X\n",
+		boolToInt(c), boolToInt(z), boolToInt(n), boolToInt(v), cpu.spr[cpu.mode][SPR_LINK], txStatus, rxStatus)
 }
 
 // TracePostInstruction traces state after instruction execution

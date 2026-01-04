@@ -15,6 +15,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -140,15 +141,22 @@ func main() {
 	// Start UART I/O goroutines
 	cpu.startUART()
 
-	fmt.Fprintf(os.Stderr, "WUT-4 Emulator v%s\n", version)
-	fmt.Fprintf(os.Stderr, "Loaded: %s (%d bytes, %d words)\n", binaryFile, len(data), len(data)/2)
+	// Write startup messages to trace file if available, otherwise they would
+	// appear garbled on screen due to raw terminal mode
+	var startupOut io.Writer = os.Stderr
+	if cpu.tracer != nil {
+		startupOut = cpu.tracer.out
+	}
+
+	fmt.Fprintf(startupOut, "WUT-4 Emulator v%s\n", version)
+	fmt.Fprintf(startupOut, "Loaded: %s (%d bytes, %d words)\n", binaryFile, len(data), len(data)/2)
 	if *traceFile != "" {
-		fmt.Fprintf(os.Stderr, "Trace: %s\n", *traceFile)
+		fmt.Fprintf(startupOut, "Trace: %s\n", *traceFile)
 	}
 	if *maxCycles > 0 {
-		fmt.Fprintf(os.Stderr, "Max cycles: %d\n", *maxCycles)
+		fmt.Fprintf(startupOut, "Max cycles: %d\n", *maxCycles)
 	}
-	fmt.Fprintf(os.Stderr, "Starting execution...\n\n")
+	fmt.Fprintf(startupOut, "Starting execution...\n\n")
 
 	// Run the emulator
 	startTime := time.Now()
