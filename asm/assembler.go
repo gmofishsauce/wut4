@@ -313,6 +313,31 @@ func (asm *Assembler) pass2(input string) error {
 	return nil
 }
 
+func (asm *Assembler) printCapitalSymbols() {
+	hasCapitalSymbols := false
+
+	/* First pass: check if there are any capital symbols */
+	for i := 0; i < asm.numSymbols; i++ {
+		sym := &asm.symbols[i]
+		if len(sym.name) > 0 && sym.name[0] >= 'A' && sym.name[0] <= 'Z' {
+			hasCapitalSymbols = true
+			break
+		}
+	}
+
+	if !hasCapitalSymbols {
+		return
+	}
+
+	fmt.Println("\nSymbols:")
+	for i := 0; i < asm.numSymbols; i++ {
+		sym := &asm.symbols[i]
+		if len(sym.name) > 0 && sym.name[0] >= 'A' && sym.name[0] <= 'Z' {
+			fmt.Printf("  %s = 0x%04x (%d)\n", sym.name, sym.value, sym.value)
+		}
+	}
+}
+
 func assemble(inputFile, outputFile string) error {
 	/* Read input file */
 	data, err := os.ReadFile(inputFile)
@@ -341,6 +366,9 @@ func assemble(inputFile, outputFile string) error {
 
 	fmt.Printf("Assembly successful: %s -> %s\n", inputFile, outputFile)
 	fmt.Printf("Code: %d bytes, Data: %d bytes\n", asm.codeSize, asm.dataSize)
+
+	/* Print symbols that start with capital letters */
+	asm.printCapitalSymbols()
 
 	return nil
 }
