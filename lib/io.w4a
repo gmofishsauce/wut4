@@ -2,6 +2,8 @@
 .bootstrap
 .set INPORT 97
 .set OUTPORT 96
+.set OUTSTAT 98 
+.set INSTAT 99
 
 boot_time_IOTest:
 	jal Getc ; return value in r1
@@ -19,8 +21,14 @@ buf:
 ; return -1 for error. In emulator, blocks reading console.
 ; 
 Getc:
+    ldi r2  INSTAT  ; clear and ignore underflow bit if set.
+waitForChar:
+    ldi r1,  0x8000
+    ldi r2,  INSTAT   ; get data available bit
+    and r0, r1,r2     ; set flags
+    brz waitForChar   ; loop. Fall through if data is available.
     ldi r2 INPORT
-    lsp r1 r2
+    lsp r1  r2
     sub r0, r1, r0    ; Compare r1 to 0, set flags
     brz getcErr
     ret ; no error return

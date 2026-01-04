@@ -15,6 +15,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"sync"
 )
 
 // CPU mode constants
@@ -22,6 +23,19 @@ const (
 	ModeKernel = 0
 	ModeUser   = 1
 )
+
+// UART represents the emulated console UART with 64-byte FIFOs
+type UART struct {
+	mu sync.Mutex
+
+	// Transmit channel (characters written by CPU, drained to stdout)
+	txChan     chan byte
+	txOverflow bool // Set when write to full FIFO, cleared on status read
+
+	// Receive channel (characters from stdin, read by CPU)
+	rxChan      chan byte
+	rxUnderflow bool // Set when read from empty FIFO, cleared on status read
+}
 
 // CPU represents the WUT-4 processor state
 type CPU struct {
@@ -39,6 +53,7 @@ type CPU struct {
 	// I/O
 	consoleIn  io.Reader // stdin
 	consoleOut io.Writer // stdout
+	uart       *UART    // Emulated UART
 
 	// Execution state
 	cycles     uint64 // Cycle counter
@@ -60,6 +75,10 @@ func NewCPU() *CPU {
 		physMem: make([]uint16, 8*1024*1024), // 8M words = 16MB
 		running: true,
 		mode:    ModeKernel,
+		uart: &UART{
+			txChan: make(chan byte, 64),
+			rxChan: make(chan byte, 64),
+		},
 	}
 
 	// Initialize kernel MMU: slot 0 points to physical page 0 with RWX permissions

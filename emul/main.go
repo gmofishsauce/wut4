@@ -16,7 +16,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
+
+	"golang.org/x/term"
 )
 
 var (
@@ -26,6 +30,38 @@ var (
 )
 
 const version = "1.0.0"
+
+var savedTermState *term.State
+
+// setupTerminal puts the terminal in raw mode for the UART emulation
+func setupTerminal() error {
+	// Only set raw mode if stdin is a terminal
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return nil
+	}
+
+	// Save current terminal state
+	state, err := term.GetState(int(os.Stdin.Fd()))
+	if err != nil {
+		return fmt.Errorf("failed to get terminal state: %v", err)
+	}
+	savedTermState = state
+
+	// Put terminal in raw mode (non-canonical mode, no echo, etc.)
+	_, err = term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		return fmt.Errorf("failed to set raw mode: %v", err)
+	}
+
+	return nil
+}
+
+// restoreTerminal restores the terminal to its original state
+func restoreTerminal() {
+	if savedTermState != nil && term.IsTerminal(int(os.Stdin.Fd())) {
+		term.Restore(int(os.Stdin.Fd()), savedTermState)
+	}
+}
 
 func main() {
 	flag.Usage = usage
@@ -43,6 +79,25 @@ func main() {
 	}
 
 	binaryFile := args[0]
+
+	// Set up terminal in raw mode for UART emulation
+	err := setupTerminal()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error setting up terminal: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Ensure terminal is restored on exit
+	defer restoreTerminal()
+
+	// Set up signal handler to restore terminal on interrupt
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		restoreTerminal()
+		os.Exit(130) // Standard exit code for SIGINT
+	}()
 
 	// Load binary file
 	data, err := os.ReadFile(binaryFile)
@@ -81,6 +136,9 @@ func main() {
 
 	// Reset CPU to initial state
 	cpu.Reset()
+
+	// Start UART I/O goroutines
+	cpu.startUART()
 
 	fmt.Fprintf(os.Stderr, "WUT-4 Emulator v%s\n", version)
 	fmt.Fprintf(os.Stderr, "Loaded: %s (%d bytes, %d words)\n", binaryFile, len(data), len(data)/2)

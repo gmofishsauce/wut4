@@ -249,10 +249,14 @@ func (t *Tracer) sprName(spr uint16) string {
 		return "ISR"
 	case SPR_CONTEXT:
 		return "CONTEXT"
-	case SPR_CONSOLE_OUT:
-		return "CONSOLE_OUT"
-	case SPR_CONSOLE_IN:
-		return "CONSOLE_IN"
+	case 96:
+		return "UART_TX_DATA"
+	case 97:
+		return "UART_RX_DATA"
+	case 98:
+		return "UART_TX_STATUS"
+	case 99:
+		return "UART_RX_STATUS"
 	default:
 		if spr >= SPR_USERGEN_BASE && spr < SPR_USERGEN_BASE+8 {
 			return fmt.Sprintf("USERGEN[%d]", spr-SPR_USERGEN_BASE)

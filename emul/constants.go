@@ -42,9 +42,11 @@ const (
 	// SPR 96-127: I/O registers
 	SPR_IO_BASE = 96
 
-	// Console I/O
-	SPR_CONSOLE_OUT = 96 // Write byte to stdout
-	SPR_CONSOLE_IN  = 97 // Read byte from stdin
+	// UART registers (emulated console UART with 64-byte FIFOs)
+	// u0 = 96: Write transmit data (low byte)
+	// u1 = 97: Read receive data (low byte)
+	// u2 = 98: Transmit status (bit 0=overflow, bit 15=empty)
+	// u3 = 99: Receive status (bit 0=underflow, bit 15=data available)
 )
 
 // CPU Flags

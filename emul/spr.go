@@ -208,17 +208,21 @@ func (cpu *CPU) loadIO(spr uint16) (uint16, error) {
 	}
 
 	switch spr {
-	case SPR_CONSOLE_IN:
-		// Read byte from console input
-		return cpu.readConsole(), nil
-
-	case SPR_CONSOLE_OUT:
-		// Write-only register
+	case 96:
+		// u0 - Write-only transmit data register
 		return 0, nil
 
-	case 98, 99:
-		// Reserved console control registers
-		return 0, nil
+	case 97:
+		// u1 - Read receive data register
+		return cpu.uartReadData(), nil
+
+	case 98:
+		// u2 - Transmit status register
+		return cpu.uartReadTxStatus(), nil
+
+	case 99:
+		// u3 - Receive status register
+		return cpu.uartReadRxStatus(), nil
 
 	default:
 		// Other I/O registers undefined
@@ -234,15 +238,15 @@ func (cpu *CPU) storeIO(spr uint16, value uint16) error {
 	}
 
 	switch spr {
-	case SPR_CONSOLE_OUT:
-		// Write byte to console output
-		cpu.writeConsole(value)
+	case 96:
+		// u0 - Write transmit data register
+		cpu.uartWriteData(value)
 
-	case SPR_CONSOLE_IN:
-		// Read-only register, writes ignored
+	case 97:
+		// u1 - Read-only register, writes ignored
 
 	case 98, 99:
-		// Reserved console control registers
+		// u2, u3 - Status registers, writes ignored
 
 	default:
 		// Other I/O registers undefined
