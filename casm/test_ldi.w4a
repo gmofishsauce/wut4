@@ -1,8 +1,0 @@
-#bank data
-buf:
-#d "test\0"
-BUFSIZE = $ - buf
-#bank code
-start:
-    ldi r1, buf
-    ldi r2, BUFSIZE
