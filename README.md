@@ -9,16 +9,12 @@ repo is old and needs to be revised.
 #
 ## [asm](./asm) - wut4 assembler
 
-Assembler based on [customasm](https://github.com/hlorenzi/customasm)
+Assembler written in Go by Claude Code.
 
-
-## [dsm](./dsm) - wut4 disassembler
-
-Disassembler written in Golang
 
 ## [emul](./emul) - wut4 emulator
 
-Functional emulator written in Golang
+Functional emulator written in Go by Claude Code.
 
 ## [exer/cex](./exer/cex) - chip exerciser/tester
 
@@ -28,7 +24,10 @@ the KiCad schematic for the chip exerciser in `ki` and the Nano
 firmware in `fw`. The firmware is a simplified version of the
 YARC firmware.
 
+## [lib](./lib)
 
-## pld - 22v10 experiments
+Eventual library of I/O routines for emulated devices.
+
+## [pld](./pld) - 22v10 experiments
 
 including a general 8-bit register.
