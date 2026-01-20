@@ -1,0 +1,306 @@
+(* === YAPL GRAMMAR - REVISED === *)
+(* Yet Another Programming Language *)
+(* Context-free grammar for expressions, statements, and declarations *)
+
+(* ============================================================ *)
+(* LEXICAL ELEMENTS                                             *)
+(* ============================================================ *)
+
+identifier      = letter (letter | digit)* .    (* max 15 chars *)
+
+(* Integer literals - binary, octal, decimal, hex *)
+integer_literal = binary_lit | octal_lit | decimal_lit | hex_lit .
+decimal_lit     = "0" | ( "1" … "9" ) [ [ "_" ] decimal_digits ] .
+binary_lit      = "0" ( "b" | "B" ) [ "_" ] binary_digits .
+octal_lit       = "0" ( "o" | "O" ) [ "_" ] octal_digits .
+hex_lit         = "0" ( "x" | "X" ) [ "_" ] hex_digits .
+
+decimal_digits  = decimal_digit { [ "_" ] decimal_digit } .
+binary_digits   = binary_digit { [ "_" ] binary_digit } .
+octal_digits    = octal_digit { [ "_" ] octal_digit } .
+hex_digits      = hex_digit { [ "_" ] hex_digit } .
+
+char_literal    = "'" ( char_char | escape_seq ) "'" .
+string_literal  = '"' { string_char | escape_seq } '"' .
+
+char_char       = (* any single byte except ', \, or newline *) .
+string_char     = (* any UTF-8 sequence except ", \, or newline *) .
+
+escape_seq      = "\0" | "\a" | "\b" | "\f" | "\n" | "\r"
+                | "\t" | "\v" | "\\" | "\'" | "\""
+                | "\x" hex_digit hex_digit .
+
+letter          = "a" … "z" | "A" … "Z" | "_" .
+digit           = "0" … "9" .
+decimal_digit   = "0" … "9" .
+binary_digit    = "0" | "1" .
+octal_digit     = "0" … "7" .
+hex_digit       = "0" … "9" | "A" … "F" | "a" … "f" .
+
+
+(* ============================================================ *)
+(* PROGRAM STRUCTURE                                            *)
+(* ============================================================ *)
+
+Program         = { Declaration } .
+
+Declaration     = ConstDecl
+                | VarDecl
+                | FuncDecl
+                | StructDecl .
+
+
+(* ============================================================ *)
+(* TYPE SYSTEM                                                  *)
+(* ============================================================ *)
+
+TypeSpecifier   = BaseType
+                | "@" TypeSpecifier
+                | "@" "void"
+                | "struct" identifier .
+
+BaseType        = "uint8" | "byte"
+                | "uint16"
+                | "int16"
+                | "block32" | "block64" | "block128" .
+
+ReturnType      = TypeSpecifier
+                | "void" .
+
+
+(* ============================================================ *)
+(* CONSTANT EXPRESSIONS                                         *)
+(* Evaluated at compile time by the lexer.                      *)
+(* Identifiers must refer to previously declared constants.     *)
+(* ============================================================ *)
+
+ConstExpr       = ConstOrExpr .
+
+ConstOrExpr     = ConstAndExpr
+                | ConstOrExpr "||" ConstAndExpr .
+
+ConstAndExpr    = ConstCmpExpr
+                | ConstAndExpr "&&" ConstCmpExpr .
+
+ConstCmpExpr    = ConstAddExpr
+                | ConstAddExpr ComparisonOp ConstAddExpr .
+
+ConstAddExpr    = ConstMultExpr
+                | ConstAddExpr "+" ConstMultExpr
+                | ConstAddExpr "-" ConstMultExpr
+                | ConstAddExpr "|" ConstMultExpr
+                | ConstAddExpr "^" ConstMultExpr .
+
+ConstMultExpr   = ConstUnaryExpr
+                | ConstMultExpr "*" ConstUnaryExpr
+                | ConstMultExpr "/" ConstUnaryExpr
+                | ConstMultExpr "%" ConstUnaryExpr
+                | ConstMultExpr "&" ConstUnaryExpr
+                | ConstMultExpr "<<" ConstUnaryExpr
+                | ConstMultExpr ">>" ConstUnaryExpr .
+
+ConstUnaryExpr  = ConstPrimaryExpr
+                | "-" ConstUnaryExpr
+                | "~" ConstUnaryExpr
+                | "!" ConstUnaryExpr
+                | "sizeof" "(" TypeSpecifier ")"
+                | BaseType "(" ConstExpr ")" .
+
+ConstPrimaryExpr = identifier
+                 | integer_literal
+                 | char_literal
+                 | "(" ConstExpr ")" .
+
+
+(* ============================================================ *)
+(* DECLARATIONS                                                 *)
+(* ============================================================ *)
+
+ConstDecl       = "const" identifier "=" ConstExpr ";" .
+
+VarDecl         = "var" TypeSpecifier identifier ";"
+                | "var" TypeSpecifier identifier "=" Initializer ";"
+                | "var" TypeSpecifier identifier "[" ConstExpr "]" ";"
+                | "var" TypeSpecifier identifier "[" ConstExpr "]" "=" ArrayInit ";" .
+
+Initializer     = Expression .
+
+ArrayInit       = "{" ConstExprList "}"
+                | string_literal .
+
+ConstExprList   = ConstExpr { "," ConstExpr } .
+
+FuncDecl        = "func" ReturnType identifier "(" [ ParamList ] ")" Block .
+
+ParamList       = Param { "," Param } .
+
+Param           = TypeSpecifier identifier .
+
+StructDecl      = "struct" identifier "{" { StructMember } "}" ";" .
+
+StructMember    = TypeSpecifier identifier ";"
+                | TypeSpecifier identifier "[" ConstExpr "]" ";" .
+
+
+(* ============================================================ *)
+(* STATEMENTS                                                   *)
+(* ============================================================ *)
+
+Statement       = Block
+                | ConstDecl
+                | VarDecl
+                | ExpressionStmt
+                | IfStmt
+                | WhileStmt
+                | ForStmt
+                | GotoStmt
+                | LabelStmt
+                | ReturnStmt
+                | BreakStmt
+                | ContinueStmt .
+
+Block           = "{" { Statement } "}" .
+
+ExpressionStmt  = Expression ";"
+                | ";" .
+
+IfStmt          = "if" "(" Expression ")" Statement
+                | "if" "(" Expression ")" Statement "else" Statement .
+
+WhileStmt       = "while" "(" Expression ")" Statement .
+
+ForStmt         = "for" "(" [ ForInit ] ";" [ Expression ] ";" [ Expression ] ")" Statement .
+
+ForInit         = Expression
+                | "var" TypeSpecifier identifier "=" Expression .
+
+GotoStmt        = "goto" identifier ";" .
+
+LabelStmt       = identifier ":" Statement .
+
+ReturnStmt      = "return" [ Expression ] ";" .
+
+BreakStmt       = "break" ";" .
+
+ContinueStmt    = "continue" ";" .
+
+
+(* ============================================================ *)
+(* EXPRESSIONS                                                  *)
+(* Precedence from lowest (assignment) to highest (postfix)     *)
+(* ============================================================ *)
+
+Expression      = AssignmentExpr .
+
+(* Precedence 7 - Assignment (right-associative) *)
+AssignmentExpr  = LogicalOrExpr
+                | UnaryExpr "=" AssignmentExpr .
+
+(* Precedence 6 - Logical OR (left-associative) *)
+LogicalOrExpr   = LogicalAndExpr
+                | LogicalOrExpr "||" LogicalAndExpr .
+
+(* Precedence 5 - Logical AND (left-associative) *)
+LogicalAndExpr  = ComparisonExpr
+                | LogicalAndExpr "&&" ComparisonExpr .
+
+(* Precedence 4 - Comparison (NON-associative) *)
+ComparisonExpr  = AdditiveExpr
+                | AdditiveExpr ComparisonOp AdditiveExpr .
+
+ComparisonOp    = "==" | "!=" | "<" | ">" | "<=" | ">=" .
+
+(* Precedence 3 - Additive (left-associative) *)
+(* Includes bitwise OR and XOR per Go-style precedence *)
+AdditiveExpr    = MultiplicativeExpr
+                | AdditiveExpr "+" MultiplicativeExpr
+                | AdditiveExpr "-" MultiplicativeExpr
+                | AdditiveExpr "|" MultiplicativeExpr
+                | AdditiveExpr "^" MultiplicativeExpr .
+
+(* Precedence 2 - Multiplicative (left-associative) *)
+(* Includes bitwise AND and shifts per Go-style precedence *)
+MultiplicativeExpr = UnaryExpr
+                   | MultiplicativeExpr "*" UnaryExpr
+                   | MultiplicativeExpr "/" UnaryExpr
+                   | MultiplicativeExpr "%" UnaryExpr
+                   | MultiplicativeExpr "&" UnaryExpr
+                   | MultiplicativeExpr "<<" UnaryExpr
+                   | MultiplicativeExpr ">>" UnaryExpr .
+
+(* Precedence 1 - Unary (right-associative) *)
+UnaryExpr       = PostfixExpr
+                | "@" UnaryExpr                     (* dereference *)
+                | "&" UnaryExpr                     (* address-of *)
+                | "-" UnaryExpr                     (* negation *)
+                | "~" UnaryExpr                     (* bitwise NOT *)
+                | "!" UnaryExpr                     (* logical NOT *)
+                | "sizeof" UnaryExpr
+                | "sizeof" "(" TypeSpecifier ")"
+                | BaseType "(" Expression ")" .    (* type conversion *)
+
+(* Precedence 0 - Postfix (left-associative) *)
+PostfixExpr     = PrimaryExpr
+                | PostfixExpr "(" [ ArgumentList ] ")"   (* function call *)
+                | PostfixExpr "[" Expression "]"         (* array subscript *)
+                | PostfixExpr "." identifier             (* field access *)
+                | PostfixExpr "->" identifier .          (* pointer field access *)
+
+ArgumentList    = Expression { "," Expression } .
+
+(* Primary *)
+PrimaryExpr     = identifier
+                | integer_literal
+                | char_literal
+                | string_literal
+                | "(" Expression ")" .
+
+
+(* ============================================================ *)
+(* KEYWORDS                                                     *)
+(* ============================================================ *)
+(*
+ * Language keywords:
+ *   break    const    continue   else      for      func
+ *   goto     if       return     struct    var      while
+ *
+ * Type names (predefined identifiers, not keywords):
+ *   byte     uint8    uint16     int16     void
+ *   block32  block64  block128
+ *
+ * Lexer directives (contain #, handled by lexer, not parser):
+ *   #if      #else    #endif     #file     #line
+ *)
+
+
+(* ============================================================ *)
+(* OPERATORS AND PUNCTUATION                                    *)
+(* ============================================================ *)
+(*
+ *   +    &    &&   ==   !=   (    )
+ *   -    |    ||   <    <=   [    ]
+ *   *    ^    ~    >    >=   {    }
+ *   /    <<   !    =    .    ;    :
+ *   %    >>   @    ->   ,
+ *
+ *   sizeof
+ *)
+
+
+(* ============================================================ *)
+(* SEMANTIC CONSTRAINTS                                         *)
+(* ============================================================ *)
+(*
+ * - Declare before use: all identifiers must be declared before reference
+ * - No forward declarations: functions, types, constants must precede use
+ * - Visibility: uppercase initial = global (public), lowercase = static (file-private)
+ * - void restriction: 'void' only valid as function return type; '@void' valid as pointer
+ * - const identifiers: in ConstExpr, identifiers must refer to prior const declarations
+ * - Global initializers: must be ConstExpr (compile-time evaluable)
+ * - Local initializers: may be any Expression
+ * - Assignment LHS: must be a valid lvalue
+ * - Array address: '&' required to take address of array; no implicit decay
+ * - No type promotion: arithmetic requires explicit casts between types
+ * - Block types: only & (address-of) operator allowed; cannot participate in expressions
+ * - Labels: must be unique within a function
+ *)
