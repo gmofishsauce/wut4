@@ -1,0 +1,13 @@
+// Conditional compilation test
+const DEBUG = 1;
+const RELEASE = 0;
+
+#if DEBUG
+var int16 debugCounter;
+#endif
+
+#if RELEASE
+var int16 releaseOnly;
+#else
+var int16 notRelease;
+#endif

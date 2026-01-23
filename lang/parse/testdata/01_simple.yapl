@@ -1,0 +1,38 @@
+// Test 01: Simple expressions and operators
+const MAX = 100;
+const MIN = 0;
+
+var int16 g_value;
+
+func int16 TestOps(int16 a, int16 b) {
+    var int16 x;
+    var int16 y;
+    var int16 z;
+
+    x = a + b;
+    y = a - b;
+    z = a * b;
+    x = a / b;
+    y = a % b;
+
+    // Bitwise
+    z = a & b;
+    x = a | b;
+    y = a ^ b;
+    z = a << 2;
+    x = a >> 1;
+
+    // Comparison
+    if (a == b) { x = 1; }
+    if (a != b) { x = 2; }
+    if (a < b) { x = 3; }
+    if (a > b) { x = 4; }
+    if (a <= b) { x = 5; }
+    if (a >= b) { x = 6; }
+
+    // Logical
+    if (a && b) { x = 7; }
+    if (a || b) { x = 8; }
+
+    return x;
+}

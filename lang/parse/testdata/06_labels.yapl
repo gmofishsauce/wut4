@@ -1,0 +1,68 @@
+// Test 06: Labels and goto
+
+func int16 TestGoto(int16 n) {
+    var int16 result;
+
+    result = 0;
+
+    if (n < 0) {
+        goto negative;
+    }
+
+    if (n == 0) {
+        goto zero;
+    }
+
+    // Fall through to positive
+positive:
+    result = 1;
+    goto done;
+
+negative:
+    result = -1;
+    goto done;
+
+zero:
+    result = 0;
+
+done:
+    return result;
+}
+
+func int16 LoopWithGoto(int16 n) {
+    var int16 sum;
+    var int16 i;
+
+    sum = 0;
+    i = 0;
+
+loop:
+    if (i >= n) {
+        goto exit;
+    }
+    sum = sum + i;
+    i = i + 1;
+    goto loop;
+
+exit:
+    return sum;
+}
+
+func void MultipleLabels() {
+    var int16 x;
+
+    x = 0;
+
+start:
+    x = x + 1;
+
+middle:
+    x = x + 2;
+
+end:
+    if (x < 10) {
+        goto start;
+    }
+
+    return;
+}

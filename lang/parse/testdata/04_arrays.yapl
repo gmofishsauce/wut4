@@ -1,0 +1,58 @@
+// Test 04: Arrays
+
+const SIZE = 16;
+
+var int16 g_arr[SIZE];
+var uint8 g_buf[64];
+
+func void TestArrays() {
+    var int16 arr[10];
+    var uint8 buf[32];
+    var int16 i;
+
+    // Array indexing
+    arr[0] = 1;
+    arr[1] = 2;
+    arr[9] = 10;
+
+    i = 0;
+    while (i < 10) {
+        arr[i] = i * 2;
+        i = i + 1;
+    }
+
+    // Read from array
+    i = arr[5];
+
+    // Computed index
+    i = arr[i + 1];
+
+    return;
+}
+
+func void TestArrayPtr() {
+    var int16 arr[10];
+    var @int16 p;
+
+    // Take address of array element
+    p = &arr[0];
+    @p = 100;
+
+    p = &arr[5];
+    @p = 500;
+
+    return;
+}
+
+func int16 SumArray(@int16 arr, int16 len) {
+    var int16 sum;
+    var int16 i;
+
+    sum = 0;
+    for (i = 0; i < len; i = i + 1) {
+        sum = sum + @arr;
+        arr = arr + 2;  // pointer arithmetic (manual)
+    }
+
+    return sum;
+}

@@ -1,0 +1,8 @@
+// Error test 03: Missing semicolon
+
+func void Bad() {
+    var int16 x;
+
+    x = 10      // ERROR: missing semicolon
+    return;
+}

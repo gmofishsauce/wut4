@@ -1,0 +1,51 @@
+#file literals.yapl
+#line 2
+1, KEY, const
+2, ID, DEC
+3, PUNCT, =
+4, LIT, 0x00FF
+5, PUNCT, ;
+#line 3
+6, KEY, const
+7, ID, HEX
+8, PUNCT, =
+9, LIT, 0x00FF
+10, PUNCT, ;
+#line 4
+11, KEY, const
+12, ID, BIN
+13, PUNCT, =
+14, LIT, 0x00FF
+15, PUNCT, ;
+#line 5
+16, KEY, const
+17, ID, OCT
+18, PUNCT, =
+19, LIT, 0x00FF
+20, PUNCT, ;
+#line 6
+21, KEY, const
+22, ID, CHAR
+23, PUNCT, =
+24, LIT, 0x0041
+25, PUNCT, ;
+#line 7
+26, KEY, const
+27, ID, NEWLINE
+28, PUNCT, =
+29, LIT, 0x000A
+30, PUNCT, ;
+#line 8
+31, KEY, const
+32, ID, HEXESC
+33, PUNCT, =
+34, LIT, 0x0041
+35, PUNCT, ;
+#line 9
+36, KEY, var
+37, KEY, byte
+38, ID, str
+39, PUNCT, [
+40, LIT, 0x0010
+41, PUNCT, ]
+42, PUNCT, ;

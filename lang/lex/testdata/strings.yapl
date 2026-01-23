@@ -1,0 +1,4 @@
+// String literal test
+var byte msg[32];
+var byte hello[6] = "hello";
+var byte escaped[8] = "a\tb\nc";

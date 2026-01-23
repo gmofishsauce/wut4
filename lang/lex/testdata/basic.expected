@@ -1,0 +1,15 @@
+#file basic.yapl
+#line 2
+1, KEY, const
+2, ID, SIZE
+3, PUNCT, =
+4, LIT, 0x0040
+5, PUNCT, ;
+#line 3
+6, KEY, var
+7, KEY, int16
+8, ID, buf
+9, PUNCT, [
+10, LIT, 0x0080
+11, PUNCT, ]
+12, PUNCT, ;

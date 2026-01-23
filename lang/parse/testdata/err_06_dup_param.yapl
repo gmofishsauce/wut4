@@ -1,0 +1,5 @@
+// Error test 06: Duplicate parameter
+
+func void Bad(int16 x, int16 x) {  // ERROR: duplicate parameter
+    return;
+}

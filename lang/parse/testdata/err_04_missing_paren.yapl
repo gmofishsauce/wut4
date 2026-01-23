@@ -1,0 +1,11 @@
+// Error test 04: Missing parenthesis
+
+func void Bad() {
+    var int16 x;
+
+    if x > 0 {      // ERROR: missing ( and )
+        x = 1;
+    }
+
+    return;
+}

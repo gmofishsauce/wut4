@@ -1,0 +1,12 @@
+// Error test 01: Declaration inside nested block (should error)
+
+func void Bad() {
+    var int16 x;
+
+    if (x > 0) {
+        var int16 y;  // ERROR: declarations only at function level
+        y = 10;
+    }
+
+    return;
+}

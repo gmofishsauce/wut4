@@ -130,7 +130,20 @@ ArrayInit       = "{" ConstExprList "}"
 
 ConstExprList   = ConstExpr { "," ConstExpr } .
 
-FuncDecl        = "func" ReturnType identifier "(" [ ParamList ] ")" Block .
+(* Functions have three parts: parameters, local declarations, then statements.
+ * All var/const declarations must appear before any executable statements.
+ * Labels may only appear at the top level of FuncBody, not inside blocks. *)
+FuncDecl        = "func" ReturnType identifier "(" [ ParamList ] ")" FuncBody .
+
+FuncBody        = "{" { LocalDecl } { FuncStmt } "}" .
+
+LocalDecl       = VarDecl | ConstDecl .
+
+(* FuncStmt is a statement that may appear in a function body.
+ * Labels are only allowed here, not in nested blocks. *)
+FuncStmt        = Statement | LabelStmt .
+
+LabelStmt       = identifier ":" .
 
 ParamList       = Param { "," Param } .
 
@@ -146,15 +159,14 @@ StructMember    = TypeSpecifier identifier ";"
 (* STATEMENTS                                                   *)
 (* ============================================================ *)
 
+(* Statements do not include declarations - those are only at function level.
+ * Labels are also only at function level, not inside nested blocks. *)
 Statement       = Block
-                | ConstDecl
-                | VarDecl
                 | ExpressionStmt
                 | IfStmt
                 | WhileStmt
                 | ForStmt
                 | GotoStmt
-                | LabelStmt
                 | ReturnStmt
                 | BreakStmt
                 | ContinueStmt .
@@ -169,14 +181,10 @@ IfStmt          = "if" "(" Expression ")" Statement
 
 WhileStmt       = "while" "(" Expression ")" Statement .
 
-ForStmt         = "for" "(" [ ForInit ] ";" [ Expression ] ";" [ Expression ] ")" Statement .
-
-ForInit         = Expression
-                | "var" TypeSpecifier identifier "=" Expression .
+(* ForInit is expression only - no variable declarations allowed *)
+ForStmt         = "for" "(" [ Expression ] ";" [ Expression ] ";" [ Expression ] ")" Statement .
 
 GotoStmt        = "goto" identifier ";" .
-
-LabelStmt       = identifier ":" Statement .
 
 ReturnStmt      = "return" [ Expression ] ";" .
 
@@ -303,4 +311,13 @@ PrimaryExpr     = identifier
  * - No type promotion: arithmetic requires explicit casts between types
  * - Block types: only & (address-of) operator allowed; cannot participate in expressions
  * - Labels: must be unique within a function
+ *
+ * STRUCTURAL CONSTRAINTS (simplifications for compiler implementation):
+ * - Function-level declarations only: all var/const declarations in a function
+ *   must appear at the beginning of the function body, before any statements
+ * - Labels at function level only: labels may only appear at the top level of
+ *   a function body, not inside if/while/for blocks. This ensures goto targets
+ *   well-defined points in the function's main statement sequence.
+ * - No variable declaration in for-init: the for loop initializer may only be
+ *   an expression, not a variable declaration. Declare loop variables before the for.
  *)

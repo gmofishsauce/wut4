@@ -1,0 +1,8 @@
+// Error test 09: Missing closing brace
+
+func void Bad() {
+    var int16 x;
+
+    x = 10;
+
+// ERROR: missing closing brace

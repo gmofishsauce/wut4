@@ -1,0 +1,15 @@
+// Error test 08: Duplicate label
+
+func void Bad() {
+    var int16 x;
+
+    x = 0;
+
+start:
+    x = x + 1;
+
+start:              // ERROR: duplicate label
+    x = x + 2;
+
+    return;
+}

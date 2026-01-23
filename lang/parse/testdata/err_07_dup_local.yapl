@@ -1,0 +1,8 @@
+// Error test 07: Duplicate local variable
+
+func void Bad() {
+    var int16 x;
+    var int16 x;  // ERROR: redefinition
+
+    return;
+}

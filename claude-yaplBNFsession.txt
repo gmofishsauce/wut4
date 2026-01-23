@@ -1,0 +1,826 @@
+                                                                                
+▗ ▗   ▖ ▖  Claude Code v2.1.14                                                  
+           Opus 4.5 · Claude Pro                                                
+  ▘▘ ▝▝    ~/go/src/github.com/gmofishsauce/wut4/lang                           
+                                                                                
+❯ Here is what I suggest for the "next steps" in the README file. You wrote     
+  "1.Extend spec to cover functions and calling convention".I reply, the        
+  runtime model is that R7 is the stack pointer. The stack starts at            
+  virtual 0xFFFE and grows downward. There is no frame pointer. The stack       
+  pointer(SP) does not change during functional execution (modern concepts      
+  like salloc() are not allowed) so SP it can be used reliably to access        
+  local variables and function arguments at fixed offsets.Keeping in mind       
+  that this machine has split I and D spaces, static data begins at zero in     
+  the data space and is allocated at increasing addresses. The end of the       
+  allocated static to the space is called the break. Code begins at zero in     
+  the virtual code space and fills increasing addresses  as it is               
+  generated. This model is very similar or identical to early UNIX. Unlike      
+  early UNIX, function call arguments are past in registers. The first          
+  argument is in R1 the second in R2 and the third in R3.Additional             
+  arguments if any are passed on the stack. Function return values are in       
+  R1. The language is intended to allow only 16 bit arguments and function      
+  return values. R1, R2, and R3 Must be saved by the caller if they need to     
+  be preserved. R4, R5, and R mMust be saved by the called function if          
+  they are to be changed.Let me know if this answers your question about        
+  calling conventions which I interpreted to be about the entire runtime        
+  model. I will address your second next step, "Define inter-pass file          
+  formats" after you are satisfied with this one.                               
+                                                                                
+⏺ Let me read the current README to understand its structure and then update it 
+  with your runtime model and calling conventions.                              
+                                                                                
+⏺ Read(README.md)                                                               
+  ⎿  Read 152 lines                                                             
+                                                                                
+⏺ This is excellent information. Your runtime model is clear and follows the    
+  classic early UNIX conventions nicely. Let me update the README with a new    
+  section for the runtime model and calling conventions, and update the relevant
+   sections.                                                                    
+                                                                                
+⏺ Update(README.md)                                                             
+  ⎿  Added 52 lines, removed 3 lines                                            
+       92                                                                       
+       93  ### Not Yet Specified                                                
+       94                                                                       
+       95 -- Function definitions and calls                                     
+       96 -- Return statements                                                  
+       97 -- Calling convention (stack frames, argument passing)                
+       95 +- Function definitions and calls (syntax)                            
+       96 +- Return statements (syntax)                                         
+       97  - Module/import system                                               
+       98                                                                       
+       99 +## Runtime Model and Calling Convention                              
+      100 +                                                                     
+      101 +The runtime model follows early UNIX conventions, adapted for        
+          +WUT-4's Harvard architecture.                                        
+      102 +                                                                     
+      103 +### Memory Layout                                                    
+      104 +                                                                     
+      105 +**Code Space (I-space):**                                            
+      106 +- Code begins at address 0 and fills increasing addresses as i       
+          +t is generated                                                       
+      107 +                                                                     
+      108 +**Data Space (D-space):**                                            
+      109 +- Static data begins at address 0 and is allocated at increasi       
+          +ng addresses                                                         
+      110 +- The end of allocated static data is called "the break"             
+      111 +- Stack starts at 0xFFFE and grows downward toward the break         
+      112 +                                                                     
+      113 +### Registers                                                        
+      114 +                                                                     
+      115 +| Register | Purpose |                                               
+      116 +|----------|---------|                                               
+      117 +| R0 | Hardwired to zero |                                           
+      118 +| R1 | Argument 1 / Return value |                                   
+      119 +| R2 | Argument 2 |                                                  
+      120 +| R3 | Argument 3 |                                                  
+      121 +| R4 | Callee-saved |                                                
+      122 +| R5 | Callee-saved |                                                
+      123 +| R6 | Callee-saved |                                                
+      124 +| R7 | Stack Pointer (SP) |                                          
+      125 +                                                                     
+      126 +### Calling Convention                                               
+      127 +                                                                     
+      128 +**Argument Passing:**                                                
+      129 +- First three arguments passed in R1, R2, R3                         
+      130 +- Additional arguments (if any) passed on the stack                  
+      131 +- Only 16-bit arguments are allowed                                  
+      132 +                                                                     
+      133 +**Return Values:**                                                   
+      134 +- Return value in R1                                                 
+      135 +- Only 16-bit return values are allowed                              
+      136 +                                                                     
+      137 +**Register Preservation:**                                           
+      138 +- **Caller-saved:** R1, R2, R3 (caller must save if values nee       
+          +ded after call)                                                      
+      139 +- **Callee-saved:** R4, R5, R6 (callee must save before use an       
+          +d restore before return)                                             
+      140 +                                                                     
+      141 +**Stack Discipline:**                                                
+      142 +- R7 is the stack pointer                                            
+      143 +- Stack grows downward (toward lower addresses)                      
+      144 +- No frame pointer                                                   
+      145 +- SP does not change during function execution (no dynamic all       
+          +ocation like `salloc()`)                                             
+      146 +- Local variables and function arguments accessed at fixed off       
+          +sets from SP                                                         
+      147 +- This fixed-SP model simplifies code generation and debugging       
+      148 +                                                                     
+      149  ## Inter-Pass File Formats                                           
+      150                                                                       
+      151  **To Be Defined:**                                                   
+                                                                                
+⏺ Now let me update the "Next Steps" section to reflect this progress.          
+                                                                                
+⏺ Update(README.md)                                                             
+  ⎿  Added 5 lines, removed 4 lines                                             
+      182  - Project structure                                                  
+      183                                                                       
+      184  **Next Steps:**                                                      
+      185 -1. Extend spec to cover functions and calling conventions            
+      186 -2. Define inter-pass file formats                                    
+      187 -3. Implement Pass 1 (Lexer + Constant Evaluator) in Go               
+      188 -4. Build test framework for Pass 1                                   
+      185 +1. ~~Extend spec to cover functions and calling conventions~~        
+          +✓ (runtime model defined)                                            
+      186 +2. Define function syntax in language spec                           
+      187 +3. Define inter-pass file formats                                    
+      188 +4. Implement Pass 1 (Lexer + Constant Evaluator) in Go               
+      189 +5. Build test framework for Pass 1                                   
+      190                                                                       
+      191  ## Related Documentation                                             
+      192                                                                       
+                                                                                
+⏺ Let me also update the "Completed" section to reflect this milestone.         
+                                                                                
+⏺ Update(README.md)                                                             
+  ⎿  Added 1 line                                                               
+      180  - Language specification (v0.1)                                      
+      181  - Compiler architecture design                                       
+      182  - Project structure                                                  
+      183 +- Runtime model and calling convention                               
+      184                                                                       
+      185  **Next Steps:**                                                      
+      186  1. ~~Extend spec to cover functions and calling conventions~~        
+           ✓ (runtime model defined)                                            
+                                                                                
+⏺ I've updated the README with the runtime model and calling convention. Here's 
+  a summary of what I captured:                                                 
+                                                                                
+  Memory Layout:                                                                
+  - Code space (I-space): starts at 0, grows upward                             
+  - Data space (D-space): static data starts at 0, grows upward to "the break"; 
+  stack at 0xFFFE grows downward                                                
+                                                                                
+  Register Usage:                                                               
+  - R0: hardwired zero                                                          
+  - R1-R3: arguments + return value (caller-saved)                              
+  - R4-R6: callee-saved                                                         
+  - R7: stack pointer                                                           
+                                                                                
+  Calling Convention:                                                           
+  - Args 1-3 in R1, R2, R3; additional args on stack                            
+  - Return in R1                                                                
+  - 16-bit values only                                                          
+  - Fixed SP during execution (no frame pointer, no dynamic stack allocation)   
+                                                                                
+  One clarification: you wrote "R4, R5, and R mMust be saved" - I interpreted   
+  that as R4, R5, and R6 being callee-saved. Is that correct?                   
+                                                                                
+  Also, when additional arguments (4+) are passed on the stack, what's the      
+  order? Pushed left-to-right (arg4 at lowest address) or right-to-left (arg4 at
+   highest address, closer to SP)?                                              
+                                                                                
+  Ready to discuss inter-pass file formats when you are.                        
+                                                                                
+✻ Brewed for 40s                                                                
+                                                                                
+❯ Let's discuss the Lexer and its output format. I envision that this first     
+  pass, which I called the lexer pass, Will not only do pure lexical            
+  analysis by converting the source text into  a token stream, but will         
+  also recognize the presence of constant expressions, compute their            
+  result, and produce a token which is just a numeric result into the token     
+  stream. I presume that this may require some syntax analysis to exist in      
+  the lexer which may complicate it significantly. But this still seems         
+  like the best functional partition to keep each pass small enough to          
+  allow the entire compiler to function. The required syntactic analysis        
+  may be as simple as looking for = operators, I'm not sure. Note that          
+  "const" values may be initialized only from constant expressions; they        
+  may not be set at runtime from runtime expressions. But the logic will        
+  have to cover all the places that constant expressions may appear in the      
+  grammar. lexical analysis pass will also process #if, #else, #endif           
+  (conditional compile) keywords and will emit #line directives into the        
+  token stream whenever the line number changes (so there will be alot of       
+  them). The lexer will also resolve #file directives to Constant string        
+  values when #file appears as an r-value.The actual format of the token        
+  stream produced by the lexer is as follows.It is a sequence of text           
+  lines, on token per line. Each line Is broken into a sequence of fields       
+  separated by commas( which do not appear in the language). the first          
+  field is a line number or ltoken number that identifies the token. The        
+  second field is a token category. The categories are ID for identifiers,      
+  KEY for keywords, PUNCT For punctuation, including operators, and LIT for     
+  a literal values. The third field is the value of the token. This is the      
+  string identifier value for identifiers, the keywords for key values,         
+  the punctuation mark or operator for PUNCT values, and the constant value     
+  for a literals.The value of the token is followed by end of line in the       
+  token stream. In general, the comma separatorsshould be followed by a         
+  space for human readability. Let me know whether this is a sufficient         
+  format for the token stream. And whether you believe it's possible for        
+  the lexer to properly recognize the presence of constant expressions.         
+                                                                                
+⏺ This is a thoughtful design. Let me address both questions.                   
+                                                                                
+  Token Stream Format                                                           
+                                                                                
+  The format is workable but I have some clarifications needed:                 
+                                                                                
+  1. Literal type distinction: Does the LIT category need to distinguish between
+   byte, int16, uint16, and string literals? Or is everything just a numeric    
+  value at this stage (with strings being addresses/pointers)?                  
+                                                                                
+  2. String literals: How are these represented? If a string contains special   
+  characters (newlines, etc.), does the value field need escaping? Example:     
+  42, LIT, "hello\nworld"   // how encoded?                                     
+                                                                                
+  3. #line representation: Is #line a special token category, or does it appear 
+  as:                                                                           
+  17, KEY, #line                                                                
+  18, LIT, 42                                                                   
+                                                                                
+  4. Negative numbers: Is -5 one LIT token or two tokens (PUNCT -, LIT 5)? This 
+  affects constant expression evaluation.                                       
+                                                                                
+  Constant Expression Recognition                                               
+                                                                                
+  Yes, it's possible, but "looking for =" isn't quite sufficient. The lexer     
+  needs to recognize these specific contexts:                                   
+  ┌──────────────────────┬──────────────────┬──────────────────────┐            
+  │       Context        │     Trigger      │       Example        │            
+  ├──────────────────────┼──────────────────┼──────────────────────┤            
+  │ const initialization │ const ID =       │ const SIZE = 64;     │            
+  ├──────────────────────┼──────────────────┼──────────────────────┤            
+  │ array dimension      │ [ in declaration │ int16 buf[SIZE * 2]; │            
+  ├──────────────────────┼──────────────────┼──────────────────────┤            
+  │ #if condition        │ #if              │ #if DEBUG            │            
+  └──────────────────────┴──────────────────┴──────────────────────┘            
+  The complexity depends on how YAPL handles constant references. Consider:     
+                                                                                
+  const A = 5;                                                                  
+  const B = A + 3;    // lexer must know A=5 to evaluate                        
+  int16 arr[B];       // lexer must know B=8                                    
+                                                                                
+  This requires the lexer to maintain a constant symbol table - a simple map of 
+  identifier→value. When evaluating a constant expression and encountering an   
+  identifier, look it up in this table.                                         
+                                                                                
+  The expression parser within the lexer can be simple because:                 
+  - Only numeric operations (no function calls, no memory access)               
+  - Limited operators (arithmetic, bitwise, comparison for #if)                 
+  - Can use a straightforward recursive descent or shunting-yard algorithm      
+                                                                                
+  One question: Can constant expressions include the ternary operator or is it  
+  just binary/unary ops? For example:                                           
+  const X = DEBUG ? 1 : 0;   // allowed?                                        
+                                                                                
+  The architectural trade-off you've identified is correct: putting this in the 
+  lexer adds complexity there but keeps the parser and later passes simpler     
+  since they never see constant expressions, only resolved literal values.      
+                                                                                
+✻ Brewed for 39s                                                                
+                                                                                
+❯ Your questions: I think the combined answer to your questions 1, 2, and 3     
+  is that literals in the token stream should have types. This was an           
+  omission on my part. But the type system for literals is very limited.        
+  Liberals may be string or they may be numeric. Numeric liberals have a        
+  single value. In your example of -5 the "-5" is a constant expression         
+  that should be resolved by the lexical analyzer resulting in a single         
+  literal of type numeric with a value that may be represented as 0xFFFB.       
+  So the source code " var int16 x = -5" might result in a token stream         
+  like:"37, KEY, var" "38, ID, int16" "39, ID, n" "40. PUNCT, =" "41, LIT,      
+  0xFFFB". You will also know that the types are pre-declared identifiers       
+  not keywords. If this is difficult to Lex we could make them keywords. I      
+  will let you comment on that.                                                 
+                                                                                
+⏺ Good clarifications. A few responses:                                         
+                                                                                
+  Types as Keywords vs Identifiers                                              
+                                                                                
+  Making types (int16, uint16, byte, etc.) keywords would simplify things:      
+                                                                                
+  As keywords:                                                                  
+  38, KEY, int16                                                                
+  - Lexer recognizes them directly                                              
+  - Parser immediately knows it's a type                                        
+  - No symbol table lookup needed in parser                                     
+                                                                                
+  As predeclared identifiers:                                                   
+  38, ID, int16                                                                 
+  - Parser must consult symbol table to know int16 is a type                    
+  - Adds complexity to parser                                                   
+  - Symbol table must be initialized with predeclared types                     
+                                                                                
+  For a small self-hosting compiler, I'd recommend making types keywords. The   
+  set of types is fixed and small (byte, int16, uint16, pointer types). There's 
+  no practical benefit to them being redefinable identifiers.                   
+                                                                                
+  Literal Type Distinction                                                      
+                                                                                
+  You said literals are string or numeric. How should the token stream          
+  distinguish them? Options:                                                    
+                                                                                
+  Option A: Subcategory in value field                                          
+  41, LIT, NUM:0xFFFB                                                           
+  42, LIT, STR:"hello"                                                          
+                                                                                
+  Option B: Separate categories                                                 
+  41, NLIT, 0xFFFB                                                              
+  42, SLIT, "hello"                                                             
+                                                                                
+  Option C: Infer from value format                                             
+  41, LIT, 0xFFFB      // numeric (no quotes)                                   
+  42, LIT, "hello"     // string (has quotes)                                   
+                                                                                
+  Option C is simplest if string escaping is well-defined.                      
+                                                                                
+  Constant Expression Folding Confirmed                                         
+                                                                                
+  So in var int16 x = -5:                                                       
+  - The lexer sees -5 as a constant expression                                  
+  - Evaluates it to 0xFFFB (two's complement)                                   
+  - Emits single LIT, 0xFFFB token                                              
+                                                                                
+  This means the lexer needs to recognize that after = in a variable            
+  initialization, if what follows is a constant expression (literals and        
+  operators only, no identifiers except const names), it should fold it. If it  
+  contains runtime identifiers, emit the tokens as-is for the parser.           
+                                                                                
+  Minor note: your example showed 39, ID, n but the variable was x - I assume   
+  that was a typo?                                                              
+                                                                                
+❯ for your last question I am happy to say that the ternary operator is not     
+  in the language so you don't need to worry about that possibility.            
+                                                                                
+⏺ Good - that simplifies the constant expression evaluator. No conditional      
+  logic, just arithmetic, bitwise, and comparison operators.                    
+                                                                                
+  So to summarize the lexer design so far:                                      
+                                                                                
+  Token format: line#, CATEGORY, value                                          
+                                                                                
+  Categories:                                                                   
+  - KEY - keywords (including types: int16, uint16, byte, etc.)                 
+  - ID - identifiers                                                            
+  - PUNCT - punctuation and operators                                           
+  - LIT - literals (string vs numeric inferred from quotes)                     
+                                                                                
+  Lexer responsibilities:                                                       
+  1. Tokenize source text                                                       
+  2. Maintain constant symbol table (for const declarations)                    
+  3. Fold constant expressions → emit single LIT token                          
+  4. Process #if/#else/#endif (conditional compilation)                         
+  5. Emit #line directives when line numbers change                             
+  6. Resolve #file to string literal when used as r-value                       
+                                                                                
+  Constant expression contexts:                                                 
+  - After const ID =                                                            
+  - Inside array dimension [...]                                                
+  - After #if                                                                   
+                                                                                
+  Constant expression operators: arithmetic, bitwise, comparison (no ternary)   
+                                                                                
+  Do you want me to update the README with this lexer specification, or shall we
+   continue refining? I still have the open questions about:                    
+  1. Types as keywords (recommended) vs predeclared identifiers                 
+  2. How to distinguish string vs numeric literals in the format                
+                                                                                
+❯ Let's go ahead and make the type names keywords.  In the token stream you     
+  can go ahead and represent strings using double quotes. Just as they          
+  appeared in the source code.Because if the programmer wanted to embed a       
+  double quote in a string, they had to take care of escaping itin the          
+  original source code.                                                         
+                                                                                
+⏺ Good decisions. Let me update the README with the lexer specification.        
+                                                                                
+⏺ Read(README.md)                                                               
+  ⎿  Read 203 lines                                                             
+                                                                                
+❯ Let me know if this answers your questions                                    
+                                                                                
+⏺ Update(README.md)                                                             
+  ⎿  Added 86 lines, removed 5 lines                                            
+      148                                                                       
+      149  ## Inter-Pass File Formats                                           
+      150                                                                       
+      151 -**To Be Defined:**                                                   
+      152 -- Token stream format (binary? text? s-expressions?)                 
+      153 -- AST representation                                                 
+      154 -- Symbol table format                                                
+      155 -- IR format                                                          
+      151 +### Pass 1 Output: Token Stream (.tok)                               
+      152                                                                       
+      153 +The token stream is a human-readable text file with one token        
+          +per line.                                                            
+      154 +                                                                     
+      155 +**Format:** `line#, CATEGORY, value`                                 
+      156 +                                                                     
+      157 +Fields are comma-separated (commas do not appear in the YAPL l       
+          +anguage). A space after each comma is recommended for readabil       
+          +ity.                                                                 
+      158 +                                                                     
+      159 +**Token Categories:**                                                
+      160 +                                                                     
+      161 +| Category | Description | Value |                                   
+      162 +|----------|-------------|-------|                                   
+      163 +| `KEY` | Keywords (including type names) | The keyword itself       
+          + |                                                                   
+      164 +| `ID` | Identifiers | The identifier string |                       
+      165 +| `PUNCT` | Punctuation and operators | The operator or punctu       
+          +ation mark |                                                         
+      166 +| `LIT` | Literals | Numeric (hex) or string (in double quotes       
+          +) |                                                                  
+      167 +                                                                     
+      168 +**Keywords:**                                                        
+      169 +                                                                     
+      170 +Control flow: `if`, `else`, `while`, `return`, `break`, `conti       
+          +nue`                                                                 
+      171 +                                                                     
+      172 +Declarations: `var`, `const`, `func`, `struct`                       
+      173 +                                                                     
+      174 +Types: `byte`, `int16`, `uint16`, `block32`, `block64`               
+      175 +                                                                     
+      176 +Directives: `#line` (emitted into token stream when source lin       
+          +e changes)                                                           
+      177 +                                                                     
+      178 +**Example:**                                                         
+      179 +                                                                     
+      180 +Source:                                                              
+      181 +```                                                                  
+      182 +const SIZE = 64;                                                     
+      183 +var int16 buf[SIZE * 2];                                             
+      184 +```                                                                  
+      185 +                                                                     
+      186 +Token stream:                                                        
+      187 +```                                                                  
+      188 +1, KEY, const                                                        
+      189 +1, ID, SIZE                                                          
+      190 +1, PUNCT, =                                                          
+      191 +1, LIT, 0x0040                                                       
+      192 +1, PUNCT, ;                                                          
+      193 +2, KEY, var                                                          
+      194 +2, KEY, int16                                                        
+      195 +2, ID, buf                                                           
+      196 +2, PUNCT, [                                                          
+      197 +2, LIT, 0x0080                                                       
+      198 +2, PUNCT, ]                                                          
+      199 +2, PUNCT, ;                                                          
+      200 +```                                                                  
+      201 +                                                                     
+      202 +Note: `SIZE * 2` is folded to `0x0080` (128) by the lexer.           
+      203 +                                                                     
+      204 +**Literal Representation:**                                          
+      205 +- Numeric literals: hexadecimal (e.g., `0x0040`, `0xFFFB` for        
+          +-5)                                                                  
+      206 +- String literals: double-quoted, as in source (e.g., `"hello\       
+          +n"`)                                                                 
+      207 +                                                                     
+      208 +### Lexer Responsibilities                                           
+      209 +                                                                     
+      210 +1. **Tokenization** - convert source text to token stream            
+      211 +2. **Constant symbol table** - track `const` declarations for        
+          +folding                                                              
+      212 +3. **Constant expression folding** - evaluate and emit single        
+          +`LIT` token                                                          
+      213 +4. **Conditional compilation** - process `#if`/`#else`/`#endif       
+          +`                                                                    
+      214 +5. **Line tracking** - emit `#line` directives when line numbe       
+          +r changes                                                            
+      215 +6. **File directive** - resolve `#file` to string literal when       
+          + used as r-value                                                     
+      216 +                                                                     
+      217 +**Constant Expression Contexts:**                                    
+      218 +- After `const <identifier> =`                                       
+      219 +- Inside array dimension brackets `[...]`                            
+      220 +- After `#if`                                                        
+      221 +                                                                     
+      222 +**Constant Expression Operators:**                                   
+      223 +- Arithmetic: `+`, `-`, `*`, `/`, `%`                                
+      224 +- Bitwise: `&`, `|`, `^`, `~`, `<<`, `>>`                            
+      225 +- Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=` (for `#if`)           
+      226 +- Unary: `-`, `~`, `!`                                               
+      227 +                                                                     
+      228 +(No ternary operator)                                                
+      229 +                                                                     
+      230 +### Pass 2 Output: AST + Symbol Table                                
+      231 +                                                                     
+      232 +**To Be Defined**                                                    
+      233 +                                                                     
+      234 +### Pass 3 Output: IR                                                
+      235 +                                                                     
+      236 +**To Be Defined**                                                    
+      237 +                                                                     
+      238  ## Bootstrap Strategy                                                
+      239                                                                       
+      240  1. **Phase 1**: Write compiler in Go (leverage existing Go too       
+           lchain)                                                              
+                                                                                
+⏺ Now let me update the status section to reflect this progress.                
+                                                                                
+⏺ Update(README.md)                                                             
+  ⎿  Added 4 lines, removed 3 lines                                             
+      262  - Compiler architecture design                                       
+      263  - Project structure                                                  
+      264  - Runtime model and calling convention                               
+      265 +- Pass 1 token stream format                                         
+      266                                                                       
+      267  **Next Steps:**                                                      
+      267 -1. ~~Extend spec to cover functions and calling conventions~~        
+          -✓ (runtime model defined)                                            
+      268 -2. Define function syntax in language spec                           
+      269 -3. Define inter-pass file formats                                    
+      268 +1. Define function syntax in language spec                           
+      269 +2. Define Pass 2 output format (AST + symbol table)                  
+      270 +3. Define Pass 3 output format (IR)                                  
+      271  4. Implement Pass 1 (Lexer + Constant Evaluator) in Go               
+      272  5. Build test framework for Pass 1                                   
+      273                                                                       
+                                                                                
+⏺ Done. The README now includes the complete lexer/token stream specification.  
+                                                                                
+  Summary of what's documented:                                                 
+                                                                                
+  - Token format: line#, CATEGORY, value                                        
+  - Four categories: KEY, ID, PUNCT, LIT                                        
+  - Type names are keywords                                                     
+  - Numeric literals in hex, strings in double quotes as-is from source         
+  - Complete list of lexer responsibilities                                     
+  - Constant expression contexts and operators                                  
+  - Worked example showing constant folding                                     
+                                                                                
+  One thing I realized while writing this: The #line directive in the token     
+  stream - how should it appear? I showed it as a keyword, but it's metadata    
+  about the following tokens. Should it be:                                     
+                                                                                
+  5, KEY, #line                                                                 
+  5, LIT, 0x000A                                                                
+                                                                                
+  Or a special format like:                                                     
+  #line 10                                                                      
+                                                                                
+  The latter is simpler but breaks the one-token-per-line format. The former    
+  treats #line as a keyword followed by a line number literal, which the parser 
+  would need to handle specially.                                               
+                                                                                
+  What's your preference?                                                       
+                                                                                
+✻ Cogitated for 40s                                                             
+                                                                                
+❯ Right, I forgot about this question too. I think #line is special. It         
+  should appear as "#line 10" in the token stream. Note that the  #file         
+  keyword must be similarly handled: the token stream should contain "file      
+  whatever.yapl" before the first token So that the parser can include the      
+  file name in error messages later.                                            
+                                                                                
+⏺ That makes sense - they're metadata directives, not tokens to be parsed. Let  
+  me update the README to clarify this.                                         
+                                                                                
+⏺ Update(README.md)                                                             
+  ⎿  Added 9 lines                                                              
+      156                                                                       
+      157  Fields are comma-separated (commas do not appear in the YAPL l       
+           anguage). A space after each comma is recommended for readabil       
+           ity.                                                                 
+      158                                                                       
+      159 +**Special Directives:**                                              
+      160 +                                                                     
+      161 +Two directives appear in the token stream as metadata (not as        
+          +regular tokens):                                                     
+      162 +                                                                     
+      163 +- `#file <filename>` - appears before the first token; identif       
+          +ies source file for error messages                                   
+      164 +- `#line <number>` - appears when source line number changes;        
+          +applies to subsequent tokens                                         
+      165 +                                                                     
+      166 +These do not follow the `line#, CATEGORY, value` format.             
+      167 +                                                                     
+      168  **Token Categories:**                                                
+      169                                                                       
+      170  | Category | Description | Value |                                   
+                                                                                
+⏺ Let me also update the example to show these directives, and fix the keywords 
+  list.                                                                         
+                                                                                
+⏺ Update(README.md)                                                             
+  ⎿  Removed 2 lines                                                            
+      182                                                                       
+      183  Types: `byte`, `int16`, `uint16`, `block32`, `block64`               
+      184                                                                       
+      185 -Directives: `#line` (emitted into token stream when source lin       
+          -e changes)                                                           
+      186 -                                                                     
+      185  **Example:**                                                         
+      186                                                                       
+      187  Source:                                                              
+                                                                                
+⏺ Update(README.md)                                                             
+  ⎿  Added 4 lines, removed 1 line                                              
+      184                                                                       
+      185  **Example:**                                                         
+      186                                                                       
+      187 -Source:                                                              
+      187 +Source (file `example.yapl`):                                        
+      188  ```                                                                  
+      189  const SIZE = 64;                                                     
+      190  var int16 buf[SIZE * 2];                                             
+     ...                                                                        
+      192                                                                       
+      193  Token stream:                                                        
+      194  ```                                                                  
+      195 +#file example.yapl                                                   
+      196 +#line 1                                                              
+      197  1, KEY, const                                                        
+      198  1, ID, SIZE                                                          
+      199  1, PUNCT, =                                                          
+      200  1, LIT, 0x0040                                                       
+      201  1, PUNCT, ;                                                          
+      202 +#line 2                                                              
+      203  2, KEY, var                                                          
+      204  2, KEY, int16                                                        
+      205  2, ID, buf                                                           
+                                                                                
+⏺ Update(README.md)                                                             
+  ⎿  Added 4 lines, removed 3 lines                                             
+      220  1. **Tokenization** - convert source text to token stream            
+      221  2. **Constant symbol table** - track `const` declarations for        
+           folding                                                              
+      222  3. **Constant expression folding** - evaluate and emit single        
+           `LIT` token                                                          
+      223 -4. **Conditional compilation** - process `#if`/`#else`/`#endif       
+          -`                                                                    
+      224 -5. **Line tracking** - emit `#line` directives when line numbe       
+          -r changes                                                            
+      225 -6. **File directive** - resolve `#file` to string literal when       
+          - used as r-value                                                     
+      223 +4. **Conditional compilation** - process `#if`/`#else`/`#endif       
+          +` (exclude/include code)                                             
+      224 +5. **File tracking** - emit `#file <filename>` before first to       
+          +ken                                                                  
+      225 +6. **Line tracking** - emit `#line <number>` when source line        
+          +changes                                                              
+      226 +7. **File as r-value** - resolve `#file` in expressions to str       
+          +ing literal of filename                                              
+      227                                                                       
+      228  **Constant Expression Contexts:**                                    
+      229  - After `const <identifier> =`                                       
+                                                                                
+⏺ Done. The token stream format now properly documents #file and #line as       
+  special metadata directives outside the normal token format.                  
+                                                                                
+  Quick observation: Looking at the example, since every token already has a    
+  line number in the first field (1, KEY, const), the #line directives are      
+  somewhat redundant. They could be useful if:                                  
+                                                                                
+  1. You want to optimize by only emitting #line when it changes (not every     
+  token)                                                                        
+  2. The parser only reads the #line directives and ignores the per-token line  
+  numbers                                                                       
+                                                                                
+  Which approach do you prefer? Options:                                        
+                                                                                
+  A. Keep both - #line directives + line number in each token (redundant but    
+  robust)                                                                       
+                                                                                
+  B. Remove per-token line numbers - rely solely on #line directives:           
+  #file example.yapl                                                            
+  #line 1                                                                       
+  KEY, const                                                                    
+  ID, SIZE                                                                      
+  PUNCT, =                                                                      
+  LIT, 0x0040                                                                   
+  PUNCT, ;                                                                      
+  #line 2                                                                       
+  KEY, var                                                                      
+  ...                                                                           
+                                                                                
+  Option B makes tokens shorter and the #line directives meaningful. The parser 
+  tracks "current line" by watching for #line directives.                       
+                                                                                
+✻ Worked for 35s                                                                
+                                                                                
+❯ No, the token numbers Should increment sequentially for every token. They     
+  are not line numbers. They exist for debugging purposes so that it is         
+  possible to refer to a specific token by its identifying number. We           
+  should keep both the line numbering with #line directive in the token         
+  stream and the sequential token numbering that identifies the tokens.         
+                                                                                
+⏺ Ah, that makes much more sense! The first field is a sequential token ID for  
+  debugging, not the source line number. Let me fix the documentation.          
+                                                                                
+⏺ Update(README.md)                                                             
+  ⎿  Added 3 lines, removed 1 line                                              
+      152                                                                       
+      153  The token stream is a human-readable text file with one token        
+           per line.                                                            
+      154                                                                       
+      155 -**Format:** `line#, CATEGORY, value`                                 
+      155 +**Format:** `token#, CATEGORY, value`                                
+      156                                                                       
+      157  Fields are comma-separated (commas do not appear in the YAPL l       
+           anguage). A space after each comma is recommended for readabil       
+           ity.                                                                 
+      158                                                                       
+      159 +The token number is a sequential identifier (1, 2, 3, ...) for       
+          + debugging purposes, allowing specific tokens to be referenced       
+          + by number. It is *not* the source line number—source lines ar       
+          +e tracked separately via `#line` directives.                         
+      160 +                                                                     
+      161  **Special Directives:**                                              
+      162                                                                       
+      163  Two directives appear in the token stream as metadata (not as        
+           regular tokens):                                                     
+                                                                                
+⏺ Update(README.md)                                                             
+  ⎿  Added 11 lines, removed 11 lines                                           
+      197  #file example.yapl                                                   
+      198  #line 1                                                              
+      199  1, KEY, const                                                        
+      200 -1, ID, SIZE                                                          
+      201 -1, PUNCT, =                                                          
+      202 -1, LIT, 0x0040                                                       
+      203 -1, PUNCT, ;                                                          
+      200 +2, ID, SIZE                                                          
+      201 +3, PUNCT, =                                                          
+      202 +4, LIT, 0x0040                                                       
+      203 +5, PUNCT, ;                                                          
+      204  #line 2                                                              
+      205 -2, KEY, var                                                          
+      206 -2, KEY, int16                                                        
+      207 -2, ID, buf                                                           
+      208 -2, PUNCT, [                                                          
+      209 -2, LIT, 0x0080                                                       
+      210 -2, PUNCT, ]                                                          
+      211 -2, PUNCT, ;                                                          
+      205 +6, KEY, var                                                          
+      206 +7, KEY, int16                                                        
+      207 +8, ID, buf                                                           
+      208 +9, PUNCT, [                                                          
+      209 +10, LIT, 0x0080                                                      
+      210 +11, PUNCT, ]                                                         
+      211 +12, PUNCT, ;                                                         
+      212  ```                                                                  
+      213                                                                       
+      214  Note: `SIZE * 2` is folded to `0x0080` (128) by the lexer.           
+                                                                                
+⏺ Update(README.md)                                                             
+  ⎿  Added 8 lines                                                              
+      169                                                                       
+      170  **Token Categories:**                                                
+      171                                                                       
+      172 +| Field | Description |                                              
+      173 +|-------|-------------|                                              
+      174 +| `token#` | Sequential token identifier (1, 2, 3, ...) for de       
+          +bugging |                                                            
+      175 +| `CATEGORY` | One of: `KEY`, `ID`, `PUNCT`, `LIT` |                 
+      176 +| `value` | Token value (see below) |                                
+      177 +                                                                     
+      178 +**Token Categories:**                                                
+      179 +                                                                     
+      180  | Category | Description | Value |                                   
+      181  |----------|-------------|-------|                                   
+      182  | `KEY` | Keywords (including type names) | The keyword itself       
+            |                                                                   
+                                                                                
+⏺ Let me fix the duplicate header.                                              
+                                                                                
+⏺ Update(README.md)                                                             
+  ⎿  Added 2 lines, removed 2 lines                                             
+      167                                                                       
+      168  These do not follow the `line#, CATEGORY, value` format.             
+      169                                                                       
+      170 -**Token Categories:**                                                
+      170 +**Token Fields:**                                                    
+      171                                                                       
+      172  | Field | Description |                                              
+      173  |-------|-------------|                                              
+     ...                                                                        
+      175  | `CATEGORY` | One of: `KEY`, `ID`, `PUNCT`, `LIT` |                 
+      176  | `value` | Token value (see below) |                                
+      177                                                                       
+      178 -**Token Categories:**                                                
+      178 +**Categories:**                                                      
+      179                                                                       
+      180  | Category | Description | Value |                                   
+      181  |----------|-------------|-------|                                   
+                                                                                
+⏺ Update(README.md)                                                             
+  ⎿  Added 1 line, removed 1 line                                               
+      165  - `#file <filename>` - appears before the first token; identif       
+           ies source file for error messages                                   
+      166  - `#line <number>` - appears when source line number changes;        
+           applies to subsequent tokens                                         
+      167                                                                       
+      168 -These do not follow the `line#, CATEGORY, value` format.             
+      168 +These do not follow the `token#, CATEGORY, value` format.            
+      169                                                                       
+      170  **Token Fields:**                                                    
+      171                                                                       
+                                                                                
+⏺ Fixed. The documentation now correctly shows:                                 
+                                                                                
+  - Token numbers (1, 2, 3, ...) - sequential identifiers for debugging,        
+  allowing you to say "look at token 37"                                        
+  - #line directives - track source line numbers separately for error messages  
+                                                                                
+  So when the parser encounters an error at token 10, it can report "error at   
+  token 10 (line 2 of example.yapl)" by tracking the most recent #line and #file
+   directives.                                                                  
+                                                                                
+  Ready to discuss Pass 2 (AST + symbol table format) when you want to move on, 
+  or if you have more refinements for the lexer spec.                           
+                                                                                
+✻ Brewed for 40s                                                                
+                                                                                
+────────────────────────────────────────────────────────────────────────────────
+❯ let's discuss the AST format                                           ↵ send 
+────────────────────────────────────────────────────────────────────────────────
+  1 file +166 -12                                                               
+

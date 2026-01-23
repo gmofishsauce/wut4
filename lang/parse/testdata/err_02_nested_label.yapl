@@ -1,0 +1,13 @@
+// Error test 02: Label inside nested block (should error)
+
+func void Bad() {
+    var int16 x;
+
+    x = 0;
+    while (x < 10) {
+    inner:              // ERROR: labels only at function level
+        x = x + 1;
+    }
+
+    return;
+}

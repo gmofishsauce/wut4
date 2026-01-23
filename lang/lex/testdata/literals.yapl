@@ -1,0 +1,9 @@
+// Literal types test
+const DEC = 255;
+const HEX = 0xFF;
+const BIN = 0b11111111;
+const OCT = 0o377;
+const CHAR = 'A';
+const NEWLINE = '\n';
+const HEXESC = '\x41';
+var byte str[16];

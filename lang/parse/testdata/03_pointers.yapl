@@ -1,0 +1,46 @@
+// Test 03: Pointers and dereferencing
+
+var int16 g_value;
+var @int16 g_ptr;
+
+func void TestPointers() {
+    var int16 x;
+    var @int16 p;
+
+    x = 42;
+    p = &x;
+    @p = 100;
+
+    g_ptr = &g_value;
+    @g_ptr = 200;
+
+    return;
+}
+
+func void Swap(@int16 a, @int16 b) {
+    var int16 temp;
+
+    temp = @a;
+    @a = @b;
+    @b = temp;
+
+    return;
+}
+
+func @int16 ReturnPtr(@int16 p) {
+    return p;
+}
+
+// Pointer to pointer
+func void TestPtrPtr() {
+    var int16 x;
+    var @int16 p;
+    var @@int16 pp;
+
+    x = 10;
+    p = &x;
+    pp = &p;
+    @@pp = 20;
+
+    return;
+}

@@ -1,0 +1,23 @@
+#file conditionals.yapl
+#line 2
+1, KEY, const
+2, ID, DEBUG
+3, PUNCT, =
+4, LIT, 0x0001
+5, PUNCT, ;
+#line 3
+6, KEY, const
+7, ID, RELEASE
+8, PUNCT, =
+9, LIT, 0x0000
+10, PUNCT, ;
+#line 6
+11, KEY, var
+12, KEY, int16
+13, ID, debugCounter
+14, PUNCT, ;
+#line 12
+15, KEY, var
+16, KEY, int16
+17, ID, notRelease
+18, PUNCT, ;

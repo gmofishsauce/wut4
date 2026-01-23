@@ -1,0 +1,2363 @@
+                                                                                
+▗ ▗   ▖ ▖  Claude Code v2.1.15                                                  
+           Opus 4.5 · Claude Pro                                                
+  ▘▘ ▝▝    ~/go/src/github.com/gmofishsauce/wut4/lang                           
+                                                                                
+❯ Hi Claude thank you for writing the lexical analyzer. Now I'm thinking        
+  about the parser and semantic passes and their output.  I have been           
+  looking at the open source LCC compiler. it builds semantic analysis into     
+  the parse, and has the parser produceAbstract syntax treesIn which all        
+  the types match or at least all the conversions are specified explicitly.     
+  YA                                                                            
+  ⎿  Interrupted · What should Claude do instead?                               
+                                                                                
+❯ Sorry I hit enter before I meant to.                                          
+                                                                                
+⏺ No problem, go ahead and continue when you're ready.                          
+                                                                                
+❯ Hi Claude thank you for writing the lexical analyzer. Now I'm thinking        
+  about the parser and semantic passes and their output.  I have been           
+  looking at the open source LCC compiler. it builds semantic analysis into     
+  the parse, and has the parser produce  Abstract syntax treesIn which all      
+  the types match or at least all the conversions are specified                 
+  explicitly. Of course my language has no implicit conversions so part of      
+  this process is trivialized.I think this is a good model for my memory        
+  constrained compiler. Using something modern like static single               
+  assignment seems impossible given my memory constraints. But I'm              
+  wondering if my parsing pass should just produce parse trees without tape     
+  checking. These would be the output of the parse pass and then  the           
+  semantic pass could process these parse trees into type-hecked abstract       
+  syntax trees internally and then into an ordered list of directed acyclic     
+  graphs (DAGS). These would be the output of the semantic pass and would       
+  be consumed by the code generator pass to generate actual assembly            
+  language.I can see that one issue with this design might be error             
+  reporting. It gets harder and harder to do good error reporting as you        
+  move from the initial processing of the source code to the deep data          
+  structures that represent the structure of the program. What do you think     
+  about the exact partitioning of the later passes of the compiler?             
+                                                                                
+⏺ This is a great architectural question. Let me share some thoughts, and I'd   
+  also like to review what we have so far to give more concrete advice.         
+                                                                                
+  On the LCC model (combined parse + semantic):                                 
+                                                                                
+  The LCC approach is memory-efficient precisely because it avoids materializing
+   a full parse tree. The parser builds AST nodes directly, type-checking as it 
+  goes. For a memory-constrained system, this is attractive because you never   
+  hold two representations simultaneously.                                      
+                                                                                
+  On your proposed separation:                                                  
+                                                                                
+  The risk with producing untyped parse trees first is that you're doubling your
+   memory footprint during the transition - you need the parse tree in memory   
+  while building the AST from it. Unless you can process and discard parse tree 
+  nodes incrementally (essentially streaming), you lose the memory advantage.   
+                                                                                
+  On error reporting:                                                           
+                                                                                
+  The key is carrying source location (line, column) on every node in every     
+  representation - AST nodes, DAG nodes, everything. This is cheap (two integers
+   per node) and lets you report meaningful errors even deep in semantic        
+  analysis. LCC does this well.                                                 
+                                                                                
+  A middle path to consider:                                                    
+                                                                                
+  1. Parser produces AST directly (no separate parse tree), with source         
+  locations on each node                                                        
+  2. Type checking happens during or immediately after parsing (while source    
+  context is fresh)                                                             
+  3. AST is then lowered to DAGs one function/block at a time for code          
+  generation                                                                    
+  4. Each function's AST can be discarded after its DAGs are generated          
+                                                                                
+  This way you never hold more than one function's worth of structure at a time.
+                                                                                
+  Would you like me to look at the grammar and lexer to sketch out what AST node
+   types you'd need? That might make this discussion more concrete.             
+                                                                                
+❯ Before we do that is it correct to say that there is one directed acyclic     
+  graph for each basic block? This is something I have been wondering           
+  about.                                                                        
+                                                                                
+⏺ Yes, that's the traditional model. One DAG per basic block.                   
+                                                                                
+  A basic block is a maximal sequence of instructions with:                     
+  - Single entry (no jumps into the middle)                                     
+  - Single exit (control only leaves at the end)                                
+                                                                                
+  Within a basic block, the DAG captures:                                       
+  - All computations as nodes                                                   
+  - Data dependencies as edges                                                  
+  - Common subexpressions as shared nodes (two uses of a + b point to the same  
+  node)                                                                         
+                                                                                
+  The DAG doesn't represent control flow - it represents data flow within       
+  straight-line code.                                                           
+                                                                                
+  At the function level, you typically have a Control Flow Graph (CFG) where:   
+  - Each node is a basic block (containing a DAG)                               
+  - Edges represent branches/jumps between blocks                               
+                                                                                
+  So the structure is hierarchical:                                             
+  Function                                                                      
+    └── CFG (control flow)                                                      
+          ├── Basic Block 1 → DAG 1                                             
+          ├── Basic Block 2 → DAG 2                                             
+          └── Basic Block 3 → DAG 3                                             
+                                                                                
+  For your memory-constrained compiler, this is good news: you can process one  
+  basic block at a time. Build the DAG, generate code for it, discard it, move  
+  to the next block. You never need the entire function's DAGs in memory        
+  simultaneously - just the CFG structure (which is small) and one DAG at a     
+  time.                                                                         
+                                                                                
+  Does this match your understanding? And does YAPL have control flow constructs
+   that would create multiple basic blocks (if/else, loops)?                    
+                                                                                
+❯ yes and yes                                                                   
+                                                                                
+⏺ Good. So the architecture becomes:                                            
+                                                                                
+  1. Lexer → tokens (done)                                                      
+  2. Parser + type checking → typed AST with source locations                   
+  3. Lowering → CFG of basic blocks, each containing a DAG                      
+  4. Code generator → processes one block's DAG at a time → assembly            
+                                                                                
+  The CFG just needs to track block labels and edges (small). The expensive DAG 
+  structures are transient - built and discarded per block.                     
+                                                                                
+  What would you like to tackle next? Some options:                             
+                                                                                
+  - Review the grammar and sketch out AST node types                            
+  - Think through how basic block boundaries are identified during lowering (at 
+  branches, after branches, at labels, etc.)                                    
+  - Look at what a DAG node needs to contain for your target architecture       
+                                                                                
+❯ yes, let's Review the grammar and sketch out AST node types                   
+                                                                                
+⏺ Let me look at the grammar and any existing code.                             
+                                                                                
+⏺ Search(pattern: "**/*.{md,txt,go,y,yacc}")                                    
+  ⎿  Found 2 files (ctrl+o to expand)                                           
+                                                                                
+⏺ Read(README.md)                                                               
+  ⎿  Read 306 lines                                                             
+                                                                                
+⏺ Read(lex/lexer.go)                                                            
+  ⎿  Read 1074 lines                                                            
+                                                                                
+⏺ Good, I have the README and lexer. Let me also fetch the language spec to get 
+  the full grammar.                                                             
+                                                                                
+⏺ Fetch(https://docs.google.com/document/d/1hgsayGjZJc6WUVjSEsPRWVxPeXkVFLKpRCx5
+       jc5hrx8/export?format=txt)                                               
+  ⎿  Received 909 bytes (307 Temporary Redirect)                                
+                                                                                
+⏺ Fetch(https://doc-08-a4-docstext.googleusercontent.com/export/e6hpso97lrhpva19
+       l3uocm525o/qsa80sbs0tesrd6upqd1qbqvro/1769107860000/109338571899429953163
+       /*/1hgsayGjZJc6WUVjSEsPRWVxPeXkVFLKpRCx5jc5hrx8?format=txt)              
+  ⎿  Interrupted · What should Claude do instead?                               
+                                                                                
+❯ Instead, read yapl_grammar.ebnf, YAPL.pdf, and README.md in                   
+  /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang                          
+                                                                                
+⏺ Read(yapl_grammar.ebnf)                                                       
+  ⎿  Read 307 lines                                                             
+                                                                                
+⏺ Read(YAPL.pdf)                                                                
+  ⎿  Read PDF (358.4KB)                                                         
+                                                                                
+⏺ Now I have everything. Let me sketch out the AST node types based on the      
+  grammar.                                                                      
+                                                                                
+  AST Node Types for YAPL                                                       
+                                                                                
+  Core Design Principles                                                        
+                                                                                
+  Every node carries:                                                           
+  - Source location (line, column) for error reporting                          
+  - Type information (filled during semantic analysis)                          
+                                                                                
+  Type Representation                                                           
+                                                                                
+  Type:                                                                         
+      kind: TypeKind  // BASE, POINTER, ARRAY, STRUCT, VOID                     
+      base: BaseType  // for BASE kind: UINT8, INT16, UINT16, BLOCK32, BLOCK64, 
+  BLOCK128                                                                      
+      pointee: *Type  // for POINTER kind                                       
+      elemType: *Type // for ARRAY kind                                         
+      arrayLen: int   // for ARRAY kind (from const expr)                       
+      structName: string // for STRUCT kind                                     
+                                                                                
+  Declarations (top-level)                                                      
+                                                                                
+  Program:                                                                      
+      decls: []Decl                                                             
+                                                                                
+  Decl: (union/interface)                                                       
+      ConstDecl | VarDecl | FuncDecl | StructDecl                               
+                                                                                
+  ConstDecl:                                                                    
+      name: string                                                              
+      value: int64      // already evaluated by lexer                           
+      loc: SourceLoc                                                            
+                                                                                
+  VarDecl:                                                                      
+      name: string                                                              
+      type: Type                                                                
+      arrayLen: int     // 0 if not array, already folded                       
+      init: *Expr       // nil if no initializer                                
+      isGlobal: bool                                                            
+      loc: SourceLoc                                                            
+                                                                                
+  FuncDecl:                                                                     
+      name: string                                                              
+      returnType: Type  // includes void                                        
+      params: []Param                                                           
+      body: *Block                                                              
+      loc: SourceLoc                                                            
+                                                                                
+  Param:                                                                        
+      name: string                                                              
+      type: Type                                                                
+                                                                                
+  StructDecl:                                                                   
+      name: string                                                              
+      fields: []StructField                                                     
+      size: int         // computed during semantic analysis                    
+      align: int        // 2 or 4 (if contains block)                           
+      loc: SourceLoc                                                            
+                                                                                
+  StructField:                                                                  
+      name: string                                                              
+      type: Type                                                                
+      arrayLen: int     // 0 if not array                                       
+      offset: int       // computed during semantic analysis                    
+                                                                                
+  Statements                                                                    
+                                                                                
+  Stmt: (union/interface)                                                       
+      Block | ExprStmt | IfStmt | WhileStmt | ForStmt |                         
+      GotoStmt | LabelStmt | ReturnStmt | BreakStmt | ContinueStmt |            
+      VarDecl | ConstDecl                                                       
+                                                                                
+  Block:                                                                        
+      stmts: []Stmt                                                             
+      loc: SourceLoc                                                            
+                                                                                
+  ExprStmt:                                                                     
+      expr: *Expr       // nil for empty statement ";"                          
+      loc: SourceLoc                                                            
+                                                                                
+  IfStmt:                                                                       
+      cond: *Expr                                                               
+      then: *Stmt                                                               
+      else: *Stmt       // nil if no else                                       
+      loc: SourceLoc                                                            
+                                                                                
+  WhileStmt:                                                                    
+      cond: *Expr                                                               
+      body: *Stmt                                                               
+      loc: SourceLoc                                                            
+                                                                                
+  ForStmt:                                                                      
+      init: *Stmt       // ExprStmt or VarDecl, nil if omitted                  
+      cond: *Expr       // nil if omitted                                       
+      post: *Expr       // nil if omitted                                       
+      body: *Stmt                                                               
+      loc: SourceLoc                                                            
+                                                                                
+  GotoStmt:                                                                     
+      label: string                                                             
+      loc: SourceLoc                                                            
+                                                                                
+  LabelStmt:                                                                    
+      label: string                                                             
+      stmt: *Stmt                                                               
+      loc: SourceLoc                                                            
+                                                                                
+  ReturnStmt:                                                                   
+      value: *Expr      // nil for void return                                  
+      loc: SourceLoc                                                            
+                                                                                
+  BreakStmt:                                                                    
+      loc: SourceLoc                                                            
+                                                                                
+  ContinueStmt:                                                                 
+      loc: SourceLoc                                                            
+                                                                                
+  Expressions                                                                   
+                                                                                
+  Expr: (union/interface with type field on all)                                
+      type: Type        // filled by semantic analysis                          
+      loc: SourceLoc                                                            
+                                                                                
+  BinaryExpr:                                                                   
+      op: BinaryOp      // ADD, SUB, MUL, DIV, MOD, AND, OR, XOR, SHL, SHR,     
+                        // LOR, LAND, EQ, NE, LT, GT, LE, GE                    
+      left: *Expr                                                               
+      right: *Expr                                                              
+                                                                                
+  AssignExpr:                                                                   
+      lhs: *Expr        // must be lvalue                                       
+      rhs: *Expr                                                                
+                                                                                
+  UnaryExpr:                                                                    
+      op: UnaryOp       // NEG, NOT, LNOT, DEREF(@), ADDR(&), SIZEOF            
+      operand: *Expr                                                            
+                                                                                
+  CastExpr:                                                                     
+      targetType: Type                                                          
+      operand: *Expr                                                            
+                                                                                
+  CallExpr:                                                                     
+      func: *Expr       // usually IdentExpr                                    
+      args: []Expr                                                              
+                                                                                
+  IndexExpr:                                                                    
+      array: *Expr                                                              
+      index: *Expr                                                              
+                                                                                
+  FieldExpr:                                                                    
+      object: *Expr                                                             
+      field: string                                                             
+      isArrow: bool     // true for ->, false for .                             
+                                                                                
+  IdentExpr:                                                                    
+      name: string                                                              
+      // resolved during semantic analysis:                                     
+      decl: *Decl       // points to VarDecl, Param, or FuncDecl                
+                                                                                
+  LiteralExpr:                                                                  
+      kind: LitKind     // INT, STRING                                          
+      intVal: int64     // for INT                                              
+      strVal: string    // for STRING                                           
+                                                                                
+  SizeofTypeExpr:                                                               
+      targetType: Type                                                          
+                                                                                
+  Enumerations                                                                  
+                                                                                
+  BinaryOp:                                                                     
+      ADD, SUB, MUL, DIV, MOD,       // arithmetic                              
+      AND, OR, XOR, SHL, SHR,        // bitwise                                 
+      LOR, LAND,                      // logical                                
+      EQ, NE, LT, GT, LE, GE         // comparison                              
+                                                                                
+  UnaryOp:                                                                      
+      NEG,      // -                                                            
+      NOT,      // ~ (bitwise)                                                  
+      LNOT,     // ! (logical)                                                  
+      DEREF,    // @ (dereference pointer)                                      
+      ADDR,     // & (address-of)                                               
+      SIZEOF    // sizeof expr                                                  
+                                                                                
+  Key Observations                                                              
+                                                                                
+  1. No parse tree - The parser builds AST directly. The grammar is simple      
+  enough that this works well.                                                  
+  2. Types are explicit - Since YAPL has no implicit conversions, every CastExpr
+   in the AST represents an explicit cast in source code.                       
+  3. Constants already folded - The lexer has already evaluated constant        
+  expressions, so ConstDecl.value is just an int64, and array dimensions are    
+  literal integers.                                                             
+  4. Lvalue checking - Assignment LHS and address-of operands must be lvalues.  
+  This is checked during semantic analysis, not encoded in AST structure.       
+  5. Symbol resolution - IdentExpr.decl gets filled during semantic analysis to 
+  point to the declaration.                                                     
+                                                                                
+  Does this structure look right for your needs? We could also discuss:         
+  - The symbol table structure                                                  
+  - How to represent the CFG and DAGs that come after                           
+  - The serialization format for the AST file between passes                    
+                                                                                
+✻ Cooked for 42s                                                                
+                                                                                
+❯ I think this looks right note that there are things insideYA                  
+                                                                                
+⏺ Go ahead, I'm listening.                                                      
+                                                                                
+❯ I think this looks right note that there are things inside YAPL.pdf that      
+  are out of date Because of design decisions we made while implementing        
+  the lexer.                                                                    
+                                                                                
+⏺ Understood. The lexer code and yapl_grammar.ebnf are the authoritative        
+  sources, and the PDF is partially stale. I noticed a few things that might be 
+  in that category:                                                             
+                                                                                
+  1. Type names as keywords - The lexer treats byte, uint8, uint16, int16, void,
+   block32, block64, block128 as keywords (in the keywords map), whereas the PDF
+   says they're "predefined identifiers, not keywords"                          
+  2. Operator precedence - The EBNF grammar follows Go-style precedence (bitwise
+   ops grouped with arithmetic), which may differ from the C-style table in the 
+  PDF                                                                           
+  3. sizeof as keyword - The lexer has sizeof in keywords                       
+  4. Some keywords in PDF not in lexer - The PDF lists default, select, switch, 
+  case which aren't in the current lexer (presumably reserved for future use)   
+                                                                                
+  Are there specific discrepancies you want to call out, or should we just      
+  proceed with the lexer and EBNF as ground truth for the AST design? If there  
+  are semantic decisions from the lexer work that affect how the parser should  
+  behave, it would be good to note those.                                       
+                                                                                
+❯ I think we can proceed with the lexer and EBNF as ground truth for the        
+  AST design.                                                                   
+                                                                                
+⏺ Good. So to summarize where we are:                                           
+                                                                                
+  Ground truth:                                                                 
+  - yapl_grammar.ebnf - syntax                                                  
+  - lex/lexer.go - lexical structure, keywords, constant folding behavior       
+                                                                                
+  AST design:                                                                   
+  - Types: Type with kind (BASE, POINTER, ARRAY, STRUCT, VOID)                  
+  - Declarations: ConstDecl, VarDecl, FuncDecl, StructDecl                      
+  - Statements: Block, ExprStmt, IfStmt, WhileStmt, ForStmt, GotoStmt,          
+  LabelStmt, ReturnStmt, BreakStmt, ContinueStmt                                
+  - Expressions: BinaryExpr, AssignExpr, UnaryExpr, CastExpr, CallExpr,         
+  IndexExpr, FieldExpr, IdentExpr, LiteralExpr, SizeofTypeExpr                  
+  - All nodes carry source location; expressions carry resolved type            
+                                                                                
+  Parser responsibilities:                                                      
+  - Build typed AST directly (no intermediate parse tree)                       
+  - Build symbol table                                                          
+  - Type check (since no implicit conversions, this is mostly checking that     
+  types match exactly)                                                          
+  - Report errors with source locations                                         
+                                                                                
+  What would you like to tackle next?                                           
+                                                                                
+  1. Symbol table structure - scopes, lookup, how structs are registered as     
+  types                                                                         
+  2. Pass 2 output format - how to serialize the AST + symbol table to a file   
+  3. CFG/DAG representation - what Pass 3 produces                              
+  4. Start implementing the parser in Go                                        
+                                                                                
+❯ 1                                                                             
+                                                                                
+⏺ Symbol Table Design for YAPL                                                  
+                                                                                
+  Scope Structure                                                               
+                                                                                
+  YAPL has nested scopes:                                                       
+                                                                                
+  Global Scope (file level)                                                     
+      ├── constants                                                             
+      ├── global/static variables                                               
+      ├── struct type definitions                                               
+      └── functions                                                             
+              └── Function Scope                                                
+                      ├── parameters                                            
+                      └── Block Scope                                           
+                              ├── local variables                               
+                              └── nested Block Scope                            
+                                      └── ...                                   
+                                                                                
+  Labels are function-scoped (flat within a function, not block-scoped).        
+                                                                                
+  Symbol Kinds                                                                  
+                                                                                
+  SymKind:                                                                      
+      SYM_CONST      // const declaration                                       
+      SYM_VAR        // variable (global, static, local, or parameter)          
+      SYM_FUNC       // function                                                
+      SYM_STRUCT     // struct type definition                                  
+      SYM_FIELD      // struct field (lives in struct's own namespace)          
+      SYM_LABEL      // goto label (lives in function's label namespace)        
+                                                                                
+  Symbol Entry                                                                  
+                                                                                
+  Symbol:                                                                       
+      name: string                                                              
+      kind: SymKind                                                             
+      type: Type          // for VAR, FUNC (return type), FIELD                 
+                                                                                
+      // Storage info (filled during semantic analysis)                         
+      storage: StorageClass   // GLOBAL, STATIC, LOCAL, PARAM                   
+      offset: int             // stack offset for LOCAL/PARAM,                  
+                              // data offset for GLOBAL/STATIC,                 
+                              // field offset for FIELD                         
+                                                                                
+      // For constants                                                          
+      constVal: int64                                                           
+                                                                                
+      // For functions                                                          
+      params: []Symbol        // parameter symbols                              
+                                                                                
+      // For structs                                                            
+      fields: []Symbol        // field symbols (their own namespace)            
+      structSize: int                                                           
+      structAlign: int                                                          
+                                                                                
+      // Visibility                                                             
+      isPublic: bool          // true if name starts with uppercase             
+                                                                                
+      // For error reporting                                                    
+      loc: SourceLoc          // where declared                                 
+                                                                                
+  Scope                                                                         
+                                                                                
+  Scope:                                                                        
+      parent: *Scope          // nil for global scope                           
+      symbols: map[string]*Symbol                                               
+                                                                                
+      // For function scopes only                                               
+      labels: map[string]*Symbol   // goto labels (flat per function)           
+                                                                                
+      // For tracking stack frame                                               
+      localOffset: int        // next available stack offset (grows negative)   
+                                                                                
+  Symbol Table                                                                  
+                                                                                
+  SymbolTable:                                                                  
+      global: *Scope          // the global scope                               
+      current: *Scope         // current scope during parsing                   
+                                                                                
+      // Struct types are also accessible by name for type lookup               
+      structs: map[string]*Symbol                                               
+                                                                                
+  Operations                                                                    
+                                                                                
+  // Scope management                                                           
+  EnterScope()              // push new scope (block entry)                     
+  ExitScope()               // pop scope (block exit)                           
+  EnterFunction(func)       // push function scope, set up params               
+  ExitFunction()            // pop back to global                               
+                                                                                
+  // Symbol operations                                                          
+  Define(name, kind, type) → *Symbol, error                                     
+      - Error if already defined in current scope                               
+      - Adds to current scope                                                   
+                                                                                
+  Lookup(name) → *Symbol                                                        
+      - Searches current scope, then parent, then parent...                     
+      - Returns nil if not found                                                
+                                                                                
+  LookupLocal(name) → *Symbol                                                   
+      - Searches only current scope (for redefinition check)                    
+                                                                                
+  // Type operations                                                            
+  LookupType(name) → *Type                                                      
+      - For base types: returns built-in                                        
+      - For struct names: looks up in structs map                               
+                                                                                
+  DefineStruct(name, fields) → *Symbol, error                                   
+      - Computes field offsets, struct size, alignment                          
+      - Adds to global scope and structs map                                    
+                                                                                
+  // Label operations (within function scope)                                   
+  DefineLabel(name) → *Symbol, error                                            
+  LookupLabel(name) → *Symbol                                                   
+                                                                                
+  Struct Field Offset Computation                                               
+                                                                                
+  ComputeStructLayout(fields []StructField) → (size, align int):                
+      offset := 0                                                               
+      maxAlign := 2   // minimum struct alignment                               
+                                                                                
+      for each field:                                                           
+          fieldAlign := alignmentOf(field.type)                                 
+          maxAlign = max(maxAlign, fieldAlign)                                  
+                                                                                
+          // Pad to alignment                                                   
+          offset = roundUp(offset, fieldAlign)                                  
+          field.offset = offset                                                 
+                                                                                
+          // Advance by field size                                              
+          offset += sizeOf(field.type)                                          
+                                                                                
+      // Final struct size rounded to alignment                                 
+      size = roundUp(offset, maxAlign)                                          
+      align = maxAlign                                                          
+                                                                                
+  Alignment rules from the spec:                                                
+  - byte/uint8: 1                                                               
+  - int16/uint16, all pointers: 2                                               
+  - block32/64/128: 4                                                           
+  - Structs: 2, or 4 if contains any block type                                 
+                                                                                
+  Stack Frame Layout                                                            
+                                                                                
+  For the WUT-4 calling convention (from README):                               
+                                                                                
+  High addresses                                                                
+      ┌─────────────────┐                                                       
+      │ arg N (if >3)   │  [SP + positive offset]                               
+      │ ...             │                                                       
+      │ arg 4           │                                                       
+      ├─────────────────┤ ← SP at function entry                                
+      │ return address  │  (pushed by call)                                     
+      ├─────────────────┤                                                       
+      │ saved R4        │  (if used)                                            
+      │ saved R5        │  (if used)                                            
+      │ saved R6        │  (if used)                                            
+      ├─────────────────┤                                                       
+      │ local var 1     │  [SP - offset]                                        
+      │ local var 2     │                                                       
+      │ ...             │                                                       
+      └─────────────────┘                                                       
+  Low addresses                                                                 
+                                                                                
+  - R1, R2, R3 hold first 3 args (not on stack)                                 
+  - Local variables at negative offsets from SP                                 
+  - SP is fixed during function execution                                       
+                                                                                
+  Example                                                                       
+                                                                                
+  struct Point {                                                                
+      int16 x;                                                                  
+      int16 y;                                                                  
+  };                                                                            
+                                                                                
+  var int16 g_count;                                                            
+                                                                                
+  func int16 Add(int16 a, int16 b) {                                            
+      var int16 result;                                                         
+      result = a + b;                                                           
+      return result;                                                            
+  }                                                                             
+                                                                                
+  Symbol table after parsing:                                                   
+                                                                                
+  Global Scope:                                                                 
+      Point    → SYM_STRUCT, size=4, align=2                                    
+                   fields: x (offset 0), y (offset 2)                           
+      g_count  → SYM_VAR, type=int16, storage=GLOBAL, offset=0                  
+      Add      → SYM_FUNC, returns int16, params=[a, b]                         
+                                                                                
+  Function Scope (Add):                                                         
+      a        → SYM_VAR, type=int16, storage=PARAM (in R1)                     
+      b        → SYM_VAR, type=int16, storage=PARAM (in R2)                     
+                                                                                
+      Block Scope:                                                              
+          result → SYM_VAR, type=int16, storage=LOCAL, offset=-2                
+                                                                                
+  Does this structure work for what you have in mind?                           
+                                                                                
+✻ Churned for 39s                                                               
+                                                                                
+❯ I do have some feedback on this first of all why are the arguments on the     
+  stack above the stack pointer? Shouldn't they be pushed By the caller         
+  before the return address is pushed?  Second thing: I would be fine to        
+  make a rule like "old" C that declarations may only occur in function         
+  blocks not in anyarbitrary  nested block.Third, I might be willing to         
+  make a rule that goto statements can only target the start of basic           
+  blocks especially if I could figure out a way to word that in the             
+  documentation so that it would make sense to a programmer who didn't          
+  understand compiler internals. with these changes simplify the parser and     
+  follow on algorithms?                                                         
+                                                                                
+⏺ Great feedback on all three points. Let me address each:                      
+                                                                                
+  1. Stack Layout Correction                                                    
+                                                                                
+  You're right. The caller pushes args (if >3), then CALL pushes return address.
+   From callee's view after prologue:                                           
+                                                                                
+  High addresses                                                                
+      ┌─────────────────┐                                                       
+      │ arg 5           │  [SP + 12]  (caller pushed)                           
+      │ arg 4           │  [SP + 10]  (caller pushed)                           
+      │ return address  │  [SP + 8]   (CALL pushed)                             
+      │ saved R4        │  [SP + 6]   (callee saved, if used)                   
+      │ saved R5        │  [SP + 4]   (callee saved, if used)                   
+      │ saved R6        │  [SP + 2]   (callee saved, if used)                   
+      ├─────────────────┤ ← SP (after prologue, fixed)                          
+      │ local var 1     │  [SP + 0]                                             
+      │ local var 2     │  [SP - 2]                                             
+      │ ...             │                                                       
+      └─────────────────┘                                                       
+  Low addresses                                                                 
+                                                                                
+  The callee subtracts from SP once in the prologue to allocate locals, then SP 
+  stays fixed.                                                                  
+                                                                                
+  2. Declarations Only at Function Body Level                                   
+                                                                                
+  This is a significant simplification. C89-style:                              
+                                                                                
+  func int16 Foo(int16 a, int16 b) {                                            
+      // All declarations first                                                 
+      var int16 x;                                                              
+      var int16 y;                                                              
+      var byte buf[32];                                                         
+                                                                                
+      // Then statements                                                        
+      x = a + b;                                                                
+      if (x > 0) {                                                              
+          y = x * 2;    // OK: use local declared above                         
+          // var int16 z;  // ILLEGAL: no decl inside if block                  
+      }                                                                         
+      return y;                                                                 
+  }                                                                             
+                                                                                
+  Simplifications:                                                              
+  - No nested block scopes—just global and function scope                       
+  - Stack frame size known after parsing declarations, before statements        
+  - Symbol table per function is flat                                           
+  - No shadowing of locals by inner-block locals                                
+                                                                                
+  3. Labels Only at Function Body Level                                         
+                                                                                
+  For programmers, you could document it as:                                    
+                                                                                
+  Label placement: Labels may only appear at the top level of a function body,  
+  before any statement. Labels cannot appear inside if, while, or for blocks.   
+  This ensures that goto always transfers control to a well-defined point in the
+   function's main statement sequence.                                          
+                                                                                
+  Or more simply:                                                               
+                                                                                
+  Structured goto: The goto statement can only jump to labels declared at the   
+  function's top level, not into or out of control structures.                  
+                                                                                
+  Example:                                                                      
+                                                                                
+  func void Process() {                                                         
+      var int16 i;                                                              
+                                                                                
+      i = 0;                                                                    
+  loop:                       // OK: top-level label                            
+      if (i >= 10) {                                                            
+          goto done;          // OK: jumping to top-level label                 
+          // error:           // ILLEGAL: can't put label here                  
+      }                                                                         
+      i = i + 1;                                                                
+      goto loop;                                                                
+                                                                                
+  done:                       // OK: top-level label                            
+      return;                                                                   
+  }                                                                             
+                                                                                
+  Simplifications:                                                              
+  - Labels naturally define basic block boundaries                              
+  - CFG construction is trivial: scan function, each label starts a new block   
+  - No "jumping into middle of a block" issues                                  
+  - No scope complications (jumping over variable declarations doesn't exist    
+  since all decls are at top)                                                   
+                                                                                
+  ---                                                                           
+  Revised Symbol Table Structure                                                
+                                                                                
+  With these restrictions, the symbol table becomes much simpler:               
+                                                                                
+  SymbolTable:                                                                  
+      global: Scope           // constants, global vars, funcs, struct types    
+      structs: map[string]*StructDef                                            
+                                                                                
+  Scope:                                                                        
+      symbols: map[string]*Symbol                                               
+                                                                                
+  FunctionScope:              // created fresh for each function                
+      params: map[string]*Symbol                                                
+      locals: map[string]*Symbol                                                
+      labels: map[string]*Label                                                 
+      frameSize: int          // total bytes for locals                         
+                                                                                
+  Label:                                                                        
+      name: string                                                              
+      blockIndex: int         // which basic block this starts                  
+      loc: SourceLoc                                                            
+                                                                                
+  During parsing of a function:                                                 
+  1. Parse all declarations → populate locals, compute frameSize                
+  2. Parse statements → any label encountered adds to labels, starts new basic  
+  block                                                                         
+                                                                                
+  No nested scope stack needed. Just:                                           
+  - LookupGlobal(name) - search global scope                                    
+  - LookupLocal(name) - search current function's params + locals               
+  - Lookup(name) - try local first, then global                                 
+                                                                                
+  ---                                                                           
+  These three changes do simplify the parser and later passes considerably. The 
+  main trade-off is reduced flexibility for the programmer, but for a systems   
+  language targeting a constrained environment, these are reasonable            
+  restrictions that were common in early C compilers.                           
+                                                                                
+  Shall I revise the AST node types to reflect these constraints, or move on to 
+  the Pass 2 output format?                                                     
+                                                                                
+✻ Crunched for 59s                                                              
+                                                                                
+❯ yes. Please revise the AST nude types to reflect these new constraints.       
+                                                                                
+⏺ Revised AST Node Types                                                        
+                                                                                
+  With the new constraints:                                                     
+  - Declarations only at function body level (before statements)                
+  - Labels only at function body level (not inside control structures)          
+  - No var declaration in for-init (simplification)                             
+                                                                                
+  ---                                                                           
+  Source Location                                                               
+                                                                                
+  SourceLoc:                                                                    
+      line: int                                                                 
+      col: int           // optional, could omit for simplicity                 
+                                                                                
+  ---                                                                           
+  Type Representation                                                           
+                                                                                
+  TypeKind: BASE | POINTER | ARRAY | STRUCT | VOID                              
+                                                                                
+  BaseType: UINT8 | INT16 | UINT16 | BLOCK32 | BLOCK64 | BLOCK128               
+                                                                                
+  Type:                                                                         
+      kind: TypeKind                                                            
+      base: BaseType      // when kind == BASE                                  
+      pointee: *Type      // when kind == POINTER                               
+      elemType: *Type     // when kind == ARRAY                                 
+      arrayLen: int       // when kind == ARRAY                                 
+      structName: string  // when kind == STRUCT                                
+                                                                                
+  ---                                                                           
+  Program and Top-Level Declarations                                            
+                                                                                
+  Program:                                                                      
+      decls: []Decl                                                             
+                                                                                
+  Decl: ConstDecl | VarDecl | FuncDecl | StructDecl                             
+                                                                                
+  ConstDecl:                                                                    
+      name: string                                                              
+      value: int64                                                              
+      loc: SourceLoc                                                            
+                                                                                
+  VarDecl:                                                                      
+      name: string                                                              
+      type: Type                                                                
+      arrayLen: int       // 0 if scalar                                        
+      init: *Expr         // nil if no initializer                              
+      loc: SourceLoc                                                            
+                                                                                
+  StructDecl:                                                                   
+      name: string                                                              
+      fields: []FieldDecl                                                       
+      size: int           // filled by semantic analysis                        
+      align: int          // filled by semantic analysis                        
+      loc: SourceLoc                                                            
+                                                                                
+  FieldDecl:                                                                    
+      name: string                                                              
+      type: Type                                                                
+      arrayLen: int       // 0 if scalar                                        
+      offset: int         // filled by semantic analysis                        
+      loc: SourceLoc                                                            
+                                                                                
+  ---                                                                           
+  Function Declaration                                                          
+                                                                                
+  Functions have a clear three-part structure: parameters, local declarations,  
+  then statements.                                                              
+                                                                                
+  FuncDecl:                                                                     
+      name: string                                                              
+      returnType: Type    // kind == VOID for void functions                    
+      params: []Param                                                           
+      locals: []LocalDecl // all local var/const declarations                   
+      body: []Stmt        // statement sequence; LabelStmt only valid here      
+      loc: SourceLoc                                                            
+                                                                                
+  Param:                                                                        
+      name: string                                                              
+      type: Type                                                                
+      loc: SourceLoc                                                            
+                                                                                
+  LocalDecl: VarDecl | ConstDecl                                                
+                                                                                
+  ---                                                                           
+  Statements                                                                    
+                                                                                
+  No declarations in the Stmt union. Labels are simple markers, not wrappers.   
+                                                                                
+  Stmt: ExprStmt | Block | IfStmt | WhileStmt | ForStmt |                       
+        ReturnStmt | BreakStmt | ContinueStmt | GotoStmt | LabelStmt            
+                                                                                
+  ExprStmt:                                                                     
+      expr: *Expr         // nil for empty statement ";"                        
+      loc: SourceLoc                                                            
+                                                                                
+  Block:                                                                        
+      stmts: []Stmt       // statements only, no declarations                   
+      loc: SourceLoc                                                            
+                                                                                
+  IfStmt:                                                                       
+      cond: *Expr                                                               
+      then: Stmt          // typically Block                                    
+      els: *Stmt          // nil if no else clause                              
+      loc: SourceLoc                                                            
+                                                                                
+  WhileStmt:                                                                    
+      cond: *Expr                                                               
+      body: Stmt                                                                
+      loc: SourceLoc                                                            
+                                                                                
+  ForStmt:                                                                      
+      init: *Expr         // nil if omitted; no var decl allowed                
+      cond: *Expr         // nil if omitted                                     
+      post: *Expr         // nil if omitted                                     
+      body: Stmt                                                                
+      loc: SourceLoc                                                            
+                                                                                
+  ReturnStmt:                                                                   
+      value: *Expr        // nil for void return                                
+      loc: SourceLoc                                                            
+                                                                                
+  BreakStmt:                                                                    
+      loc: SourceLoc                                                            
+                                                                                
+  ContinueStmt:                                                                 
+      loc: SourceLoc                                                            
+                                                                                
+  GotoStmt:                                                                     
+      label: string                                                             
+      loc: SourceLoc                                                            
+                                                                                
+  LabelStmt:                                                                    
+      label: string                                                             
+      loc: SourceLoc                                                            
+      // Next Stmt in FuncDecl.body is the labeled statement                    
+                                                                                
+  ---                                                                           
+  Expressions                                                                   
+                                                                                
+  Expr: BinaryExpr | AssignExpr | UnaryExpr | CastExpr |                        
+        CallExpr | IndexExpr | FieldExpr | IdentExpr | LiteralExpr |            
+        SizeofTypeExpr                                                          
+                                                                                
+  // All expressions carry:                                                     
+  //   type: Type        // filled by semantic analysis                         
+  //   loc: SourceLoc                                                           
+                                                                                
+  BinaryExpr:                                                                   
+      op: BinaryOp                                                              
+      left: *Expr                                                               
+      right: *Expr                                                              
+                                                                                
+  AssignExpr:                                                                   
+      lhs: *Expr          // must be lvalue                                     
+      rhs: *Expr                                                                
+                                                                                
+  UnaryExpr:                                                                    
+      op: UnaryOp                                                               
+      operand: *Expr                                                            
+                                                                                
+  CastExpr:                                                                     
+      targetType: Type                                                          
+      operand: *Expr                                                            
+                                                                                
+  CallExpr:                                                                     
+      func: *Expr         // typically IdentExpr                                
+      args: []*Expr                                                             
+                                                                                
+  IndexExpr:                                                                    
+      array: *Expr                                                              
+      index: *Expr                                                              
+                                                                                
+  FieldExpr:                                                                    
+      object: *Expr                                                             
+      field: string                                                             
+      isArrow: bool       // true for "->", false for "."                       
+                                                                                
+  IdentExpr:                                                                    
+      name: string                                                              
+      resolved: *Symbol   // filled by semantic analysis                        
+                                                                                
+  LiteralExpr:                                                                  
+      litKind: LitKind    // INT or STRING                                      
+      intVal: int64                                                             
+      strVal: string                                                            
+                                                                                
+  SizeofTypeExpr:                                                               
+      targetType: Type                                                          
+                                                                                
+  ---                                                                           
+  Operators                                                                     
+                                                                                
+  BinaryOp:                                                                     
+      // Arithmetic                                                             
+      ADD         // +                                                          
+      SUB         // -                                                          
+      MUL         // *                                                          
+      DIV         // /                                                          
+      MOD         // %                                                          
+      // Bitwise                                                                
+      AND         // &                                                          
+      OR          // |                                                          
+      XOR         // ^                                                          
+      SHL         // <<                                                         
+      SHR         // >>                                                         
+      // Logical                                                                
+      LAND        // &&                                                         
+      LOR         // ||                                                         
+      // Comparison                                                             
+      EQ          // ==                                                         
+      NE          // !=                                                         
+      LT          // <                                                          
+      GT          // >                                                          
+      LE          // <=                                                         
+      GE          // >=                                                         
+                                                                                
+  UnaryOp:                                                                      
+      NEG         // -                                                          
+      NOT         // ~ (bitwise)                                                
+      LNOT        // ! (logical)                                                
+      DEREF       // @ (dereference)                                            
+      ADDR        // & (address-of)                                             
+      SIZEOF      // sizeof expr                                                
+                                                                                
+  ---                                                                           
+  Simplified Symbol Table                                                       
+                                                                                
+  With the new constraints:                                                     
+                                                                                
+  SymbolTable:                                                                  
+      globals: map[string]*Symbol     // constants, vars, funcs, structs        
+      structs: map[string]*StructDecl // struct types by name                   
+                                                                                
+  Symbol:                                                                       
+      name: string                                                              
+      kind: SymKind       // SYM_CONST, SYM_VAR, SYM_FUNC, SYM_STRUCT           
+      type: Type                                                                
+      constVal: int64     // for SYM_CONST                                      
+      storage: Storage    // GLOBAL, STATIC for SYM_VAR at file level           
+      offset: int         // data segment offset for global/static vars         
+      funcDecl: *FuncDecl // for SYM_FUNC                                       
+      structDecl: *StructDecl // for SYM_STRUCT                                 
+      isPublic: bool      // uppercase first letter                             
+      loc: SourceLoc                                                            
+                                                                                
+  FuncSymbols:            // created per function during analysis               
+      params: map[string]*ParamSym                                              
+      locals: map[string]*LocalSym                                              
+      labels: map[string]*LabelSym                                              
+      frameSize: int                                                            
+                                                                                
+  ParamSym:                                                                     
+      name: string                                                              
+      type: Type                                                                
+      index: int          // 0, 1, 2 = R1, R2, R3; 3+ = stack                   
+                                                                                
+  LocalSym:                                                                     
+      name: string                                                              
+      type: Type                                                                
+      isConst: bool                                                             
+      constVal: int64     // if isConst                                         
+      offset: int         // stack offset (negative from SP)                    
+                                                                                
+  LabelSym:                                                                     
+      name: string                                                              
+      stmtIndex: int      // index into FuncDecl.body                           
+      loc: SourceLoc                                                            
+                                                                                
+  ---                                                                           
+  Summary of Simplifications                                                    
+  ┌──────────────────────────────────┬────────────────────────────────────┐     
+  │              Before              │               After                │     
+  ├──────────────────────────────────┼────────────────────────────────────┤     
+  │ Nested scopes for blocks         │ Only global + function scope       │     
+  ├──────────────────────────────────┼────────────────────────────────────┤     
+  │ Stmt includes VarDecl, ConstDecl │ Stmt is only executable statements │     
+  ├──────────────────────────────────┼────────────────────────────────────┤     
+  │ LabelStmt wraps a statement      │ LabelStmt is just a marker         │     
+  ├──────────────────────────────────┼────────────────────────────────────┤     
+  │ ForStmt allows var decl in init  │ ForStmt.init is expression only    │     
+  ├──────────────────────────────────┼────────────────────────────────────┤     
+  │ Labels anywhere in function      │ Labels only in FuncDecl.body       │     
+  └──────────────────────────────────┴────────────────────────────────────┘     
+  This should make the parser and CFG construction straightforward. Want to move
+   on to the Pass 2 output format, or discuss anything else about the AST?      
+                                                                                
+✻ Crunched for 1m 31s                                                           
+                                                                                
+❯ I have a question about the stack frame layout again. When generating         
+  code for a function the compiler will have a hard time knowing the            
+  Soffsets to the local variables Because it won't know how many                
+  callee-save registers there are until it gets to the end of the function      
+  function.                                                                     
+                                                                                
+⏺ Excellent observation. This is a classic code generation problem. The compiler
+   needs to emit instructions like LOAD R1, [SP+offset] for local variables, but
+   the offset depends on:                                                       
+  1. Size of local variables (known after parsing declarations)                 
+  2. Number of callee-saved registers (not known until function body is fully   
+  analyzed)                                                                     
+                                                                                
+  Several solutions:                                                            
+                                                                                
+  Option A: Fixed slots for callee-saved registers                              
+                                                                                
+  Always reserve space for R4, R5, R6 whether used or not:                      
+                                                                                
+      │ return address  │  [SP + local_size + 6]                                
+      │ R4 slot         │  [SP + local_size + 4]  (may be unused)               
+      │ R5 slot         │  [SP + local_size + 2]  (may be unused)               
+      │ R6 slot         │  [SP + local_size]      (may be unused)               
+      │ local 1         │  [SP + local_size - 2]                                
+      │ ...             │                                                       
+      │ local N         │  [SP + 0]                                             
+      └─────────────────┘ ← SP                                                  
+                                                                                
+  Wastes up to 6 bytes per function, but offsets are predictable from local_size
+   alone.                                                                       
+                                                                                
+  Option B: Use a frame pointer                                                 
+                                                                                
+  Dedicate R6 as frame pointer:                                                 
+                                                                                
+      │ return address  │  [FP + 2]                                             
+      │ saved FP        │  [FP + 0]                                             
+      ├─────────────────┤ ← FP (set in prologue)                                
+      │ local 1         │  [FP - 2]                                             
+      │ local 2         │  [FP - 4]                                             
+      │ ...             │                                                       
+      │ saved R4, R5    │                                                       
+      └─────────────────┘ ← SP                                                  
+                                                                                
+  Locals always at fixed negative offsets from FP. Costs one register           
+  permanently.                                                                  
+                                                                                
+  Option C: Two-phase code generation                                           
+                                                                                
+  Pass 4 (code generator) processes each function in two phases:                
+  1. Walk the DAGs, do register allocation, determine which callee-saved regs   
+  are needed                                                                    
+  2. Now that saved_size is known, emit prologue and code with correct offsets  
+                                                                                
+  This is what most real compilers do. The IR/DAG level doesn't have concrete   
+  offsets—just symbolic references to locals. Final offsets are computed when   
+  emitting assembly.                                                            
+                                                                                
+  Option D: Backpatching                                                        
+                                                                                
+  Emit code with placeholder offsets, then patch them once the full frame layout
+   is known. Messy but works.                                                   
+                                                                                
+  ---                                                                           
+  For a simple compiler targeting WUT-4 with limited registers, I'd suggest     
+  either:                                                                       
+                                                                                
+  - Option A if the 6-byte overhead per function is acceptable (simplest)       
+  - Option C if you want efficiency (standard approach, requires the code       
+  generator to not emit instructions until frame is finalized)                  
+                                                                                
+  Which approach appeals to you?                                                
+                                                                                
+✻ Worked for 58s                                                                
+                                                                                
+❯ For now I'm just happy to know there is a workaround. We can finalize the     
+  decision when we write the code generator. I think I like option A, just      
+  allocate fixed space.                                                         
+                                                                                
+⏺ Agreed. Option A is simple and the 6-byte overhead per function is negligible 
+  for most programs. We can revisit if it becomes a problem.                    
+                                                                                
+  So we have:                                                                   
+  - AST node types - defined                                                    
+  - Symbol table structure - simplified (global + flat per-function)            
+  - Stack frame layout - Option A as working assumption, finalize in code       
+  generator                                                                     
+                                                                                
+  What's next?                                                                  
+                                                                                
+  1. Pass 2 output format - how to serialize AST + symbol table to a file for   
+  Pass 3                                                                        
+  2. CFG/DAG representation - what Pass 3 produces for Pass 4                   
+  3. Start implementing the parser - begin writing Go code                      
+                                                                                
+❯ Yes let's choose the output format.                                           
+                                                                                
+⏺ Pass 2 Output Format                                                          
+                                                                                
+  Design Goals                                                                  
+                                                                                
+  1. Line-oriented - easy to parse line by line                                 
+  2. Human-readable - debuggable by inspection                                  
+  3. Simple to parse - no complex grammar needed; Pass 3 on WUT-4 must handle it
+  4. Compact enough - not too verbose                                           
+                                                                                
+  Format Overview                                                               
+                                                                                
+  Text file with:                                                               
+  - # comments (ignored)                                                        
+  - Hierarchical structure via indentation (2 spaces per level)                 
+  - Keywords in UPPERCASE                                                       
+  - Identifiers, types, values as-is                                            
+                                                                                
+  Structure                                                                     
+                                                                                
+  #file <filename>                                                              
+                                                                                
+  # Struct definitions first                                                    
+  STRUCT <name>                                                                 
+    FIELD <type> <name> <offset>                                                
+    ...                                                                         
+    SIZE <bytes> ALIGN <alignment>                                              
+                                                                                
+  # Then constants                                                              
+  CONST <name> <value>                                                          
+                                                                                
+  # Then global/static variables                                                
+  VAR <storage> <type> <name> [<arraylen>] [= <init>]                           
+                                                                                
+  # Then functions                                                              
+  FUNC <returntype> <name>                                                      
+    PARAM <type> <name>                                                         
+    ...                                                                         
+    LOCAL <type> <name> [<arraylen>]                                            
+    ...                                                                         
+    BODY                                                                        
+      <statements>                                                              
+    END                                                                         
+                                                                                
+  Type Syntax                                                                   
+                                                                                
+  int16                    # base type                                          
+  uint16                                                                        
+  uint8                                                                         
+  block32                                                                       
+  block64                                                                       
+  block128                                                                      
+  void                                                                          
+  @int16                   # pointer to int16                                   
+  @@uint8                  # pointer to pointer to uint8                        
+  [32]uint8                # array of 32 uint8                                  
+  Point                    # struct type (by name)                              
+  @Point                   # pointer to struct                                  
+                                                                                
+  Statements                                                                    
+                                                                                
+  Each statement on its own line(s), indented to show nesting:                  
+                                                                                
+  LABEL <name>                                                                  
+                                                                                
+  EXPR                                                                          
+    <expression>                                                                
+                                                                                
+  IF <line>                                                                     
+    <condition-expr>                                                            
+  THEN                                                                          
+    <statements>                                                                
+  ELSE                     # optional                                           
+    <statements>                                                                
+  ENDIF                                                                         
+                                                                                
+  WHILE <line>                                                                  
+    <condition-expr>                                                            
+  DO                                                                            
+    <statements>                                                                
+  ENDWHILE                                                                      
+                                                                                
+  FOR <line>                                                                    
+    INIT                                                                        
+      <expr-or-empty>                                                           
+    COND                                                                        
+      <expr-or-empty>                                                           
+    POST                                                                        
+      <expr-or-empty>                                                           
+    DO                                                                          
+      <statements>                                                              
+  ENDFOR                                                                        
+                                                                                
+  RETURN [<line>]                                                               
+    <expression>           # omit for void return                               
+                                                                                
+  RETURN <line>            # void return, no expression                         
+                                                                                
+  GOTO <label> <line>                                                           
+                                                                                
+  BREAK <line>                                                                  
+                                                                                
+  CONTINUE <line>                                                               
+                                                                                
+  Expressions                                                                   
+                                                                                
+  Prefix notation, one node per line, children indented:                        
+                                                                                
+  LIT <value>              # integer literal: LIT 0x0040                        
+  STR "<string>"           # string literal                                     
+                                                                                
+  ID <name>                # identifier                                         
+                                                                                
+  BINARY <op>                                                                   
+    <left-expr>                                                                 
+    <right-expr>                                                                
+                                                                                
+  ASSIGN                                                                        
+    <lhs-expr>                                                                  
+    <rhs-expr>                                                                  
+                                                                                
+  UNARY <op>                                                                    
+    <operand-expr>                                                              
+                                                                                
+  CAST <type>                                                                   
+    <operand-expr>                                                              
+                                                                                
+  CALL                                                                          
+    <func-expr>                                                                 
+    ARGS                                                                        
+      <arg-expr>                                                                
+      ...                                                                       
+                                                                                
+  INDEX                                                                         
+    <array-expr>                                                                
+    <index-expr>                                                                
+                                                                                
+  FIELD <fieldname>                                                             
+    <object-expr>                                                               
+                                                                                
+  ARROW <fieldname>                                                             
+    <object-expr>                                                               
+                                                                                
+  SIZEOF <type>                                                                 
+                                                                                
+  Operators                                                                     
+                                                                                
+  Binary: ADD SUB MUL DIV MOD AND OR XOR SHL SHR LAND LOR EQ NE LT GT LE GE     
+  Unary: NEG NOT LNOT DEREF ADDR SIZEOF                                         
+                                                                                
+  Complete Example                                                              
+                                                                                
+  Source:                                                                       
+  struct Point {                                                                
+      int16 x;                                                                  
+      int16 y;                                                                  
+  };                                                                            
+                                                                                
+  const OFFSET = 10;                                                            
+                                                                                
+  var int16 g_total;                                                            
+                                                                                
+  func int16 AddPoints(@Point p1, @Point p2) {                                  
+      var int16 sum;                                                            
+                                                                                
+      sum = p1->x + p2->x + OFFSET;                                             
+      return sum;                                                               
+  }                                                                             
+                                                                                
+  Pass 2 output:                                                                
+  #file example.yapl                                                            
+                                                                                
+  STRUCT Point                                                                  
+    FIELD int16 x 0                                                             
+    FIELD int16 y 2                                                             
+    SIZE 4 ALIGN 2                                                              
+                                                                                
+  CONST OFFSET 10                                                               
+                                                                                
+  VAR GLOBAL int16 g_total                                                      
+                                                                                
+  FUNC int16 AddPoints                                                          
+    PARAM @Point p1                                                             
+    PARAM @Point p2                                                             
+    LOCAL int16 sum                                                             
+    BODY                                                                        
+      EXPR 6                                                                    
+        ASSIGN                                                                  
+          ID sum                                                                
+          BINARY ADD                                                            
+            BINARY ADD                                                          
+              ARROW x                                                           
+                ID p1                                                           
+              ARROW x                                                           
+                ID p2                                                           
+            LIT 10                                                              
+      RETURN 7                                                                  
+        ID sum                                                                  
+    END                                                                         
+                                                                                
+  Notes                                                                         
+                                                                                
+  1. Line numbers - statements include source line for error reporting          
+  2. No type annotations on expressions - Pass 3 computes these during type     
+  checking                                                                      
+  3. Constants inlined - OFFSET appears as LIT 10 since lexer already folded    
+  it...                                                                         
+                                                                                
+  Actually wait, let me reconsider. The lexer folds constants in constant       
+  expression contexts (array dimensions, const initializers, #if). But in       
+  runtime expressions, identifiers are emitted as-is. So Pass 2 would see ID    
+  OFFSET and need to look it up.                                                
+                                                                                
+  Let me revise:                                                                
+                                                                                
+      EXPR 6                                                                    
+        ASSIGN                                                                  
+          ID sum                                                                
+          BINARY ADD                                                            
+            BINARY ADD                                                          
+              ARROW x                                                           
+                ID p1                                                           
+              ARROW x                                                           
+                ID p2                                                           
+            ID OFFSET                                                           
+                                                                                
+  Pass 3 resolves ID OFFSET → constant value 10.                                
+                                                                                
+  ---                                                                           
+  Does this format work for you? We could also consider:                        
+  - Binary format (more compact, faster)                                        
+  - Postfix expressions (easier to parse with stack, harder to read)            
+                                                                                
+✻ Crunched for 52s                                                              
+                                                                                
+❯ No need, I like your proposed format as is. But don't we also need to         
+  serialize the symbol table?                                                   
+                                                                                
+⏺ You're right. The declarations I showed (STRUCT, CONST, VAR, FUNC headers) are
+   the symbol table, but I wasn't explicit about all the computed information   
+  Pass 2 should include.                                                        
+                                                                                
+  Let me add the missing pieces:                                                
+                                                                                
+  Symbol Table Information to Serialize                                         
+                                                                                
+  Struct definitions (already covered):                                         
+  - Field names, types, offsets                                                 
+  - Total size and alignment                                                    
+                                                                                
+  Constants:                                                                    
+  - Name and value (already covered)                                            
+                                                                                
+  Global/Static variables - add data segment offset:                            
+  VAR GLOBAL int16 g_count OFFSET 0                                             
+  VAR GLOBAL int16 g_total OFFSET 2                                             
+  VAR STATIC [64]uint8 s_buffer OFFSET 4                                        
+                                                                                
+  Functions - add parameter and local storage info:                             
+  FUNC int16 AddPoints                                                          
+    PARAM @Point p1 R1            # first 3 params in registers                 
+    PARAM @Point p2 R2                                                          
+    PARAM int16 flags R3                                                        
+    PARAM int16 extra STACK 0     # 4th+ param on stack, offset from entry SP   
+    LOCAL int16 sum OFFSET -2     # stack offset (negative from frame base)     
+    LOCAL int16 temp OFFSET -4                                                  
+    LOCAL [16]uint8 buf OFFSET -20                                              
+    FRAMESIZE 20                  # total bytes for locals                      
+    BODY                                                                        
+      ...                                                                       
+    END                                                                         
+                                                                                
+  Revised Complete Example                                                      
+                                                                                
+  #file example.yapl                                                            
+                                                                                
+  # === SYMBOL TABLE ===                                                        
+                                                                                
+  STRUCT Point                                                                  
+    FIELD int16 x 0                                                             
+    FIELD int16 y 2                                                             
+    SIZE 4 ALIGN 2                                                              
+                                                                                
+  CONST OFFSET 10                                                               
+  CONST BUFSIZE 64                                                              
+                                                                                
+  VAR GLOBAL int16 g_total OFFSET 0                                             
+  VAR STATIC [64]uint8 s_buffer OFFSET 2                                        
+                                                                                
+  # === FUNCTIONS ===                                                           
+                                                                                
+  FUNC int16 AddPoints                                                          
+    PARAM @Point p1 R1                                                          
+    PARAM @Point p2 R2                                                          
+    LOCAL int16 sum OFFSET -2                                                   
+    FRAMESIZE 2                                                                 
+    BODY                                                                        
+      EXPR 6                                                                    
+        ASSIGN                                                                  
+          ID sum                                                                
+          BINARY ADD                                                            
+            BINARY ADD                                                          
+              ARROW x                                                           
+                ID p1                                                           
+              ARROW x                                                           
+                ID p2                                                           
+            ID OFFSET                                                           
+      RETURN 7                                                                  
+        ID sum                                                                  
+    END                                                                         
+                                                                                
+  FUNC void Main                                                                
+    PARAM void                                                                  
+    LOCAL int16 result OFFSET -2                                                
+    LOCAL Point pt1 OFFSET -6                                                   
+    LOCAL Point pt2 OFFSET -10                                                  
+    FRAMESIZE 10                                                                
+    BODY                                                                        
+      ...                                                                       
+    END                                                                         
+                                                                                
+  Summary of What's Serialized                                                  
+  ┌─────────────┬──────────────────────────────────────────────────────┐        
+  │  Category   │                     Information                      │        
+  ├─────────────┼──────────────────────────────────────────────────────┤        
+  │ Structs     │ name, fields (type, name, offset), size, align       │        
+  ├─────────────┼──────────────────────────────────────────────────────┤        
+  │ Constants   │ name, value                                          │        
+  ├─────────────┼──────────────────────────────────────────────────────┤        
+  │ Global vars │ name, type, array length, storage class, data offset │        
+  ├─────────────┼──────────────────────────────────────────────────────┤        
+  │ Functions   │ name, return type                                    │        
+  ├─────────────┼──────────────────────────────────────────────────────┤        
+  │ Params      │ name, type, location (R1/R2/R3 or STACK offset)      │        
+  ├─────────────┼──────────────────────────────────────────────────────┤        
+  │ Locals      │ name, type, array length, stack offset               │        
+  ├─────────────┼──────────────────────────────────────────────────────┤        
+  │ Frame       │ total local frame size                               │        
+  ├─────────────┼──────────────────────────────────────────────────────┤        
+  │ Body        │ AST of statements and expressions                    │        
+  └─────────────┴──────────────────────────────────────────────────────┘        
+  Pass 3 can then:                                                              
+  1. Read symbol table, build in-memory lookup structures                       
+  2. Process function bodies, resolve identifiers, type-check                   
+  3. Generate IR/DAGs with all storage locations already known                  
+                                                                                
+  Does this cover everything needed?                                            
+                                                                                
+❯ I thnk so. Do you think we are ready to generate code in parse/ ?.            
+                                                                                
+⏺ I think we're ready. We have:                                                 
+                                                                                
+  - Input format: Token stream from Pass 1 (defined in README, implemented in   
+  lex/)                                                                         
+  - Grammar: yapl_grammar.ebnf                                                  
+  - AST structure: Defined and revised with simplified constraints              
+  - Symbol table: Simplified (global + flat per-function)                       
+  - Output format: Just defined above                                           
+                                                                                
+  Before I start writing code, a few quick questions:                           
+                                                                                
+  1. Directory structure: Create parse/ parallel to lex/, with parse/parser.go  
+  as the main file?                                                             
+  2. Single file or multiple? The lexer is ~1000 lines in one file. The parser  
+  will be larger. Preference for:                                               
+    - Single parser.go (simpler, matches lexer style)                           
+    - Split into parser.go, ast.go, symtab.go, output.go (more organized)       
+  3. Error recovery: Should the parser attempt to recover from errors and report
+   multiple errors, or fail on the first error? (First error is simpler and fine
+   for a bootstrap compiler.)                                                   
+  4. The grammar has for with optional var decl in init - we decided to simplify
+   this away. Should I also update yapl_grammar.ebnf to match our simplified    
+  rules, or leave it as the "full" language spec?                               
+                                                                                
+❯ 1. The parse directory he already exists here although it's not yet on        
+  GitHub. 2. I like having multiple source files for the parser.                
+  3.Although error recovery is tricky, I think stopping after one error         
+  will be very frustrating for me. If you can implement a                       
+  simple-as-possible resynchronization strategy and continue after errors,      
+  I would ptefer it. 4. Variables really have to be declared at function        
+  level in all cases.                                                           
+                                                                                
+⏺ Let me check what's in the parse directory.                                   
+                                                                                
+⏺ Search(pattern:                                                               
+        "/Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/parse/**/*")      
+  ⎿  Found 0 files                                                              
+                                                                                
+⏺ Bash(ls -la /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/)            
+  ⎿  total 768                                                                  
+     drwxr-xr-x  10 jeff  staff     320 Jan 22 12:32 .                          
+     drwxr-xr-x  14 jeff  staff     448 Jan 21 08:53 ..                         
+     … +8 lines (ctrl+o to expand)                                              
+                                                                                
+⏺ Good. The parse/ directory exists and is empty. I also see sem/ and gen/      
+  directories for later passes.                                                 
+                                                                                
+  Let me create a todo list and get started.                                    
+                                                                                
+⏺ First, let me update the grammar to reflect our design decisions.             
+                                                                                
+⏺ Read(yapl_grammar.ebnf)                                                       
+  ⎿  Read 307 lines                                                             
+                                                                                
+⏺ Now I'll update the grammar to reflect our design decisions:                  
+                                                                                
+⏺ Update(yapl_grammar.ebnf)                                                     
+  ⎿  Added 14 lines, removed 1 line                                             
+      130                                                                       
+      131  ConstExprList   = ConstExpr { "," ConstExpr } .                      
+      132                                                                       
+      133 -FuncDecl        = "func" ReturnType identifier "(" [ ParamList       
+          - ] ")" Block .                                                       
+      133 +(* Functions have three parts: parameters, local declarations,       
+          + then statements.                                                    
+      134 + * All var/const declarations must appear before any executabl       
+          +e statements.                                                        
+      135 + * Labels may only appear at the top level of FuncBody, not in       
+          +side blocks. *)                                                      
+      136 +FuncDecl        = "func" ReturnType identifier "(" [ ParamList       
+          + ] ")" FuncBody .                                                    
+      137                                                                       
+      138 +FuncBody        = "{" { LocalDecl } { FuncStmt } "}" .               
+      139 +                                                                     
+      140 +LocalDecl       = VarDecl | ConstDecl .                              
+      141 +                                                                     
+      142 +(* FuncStmt is a statement that may appear in a function body.       
+      143 + * Labels are only allowed here, not in nested blocks. *)            
+      144 +FuncStmt        = Statement | LabelStmt .                            
+      145 +                                                                     
+      146 +LabelStmt       = identifier ":" .                                   
+      147 +                                                                     
+      148  ParamList       = Param { "," Param } .                              
+      149                                                                       
+      150  Param           = TypeSpecifier identifier .                         
+                                                                                
+⏺ Update(yapl_grammar.ebnf)                                                     
+  ⎿  Added 4 lines, removed 9 lines                                             
+      159  (* STATEMENTS                                                        
+             *)                                                                 
+      160  (* ===========================================================       
+           = *)                                                                 
+      161                                                                       
+      162 +(* Statements do not include declarations - those are only at        
+          +function level.                                                      
+      163 + * Labels are also only at function level, not inside nested b       
+          +locks. *)                                                            
+      164  Statement       = Block                                              
+      163 -                | ConstDecl                                          
+      164 -                | VarDecl                                            
+      165                  | ExpressionStmt                                     
+      166                  | IfStmt                                             
+      167                  | WhileStmt                                          
+      168                  | ForStmt                                            
+      169                  | GotoStmt                                           
+      170 -                | LabelStmt                                          
+      170                  | ReturnStmt                                         
+      171                  | BreakStmt                                          
+      172                  | ContinueStmt .                                     
+     ...                                                                        
+      181                                                                       
+      182  WhileStmt       = "while" "(" Expression ")" Statement .             
+      183                                                                       
+      185 -ForStmt         = "for" "(" [ ForInit ] ";" [ Expression ] ";"       
+          - [ Expression ] ")" Statement .                                      
+      184 +(* ForInit is expression only - no variable declarations allow       
+          +ed *)                                                                
+      185 +ForStmt         = "for" "(" [ Expression ] ";" [ Expression ]        
+          +";" [ Expression ] ")" Statement .                                   
+      186                                                                       
+      187 -ForInit         = Expression                                         
+      188 -                | "var" TypeSpecifier identifier "=" Expressio       
+          -n .                                                                  
+      189 -                                                                     
+      187  GotoStmt        = "goto" identifier ";" .                            
+      188                                                                       
+      192 -LabelStmt       = identifier ":" Statement .                         
+      193 -                                                                     
+      189  ReturnStmt      = "return" [ Expression ] ";" .                      
+      190                                                                       
+      191  BreakStmt       = "break" ";" .                                      
+                                                                                
+⏺ Update(yapl_grammar.ebnf)                                                     
+  ⎿  Added 9 lines                                                              
+      311   * - No type promotion: arithmetic requires explicit casts bet       
+           ween types                                                           
+      312   * - Block types: only & (address-of) operator allowed; cannot       
+            participate in expressions                                          
+      313   * - Labels: must be unique within a function                        
+      314 + *                                                                   
+      315 + * STRUCTURAL CONSTRAINTS (simplifications for compiler implem       
+          +entation):                                                           
+      316 + * - Function-level declarations only: all var/const declarati       
+          +ons in a function                                                    
+      317 + *   must appear at the beginning of the function body, before       
+          + any statements                                                      
+      318 + * - Labels at function level only: labels may only appear at        
+          +the top level of                                                     
+      319 + *   a function body, not inside if/while/for blocks. This ens       
+          +ures goto targets                                                    
+      320 + *   well-defined points in the function's main statement sequ       
+          +ence.                                                                
+      321 + * - No variable declaration in for-init: the for loop initial       
+          +izer may only be                                                     
+      322 + *   an expression, not a variable declaration. Declare loop v       
+          +ariables before the for.                                             
+      323   *)                                                                  
+                                                                                
+⏺ Now let me create the parser files. Starting with token.go:                   
+                                                                                
+⏺ Write(parse/token.go)                                                         
+  ⎿  Wrote 193 lines to token.go                                                
+      1 // YAPL Parser - Token Reader                                           
+      2 // Reads token stream from Pass 1 (lexer) output                        
+      3 package main                                                            
+      4 import (                                                                
+      5         "bufio"                                                         
+      6         "fmt"                                                           
+      7         "io"                                                            
+      8         "strconv"                                                       
+     … +183 lines (ctrl+o to expand)                                            
+                                                                                
+⏺ Write(parse/types.go)                                                         
+  ⎿  Wrote 269 lines to types.go                                                
+      1 // YAPL Parser - Type Representation                                    
+      2 // Types for the YAPL type system                                       
+      3 package main                                                            
+      4 import "fmt"                                                            
+      5 // TypeKind represents the kind of type                                 
+      6 type TypeKind int                                                       
+     … +259 lines (ctrl+o to expand)                                            
+                                                                                
+⏺ Write(parse/ast.go)                                                           
+  ⎿  Wrote 443 lines to ast.go                                                  
+      1 // YAPL Parser - Abstract Syntax Tree                                   
+      2 // AST node definitions for YAPL                                        
+      3 package main                                                            
+      4 // SourceLoc represents a location in the source code                   
+      5 type SourceLoc struct {                                                 
+      6         File string                                                     
+      7         Line int                                                        
+      8 }                                                                       
+     … +433 lines (ctrl+o to expand)                                            
+                                                                                
+⏺ Write(parse/symtab.go)                                                        
+  ⎿  Wrote 396 lines to symtab.go                                               
+      1 // YAPL Parser - Symbol Table                                           
+      2 // Simplified symbol table: global scope + flat per-function scop       
+        e                                                                       
+      3 package main                                                            
+      4 import "fmt"                                                            
+      5 // Storage represents where a variable is stored                        
+      6 type Storage int                                                        
+     … +386 lines (ctrl+o to expand)                                            
+                                                                                
+⏺ Now for the main parser. This is the largest file.                            
+                                                                                
+⏺ Write(parse/parser.go)                                                        
+  ⎿  Wrote 1447 lines to parser.go                                              
+      1 // YAPL Parser - Main Parser                                            
+      2 // Recursive descent parser with panic-mode error recovery              
+      3 package main                                                            
+      4 import (                                                                
+      5         "fmt"                                                           
+      6         "strconv"                                                       
+      7         "strings"                                                       
+      8 )                                                                       
+     … +1437 lines (ctrl+o to expand)                                           
+                                                                                
+⏺ Write(parse/output.go)                                                        
+  ⎿  Wrote 339 lines to output.go                                               
+      1 // YAPL Parser - Output Serialization                                   
+      2 // Serializes AST and symbol table to Pass 2 output format              
+      3 package main                                                            
+      4 import (                                                                
+      5         "bufio"                                                         
+      6         "fmt"                                                           
+      7         "io"                                                            
+      8         "strings"                                                       
+     … +329 lines (ctrl+o to expand)                                            
+                                                                                
+⏺ Write(parse/main.go)                                                          
+  ⎿  Wrote 38 lines to main.go                                                  
+      1 // YAPL Parser - Pass 2 of the YAPL compiler                            
+      2 // Reads token stream from stdin (Pass 1 output), writes AST to s       
+        tdout                                                                   
+      3 package main                                                            
+      4 import (                                                                
+      5         "fmt"                                                           
+      6         "os"                                                            
+      7 )                                                                       
+     … +28 lines (ctrl+o to expand)                                             
+                                                                                
+⏺ Let me try to build the parser to check for any compilation errors.           
+                                                                                
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/parse && go build
+       -o parser 2>&1)                                                          
+  ⎿  Error: Exit code 1                                                         
+     go: cannot find main module, but found .git/config in                      
+     /Users/jeff/go/src/github.com/gmofishsauce/wut4                            
+        to create a module there, run:                                          
+        cd ../.. && go mod init                                                 
+                                                                                
+⏺ Bash(ls -la /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/lex/)        
+  ⎿  total 4824                                                                 
+     drwxr-xr-x   6 jeff  staff      192 Jan 22 10:51 .                         
+     drwxr-xr-x  10 jeff  staff      320 Jan 22 16:12 ..                        
+     … +4 lines (ctrl+o to expand)                                              
+                                                                                
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/parse && go build
+       -o parser *.go 2>&1)                                                     
+  ⎿  Error: Exit code 1                                                         
+     # command-line-arguments                                                   
+     ./parser.go:688:9: cannot use p.parseStatement() (value of interface type  
+     Stmt) as FuncStmt value in return statement: Stmt does not implement       
+     FuncStmt (missing method funcStmtNode)                                     
+                                                                                
+⏺ There's a type issue. Let me fix it.                                          
+                                                                                
+⏺ Read(parse/parser.go)                                                         
+  ⎿  Read 30 lines                                                              
+                                                                                
+⏺ Update(parse/parser.go)                                                       
+  ⎿  Added 10 lines, removed 1 line                                             
+      685      return p.parseExprStmtStartingWith(tok)                          
+      686    }                                                                  
+      687                                                                       
+      688 -  return p.parseStatement()                                          
+      688 +  // Parse a regular statement - all Stmt types also implement       
+          + FuncStmt                                                            
+      689 +  stmt := p.parseStatement()                                         
+      690 +  if stmt == nil {                                                   
+      691 +    return nil                                                       
+      692 +  }                                                                  
+      693 +  // Type assertion: all concrete Stmt types implement FuncStm       
+          +t                                                                    
+      694 +  if fs, ok := stmt.(FuncStmt); ok {                                 
+      695 +    return fs                                                        
+      696 +  }                                                                  
+      697 +  return nil                                                         
+      698  }                                                                    
+      699                                                                       
+      700  // parseStatement parses a statement                                 
+                                                                                
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/parse && go build
+       -o parser *.go 2>&1)                                                     
+  ⎿  (No content)                                                               
+                                                                                
+⏺ The parser builds successfully. Let me do a quick integration test with the   
+  lexer.                                                                        
+                                                                                
+⏺ Bash(cat << 'EOF' > /tmp/test.yapl                                            
+      const SIZE = 64;…)                                                        
+  ⎿  Test file created                                                          
+                                                                                
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang && cat           
+      /tmp/test.yapl | ./lex/lexer test.yapl 2>&1 | head -50)                   
+  ⎿  #file test.yapl                                                            
+     #line 1                                                                    
+     1, KEY, const                                                              
+     … +47 lines (ctrl+o to expand)                                             
+                                                                                
+⏺ Bash(cat /tmp/test.yapl | ./lex/lexer test.yapl 2>&1 | ./parse/parser 2>&1)   
+  ⎿  #file test.yapl                                                            
+                                                                                
+     STRUCT Point                                                               
+     … +54 lines (ctrl+o to expand)                                             
+                                                                                
+⏺ The parser works. Let me mark the task complete and summarize what we've      
+  built.                                                                        
+                                                                                
+⏺ The parser is working. Here's a summary of what we built:                     
+                                                                                
+  Parser Files Created                                                          
+  ┌───────────┬────────────────────────────────────────────────────┬───────┐    
+  │   File    │                      Purpose                       │ Lines │    
+  ├───────────┼────────────────────────────────────────────────────┼───────┤    
+  │ token.go  │ Token reader for Pass 1 output                     │ ~170  │    
+  ├───────────┼────────────────────────────────────────────────────┼───────┤    
+  │ types.go  │ Type representation (base, pointer, array, struct) │ ~180  │    
+  ├───────────┼────────────────────────────────────────────────────┼───────┤    
+  │ ast.go    │ AST node definitions                               │ ~320  │    
+  ├───────────┼────────────────────────────────────────────────────┼───────┤    
+  │ symtab.go │ Symbol table (global + per-function)               │ ~280  │    
+  ├───────────┼────────────────────────────────────────────────────┼───────┤    
+  │ parser.go │ Recursive descent parser with error recovery       │ ~900  │    
+  ├───────────┼────────────────────────────────────────────────────┼───────┤    
+  │ output.go │ Serialization to Pass 2 format                     │ ~230  │    
+  ├───────────┼────────────────────────────────────────────────────┼───────┤    
+  │ main.go   │ Entry point                                        │ ~30   │    
+  └───────────┴────────────────────────────────────────────────────┴───────┘    
+  Features                                                                      
+                                                                                
+  - Error recovery: Panic-mode synchronization at semicolons, braces, and       
+  keywords                                                                      
+  - Symbol table: Computes struct layouts, variable offsets, frame sizes        
+  - Parameter locations: R1/R2/R3 or STACK offsets                              
+  - Local variable offsets: Negative from frame base                            
+                                                                                
+  Test Results                                                                  
+                                                                                
+  The pipeline lexer | parser successfully processes:                           
+  - Struct definitions → field offsets computed                                 
+  - Constants                                                                   
+  - Global variables → data segment offsets                                     
+  - Functions → parameter locations, local offsets, frame size                  
+  - Statements and expressions → AST serialized                                 
+                                                                                
+  Grammar Updates                                                               
+                                                                                
+  Updated yapl_grammar.ebnf to enforce:                                         
+  - Declarations only at function body level                                    
+  - Labels only at function body level                                          
+  - No var declaration in for-init                                              
+                                                                                
+  Would you like to test with more complex programs, add error handling tests,  
+  or discuss the next pass (IR generation)?                                     
+                                                                                
+✻ Brewed for 8m 34s                                                             
+                                                                                
+❯ I'd like to see some more tests including negative tests.                     
+                                                                                
+⏺ Let me create a test suite with both positive and negative tests.             
+                                                                                
+⏺ Bash(mkdir -p                                                                 
+      /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/parse/testdata)      
+  ⎿  (No content)                                                               
+                                                                                
+⏺ Write(parse/testdata/01_simple.yapl)                                          
+  ⎿  Wrote 39 lines to parse/testdata/01_simple.yapl                            
+      1 // Test 01: Simple expressions and operators                            
+      2 const MAX = 100;                                                        
+      3 const MIN = 0;                                                          
+      4 var int16 g_value;                                                      
+      5 func int16 TestOps(int16 a, int16 b) {                                  
+      6     var int16 x;                                                        
+      7     var int16 y;                                                        
+      8     var int16 z;                                                        
+     … +29 lines (ctrl+o to expand)                                             
+                                                                                
+⏺ Write(parse/testdata/02_control.yapl)                                         
+  ⎿  Wrote 77 lines to parse/testdata/02_control.yapl                           
+      1 // Test 02: Control flow statements                                     
+      2 func int16 TestIf(int16 n) {                                            
+      3     var int16 result;                                                   
+      4     if (n > 0) {                                                        
+      5         result = 1;                                                     
+      6     }                                                                   
+      7     if (n < 0) {                                                        
+     … +67 lines (ctrl+o to expand)                                             
+                                                                                
+⏺ Write(parse/testdata/03_pointers.yapl)                                        
+  ⎿  Wrote 47 lines to parse/testdata/03_pointers.yapl                          
+      1 // Test 03: Pointers and dereferencing                                  
+      2 var int16 g_value;                                                      
+      3 var @int16 g_ptr;                                                       
+      4 func void TestPointers() {                                              
+      5     var int16 x;                                                        
+      6     var @int16 p;                                                       
+      7     x = 42;                                                             
+     … +37 lines (ctrl+o to expand)                                             
+                                                                                
+⏺ Write(parse/testdata/04_arrays.yapl)                                          
+  ⎿  Wrote 59 lines to parse/testdata/04_arrays.yapl                            
+      1 // Test 04: Arrays                                                      
+      2 const SIZE = 16;                                                        
+      3 var int16 g_arr[SIZE];                                                  
+      4 var uint8 g_buf[64];                                                    
+      5 func void TestArrays() {                                                
+      6     var int16 arr[10];                                                  
+      7     var uint8 buf[32];                                                  
+     … +49 lines (ctrl+o to expand)                                             
+                                                                                
+⏺ Write(parse/testdata/05_structs.yapl)                                         
+  ⎿  Wrote 77 lines to parse/testdata/05_structs.yapl                           
+      1 // Test 05: Structs and field access                                    
+      2 struct Point {                                                          
+      3     int16 x;                                                            
+      4     int16 y;                                                            
+      5 };                                                                      
+      6 struct Rect {                                                           
+      7     Point topLeft;                                                      
+      8     Point bottomRight;                                                  
+     … +67 lines (ctrl+o to expand)                                             
+                                                                                
+⏺ Write(parse/testdata/06_labels.yapl)                                          
+  ⎿  Wrote 69 lines to parse/testdata/06_labels.yapl                            
+      1 // Test 06: Labels and goto                                             
+      2 func int16 TestGoto(int16 n) {                                          
+      3     var int16 result;                                                   
+      4     result = 0;                                                         
+      5     if (n < 0) {                                                        
+      6         goto negative;                                                  
+      7     }                                                                   
+     … +59 lines (ctrl+o to expand)                                             
+                                                                                
+⏺ Now let me create the negative tests (programs that should produce errors):   
+                                                                                
+⏺ Write(parse/testdata/err_01_nested_decl.yapl)                                 
+  ⎿  Wrote 13 lines to parse/testdata/err_01_nested_decl.yapl                   
+      1 // Error test 01: Declaration inside nested block (should error)        
+      2 func void Bad() {                                                       
+      3     var int16 x;                                                        
+      4     if (x > 0) {                                                        
+      5         var int16 y;  // ERROR: declarations only at function lev       
+        el                                                                      
+      6         y = 10;                                                         
+      7     }                                                                   
+     … +3 lines (ctrl+o to expand)                                              
+                                                                                
+⏺ Write(parse/testdata/err_02_nested_label.yapl)                                
+  ⎿  Wrote 14 lines to parse/testdata/err_02_nested_label.yapl                  
+      1 // Error test 02: Label inside nested block (should error)              
+      2 func void Bad() {                                                       
+      3     var int16 x;                                                        
+      4     x = 0;                                                              
+      5     while (x < 10) {                                                    
+      6     inner:              // ERROR: labels only at function level         
+      7         x = x + 1;                                                      
+      8     }                                                                   
+     … +4 lines (ctrl+o to expand)                                              
+                                                                                
+⏺ Write(parse/testdata/err_03_missing_semi.yapl)                                
+  ⎿  Wrote 9 lines to parse/testdata/err_03_missing_semi.yapl                   
+      1 // Error test 03: Missing semicolon                                     
+      2 func void Bad() {                                                       
+      3     var int16 x;                                                        
+      4     x = 10      // ERROR: missing semicolon                             
+      5     return;                                                             
+      6 }                                                                       
+                                                                                
+⏺ Write(parse/testdata/err_04_missing_paren.yapl)                               
+  ⎿  Wrote 12 lines to parse/testdata/err_04_missing_paren.yapl                 
+      1 // Error test 04: Missing parenthesis                                   
+      2 func void Bad() {                                                       
+      3     var int16 x;                                                        
+      4     if x > 0 {      // ERROR: missing ( and )                           
+      5         x = 1;                                                          
+      6     }                                                                   
+      7     return;                                                             
+     … +2 lines (ctrl+o to expand)                                              
+                                                                                
+⏺ Write(parse/testdata/err_05_dup_decl.yapl)                                    
+  ⎿  Wrote 13 lines to parse/testdata/err_05_dup_decl.yapl                      
+      1 // Error test 05: Duplicate declaration                                 
+      2 var int16 g_value;                                                      
+      3 var int16 g_value;  // ERROR: redefinition                              
+      4 func void Foo() {                                                       
+      5     return;                                                             
+      6 }                                                                       
+      7 func void Foo() {   // ERROR: redefinition                              
+     … +3 lines (ctrl+o to expand)                                              
+                                                                                
+⏺ Write(parse/testdata/err_06_dup_param.yapl)                                   
+  ⎿  Wrote 6 lines to parse/testdata/err_06_dup_param.yapl                      
+      1 // Error test 06: Duplicate parameter                                   
+      2 func void Bad(int16 x, int16 x) {  // ERROR: duplicate parameter        
+      3     return;                                                             
+      4 }                                                                       
+                                                                                
+⏺ Write(parse/testdata/err_07_dup_local.yapl)                                   
+  ⎿  Wrote 9 lines to parse/testdata/err_07_dup_local.yapl                      
+      1 // Error test 07: Duplicate local variable                              
+      2 func void Bad() {                                                       
+      3     var int16 x;                                                        
+      4     var int16 x;  // ERROR: redefinition                                
+      5     return;                                                             
+      6 }                                                                       
+                                                                                
+⏺ Write(parse/testdata/err_08_dup_label.yapl)                                   
+  ⎿  Wrote 16 lines to parse/testdata/err_08_dup_label.yapl                     
+      1 // Error test 08: Duplicate label                                       
+      2 func void Bad() {                                                       
+      3     var int16 x;                                                        
+      4     x = 0;                                                              
+      5 start:                                                                  
+      6     x = x + 1;                                                          
+     … +6 lines (ctrl+o to expand)                                              
+                                                                                
+⏺ Write(parse/testdata/err_09_missing_brace.yapl)                               
+  ⎿  Wrote 9 lines to parse/testdata/err_09_missing_brace.yapl                  
+      1 // Error test 09: Missing closing brace                                 
+      2 func void Bad() {                                                       
+      3     var int16 x;                                                        
+      4     x = 10;                                                             
+      5 // ERROR: missing closing brace                                         
+                                                                                
+⏺ Now let me create a test script:                                              
+                                                                                
+⏺ Write(parse/run_tests.sh)                                                     
+  ⎿  Wrote 99 lines to parse/run_tests.sh                                       
+      1 #!/bin/bash                                                             
+      2 # YAPL Parser Test Script                                               
+      3 # Runs positive and negative tests                                      
+      4 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"                             
+      5 LEXER="$SCRIPT_DIR/../lex/lexer"                                        
+      6 PARSER="$SCRIPT_DIR/parser"                                             
+      7 TESTDATA="$SCRIPT_DIR/testdata"                                         
+     … +89 lines (ctrl+o to expand)                                             
+                                                                                
+⏺ Bash(chmod +x                                                                 
+      /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/parse/run_tests.sh &&
+       ./parse/run_tests.sh)                                                    
+  ⎿  ========================================                                   
+     YAPL Parser Test Suite                                                     
+     ========================================                                   
+     … +52 lines (ctrl+o to expand)                                             
+                                                                                
+⏺ All tests pass, but I see there's a panic in err_05_dup_decl.yapl. The test   
+  still passes because the process exits non-zero, but there's a nil pointer    
+  dereference. Let me fix that bug.                                             
+                                                                                
+⏺ Read(parse/parser.go)                                                         
+  ⎿  Read 60 lines                                                              
+                                                                                
+⏺ Update(parse/parser.go)                                                       
+  ⎿  Added 10 lines                                                             
+      526    funcSym, err2 := p.symtab.DefineFunc(nameTok.Value, returnTy       
+           pe, loc)                                                             
+      527    if err2 != nil {                                                   
+      528      p.errorAt(loc, "%v", err2)                                       
+      529 +    // Create a dummy symbol for error recovery                      
+      530 +    funcSym = &Symbol{                                               
+      531 +      Name:     nameTok.Value,                                       
+      532 +      Kind:     SymFunc,                                             
+      533 +      Type:     returnType,                                          
+      534 +      Loc:      loc,                                                 
+      535 +      Params:   make([]*ParamSymbol, 0),                             
+      536 +      Locals:   make([]*LocalSymbol, 0),                             
+      537 +      Labels:   make(map[string]*LabelSymbol),                       
+      538 +    }                                                                
+      539    }                                                                  
+      540                                                                       
+      541    // Enter function scope                                            
+                                                                                
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/parse && go build
+       -o parser *.go && cd .. && ./parse/run_tests.sh)                         
+  ⎿  ========================================                                   
+     YAPL Parser Test Suite                                                     
+     ========================================                                   
+     … +52 lines (ctrl+o to expand)                                             
+                                                                                
+⏺ All tests pass and the panic is fixed. I notice the error messages have       
+  duplicated location info. Let me fix that formatting issue:                   
+                                                                                
+⏺ Read(parse/symtab.go)                                                         
+  ⎿  Read 30 lines                                                              
+                                                                                
+⏺ Read(parse/symtab.go)                                                         
+  ⎿  Read 30 lines                                                              
+                                                                                
+⏺ The symtab errors include location, and then the parser's errorAt adds it     
+  again. Let me fix symtab to return simpler error messages:                    
+                                                                                
+⏺ Update(parse/symtab.go)                                                       
+  ⎿  Added 1 line, removed 1 line                                               
+      110  // DefineConst defines a constant in the global scope                
+      111  func (st *SymbolTable) DefineConst(name string, value int64, l       
+           oc SourceLoc) error {                                                
+      112    if _, exists := st.Globals[name]; exists {                         
+      113 -    return fmt.Errorf("%s:%d: redefinition of '%s'", loc.File,       
+          - loc.Line, name)                                                     
+      113 +    return fmt.Errorf("redefinition of '%s'", name)                  
+      114    }                                                                  
+      115    st.Globals[name] = &Symbol{                                        
+      116      Name:     name,                                                  
+                                                                                
+⏺ Update(parse/symtab.go)                                                       
+  ⎿  Added 1 line, removed 1 line                                               
+      125  // DefineGlobalVar defines a global or static variable               
+      126  func (st *SymbolTable) DefineGlobalVar(name string, typ *Type,       
+            arrayLen int, loc SourceLoc) error {                                
+      127    if _, exists := st.Globals[name]; exists {                         
+      128 -    return fmt.Errorf("%s:%d: redefinition of '%s'", loc.File,       
+          - loc.Line, name)                                                     
+      128 +    return fmt.Errorf("redefinition of '%s'", name)                  
+      129    }                                                                  
+      130                                                                       
+      131    storage := StorageStatic                                           
+                                                                                
+⏺ Bash(grep -n "fmt.Errorf.*loc.File"                                           
+      /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/parse/symtab.go)     
+  ⎿  163:               return nil, fmt.Errorf("%s:%d: redefinition of '%s'", lo
+     oc.Line, name)                                                             
+     182:               return nil, fmt.Errorf("%s:%d: redefinition of '%s'", lo
+     … +15 lines (ctrl+o to expand)                                             
+                                                                                
+                                                                                
+                                                                                
+⏺ Read(parse/symtab.go)                                                         
+  ⎿  Read 100 lines                                                             
+                                                                                
+⏺ Update(parse/symtab.go)                                                       
+  ⎿  Added 1 line, removed 1 line                                               
+      160  // DefineFunc defines a function                                     
+      161  func (st *SymbolTable) DefineFunc(name string, returnType *Typ       
+           e, loc SourceLoc) (*Symbol, error) {                                 
+      162    if _, exists := st.Globals[name]; exists {                         
+      163 -    return nil, fmt.Errorf("%s:%d: redefinition of '%s'", loc.       
+          -File, loc.Line, name)                                                
+      163 +    return nil, fmt.Errorf("redefinition of '%s'", name)             
+      164    }                                                                  
+      165    sym := &Symbol{                                                    
+      166      Name:     name,                                                  
+                                                                                
+⏺ Update(parse/symtab.go)                                                       
+  ⎿  Added 1 line, removed 1 line                                               
+      179  // DefineStruct defines a struct type                                
+      180  func (st *SymbolTable) DefineStruct(name string, fields []*Fie       
+           ldDecl, loc SourceLoc) (*StructDef, error) {                         
+      181    if _, exists := st.Globals[name]; exists {                         
+      182 -    return nil, fmt.Errorf("%s:%d: redefinition of '%s'", loc.       
+          -File, loc.Line, name)                                                
+      182 +    return nil, fmt.Errorf("redefinition of '%s'", name)             
+      183    }                                                                  
+      184                                                                       
+      185    // Compute field offsets, struct size, and alignment               
+                                                                                
+⏺ Read(parse/symtab.go)                                                         
+  ⎿  Read 100 lines                                                             
+                                                                                
+⏺ Update(parse/symtab.go)                                                       
+  ⎿  Added 2 lines, removed 2 lines                                             
+      271  // AddParam adds a parameter to the function scope                   
+      272  func (fs *FuncScope) AddParam(name string, typ *Type, loc Sour       
+           ceLoc) error {                                                       
+      273    if _, exists := fs.ParamMap[name]; exists {                        
+      274 -    return fmt.Errorf("%s:%d: duplicate parameter '%s'", loc.F       
+          -ile, loc.Line, name)                                                 
+      274 +    return fmt.Errorf("duplicate parameter '%s'", name)              
+      275    }                                                                  
+      276    if _, exists := fs.LocalMap[name]; exists {                        
+      277 -    return fmt.Errorf("%s:%d: '%s' already declared", loc.File       
+          -, loc.Line, name)                                                    
+      277 +    return fmt.Errorf("'%s' already declared", name)                 
+      278    }                                                                  
+      279                                                                       
+      280    index := len(fs.Func.Params)                                       
+                                                                                
+⏺ Update(parse/symtab.go)                                                       
+  ⎿  Added 2 lines, removed 2 lines                                             
+      292  // AddLocal adds a local variable to the function scope              
+      293  func (fs *FuncScope) AddLocal(name string, typ *Type, arrayLen       
+            int, structs map[string]*StructDef, loc SourceLoc) error {          
+      294    if _, exists := fs.ParamMap[name]; exists {                        
+      295 -    return fmt.Errorf("%s:%d: '%s' shadows parameter", loc.Fil       
+          -e, loc.Line, name)                                                   
+      295 +    return fmt.Errorf("'%s' shadows parameter", name)                
+      296    }                                                                  
+      297    if _, exists := fs.LocalMap[name]; exists {                        
+      298 -    return fmt.Errorf("%s:%d: redefinition of '%s'", loc.File,       
+          - loc.Line, name)                                                     
+      298 +    return fmt.Errorf("redefinition of '%s'", name)                  
+      299    }                                                                  
+      300                                                                       
+      301    // Calculate size and alignment                                    
+                                                                                
+⏺ Update(parse/symtab.go)                                                       
+  ⎿  Added 2 lines, removed 2 lines                                             
+      325  // AddLocalConst adds a local constant to the function scope         
+      326  func (fs *FuncScope) AddLocalConst(name string, value int64, l       
+           oc SourceLoc) error {                                                
+      327    if _, exists := fs.ParamMap[name]; exists {                        
+      328 -    return fmt.Errorf("%s:%d: '%s' shadows parameter", loc.Fil       
+          -e, loc.Line, name)                                                   
+      328 +    return fmt.Errorf("'%s' shadows parameter", name)                
+      329    }                                                                  
+      330    if _, exists := fs.LocalMap[name]; exists {                        
+      331 -    return fmt.Errorf("%s:%d: redefinition of '%s'", loc.File,       
+          - loc.Line, name)                                                     
+      331 +    return fmt.Errorf("redefinition of '%s'", name)                  
+      332    }                                                                  
+      333                                                                       
+      334    local := &LocalSymbol{                                             
+                                                                                
+⏺ Update(parse/symtab.go)                                                       
+  ⎿  Added 1 line, removed 1 line                                               
+      345  // AddLabel adds a label to the function scope                       
+      346  func (fs *FuncScope) AddLabel(name string, stmtIndex int, loc        
+           SourceLoc) error {                                                   
+      347    if _, exists := fs.Func.Labels[name]; exists {                     
+      348 -    return fmt.Errorf("%s:%d: duplicate label '%s'", loc.File,       
+          - loc.Line, name)                                                     
+      348 +    return fmt.Errorf("duplicate label '%s'", name)                  
+      349    }                                                                  
+      350    fs.Func.Labels[name] = &LabelSymbol{                               
+      351      Name:      name,                                                 
+                                                                                
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/parse && go build
+       -o parser *.go && cd .. && ./parse/run_tests.sh)                         
+  ⎿  ========================================                                   
+     YAPL Parser Test Suite                                                     
+     ========================================                                   
+     … +47 lines (ctrl+o to expand)                                             
+                                                                                
+⏺ All 15 tests pass and error messages are now clean. Here's a summary:         
+                                                                                
+  Test Results                                                                  
+                                                                                
+  Positive Tests (6 tests)                                                      
+  ┌──────────────────┬───────────────────────────────────────────────────────┐  
+  │       Test       │                      Description                      │  
+  ├──────────────────┼───────────────────────────────────────────────────────┤  
+  │ 01_simple.yapl   │ Arithmetic, bitwise, comparison, logical operators    │  
+  ├──────────────────┼───────────────────────────────────────────────────────┤  
+  │ 02_control.yapl  │ if/else, while, for, break, continue                  │  
+  ├──────────────────┼───────────────────────────────────────────────────────┤  
+  │ 03_pointers.yapl │ Pointers, address-of, dereference, pointer-to-pointer │  
+  ├──────────────────┼───────────────────────────────────────────────────────┤  
+  │ 04_arrays.yapl   │ Arrays, indexing, computed indices                    │  
+  ├──────────────────┼───────────────────────────────────────────────────────┤  
+  │ 05_structs.yapl  │ Structs, field access (. and ->), sizeof              │  
+  ├──────────────────┼───────────────────────────────────────────────────────┤  
+  │ 06_labels.yapl   │ Labels, goto, multiple labels                         │  
+  └──────────────────┴───────────────────────────────────────────────────────┘  
+  Negative Tests (9 tests)                                                      
+  ┌───────────────────────────┬────────────────────────────────────────┐        
+  │           Test            │             Expected Error             │        
+  ├───────────────────────────┼────────────────────────────────────────┤        
+  │ err_01_nested_decl.yapl   │ Declaration inside if block            │        
+  ├───────────────────────────┼────────────────────────────────────────┤        
+  │ err_02_nested_label.yapl  │ Label inside while block               │        
+  ├───────────────────────────┼────────────────────────────────────────┤        
+  │ err_03_missing_semi.yapl  │ Missing semicolon                      │        
+  ├───────────────────────────┼────────────────────────────────────────┤        
+  │ err_04_missing_paren.yapl │ Missing parentheses in if              │        
+  ├───────────────────────────┼────────────────────────────────────────┤        
+  │ err_05_dup_decl.yapl      │ Duplicate global variable and function │        
+  ├───────────────────────────┼────────────────────────────────────────┤        
+  │ err_06_dup_param.yapl     │ Duplicate parameter name               │        
+  ├───────────────────────────┼────────────────────────────────────────┤        
+  │ err_07_dup_local.yapl     │ Duplicate local variable               │        
+  ├───────────────────────────┼────────────────────────────────────────┤        
+  │ err_08_dup_label.yapl     │ Duplicate label                        │        
+  ├───────────────────────────┼────────────────────────────────────────┤        
+  │ err_09_missing_brace.yapl │ Missing closing brace                  │        
+  └───────────────────────────┴────────────────────────────────────────┘        
+  The error recovery works - the parser reports multiple errors and continues   
+  parsing where possible. For example, err_05_dup_decl.yapl reports both the    
+  duplicate variable and the duplicate function.                                
+                                                                                
+  Would you like me to add more tests, or shall we move on to something else?   
+                                                                                
+✻ Cogitated for 4m 27s                                                          
+                                                                                
+❯ I'm good for today we''ll resume tomorrow                                     
+                                                                                
+⏺ Sounds good. Here's a summary of what we accomplished today:                  
+                                                                                
+  Summary                                                                       
+                                                                                
+  Design Work:                                                                  
+  - Discussed compiler architecture (AST → CFG with DAGs per basic block)       
+  - Defined AST node types for YAPL                                             
+  - Designed simplified symbol table (global + flat per-function)               
+  - Defined Pass 2 output format (serialized AST + symbol table)                
+  - Updated yapl_grammar.ebnf with structural constraints:                      
+    - Declarations only at function level                                       
+    - Labels only at function level                                             
+    - No var in for-init                                                        
+                                                                                
+  Implementation:                                                               
+  - Created 7 source files in parse/:                                           
+    - token.go - token reader                                                   
+    - types.go - type representation                                            
+    - ast.go - AST nodes                                                        
+    - symtab.go - symbol table                                                  
+    - parser.go - recursive descent parser with error recovery                  
+    - output.go - serialization                                                 
+    - main.go - entry point                                                     
+                                                                                
+  Testing:                                                                      
+  - 6 positive tests (operators, control flow, pointers, arrays, structs,       
+  labels)                                                                       
+  - 9 negative tests (various syntax and semantic errors)                       
+  - All 15 tests passing                                                        
+                                                                                
+  The pipeline lexer | parser is working end-to-end. See you tomorrow!          
+MacBookPro-22:lang jeff$ ls                                                     
+README.md               lex                     yapl_grammar.ebnf               
+YAPL.pdf                parse                                                   
+gen                     sem                                                     
+MacBookPro-22:lang jeff$ ls parse                                               
+ast.go		output.go	parser.go	symtab.go	token.go
+main.go         parser          run_tests.sh    testdata        types.go        
+MacBookPro-22:lang jeff$ ls
+README.md		lex			yapl_grammar.ebnf
+YAPL.pdf		parse
+gen			sem
+MacBookPro-22:lang jeff$ ls lex
+lexer		lexer.go	run_tests.sh	testdata
+MacBookPro-22:lang jeff$ pwd
+/Users/jeff/go/src/github.com/gmofishsauce/wut4/lang
+MacBookPro-22:lang jeff$ 

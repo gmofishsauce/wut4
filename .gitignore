@@ -13,6 +13,9 @@ foo
 out.bin
 asm
 emul
+lex/lexer
+parse/parser
+
 
 # Garbage created by well-meaning but moronic system vendors
 *.DS_Store

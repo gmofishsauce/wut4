@@ -1,0 +1,12 @@
+// Error test 05: Duplicate declaration
+
+var int16 g_value;
+var int16 g_value;  // ERROR: redefinition
+
+func void Foo() {
+    return;
+}
+
+func void Foo() {   // ERROR: redefinition
+    return;
+}

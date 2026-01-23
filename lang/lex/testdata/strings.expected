@@ -1,0 +1,29 @@
+#file strings.yapl
+#line 2
+1, KEY, var
+2, KEY, byte
+3, ID, msg
+4, PUNCT, [
+5, LIT, 0x0020
+6, PUNCT, ]
+7, PUNCT, ;
+#line 3
+8, KEY, var
+9, KEY, byte
+10, ID, hello
+11, PUNCT, [
+12, LIT, 0x0006
+13, PUNCT, ]
+14, PUNCT, =
+15, LIT, "hello"
+16, PUNCT, ;
+#line 4
+17, KEY, var
+18, KEY, byte
+19, ID, escaped
+20, PUNCT, [
+21, LIT, 0x0008
+22, PUNCT, ]
+23, PUNCT, =
+24, LIT, "a\tb\nc"
+25, PUNCT, ;
