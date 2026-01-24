@@ -40,9 +40,10 @@ type Expr interface {
 
 // ConstDecl represents a constant declaration
 type ConstDecl struct {
-	Name  string
-	Value int64
-	Loc   SourceLoc
+	Name      string
+	ConstType *Type
+	Value     int64
+	Loc       SourceLoc
 }
 
 func (d *ConstDecl) declNode()         {}

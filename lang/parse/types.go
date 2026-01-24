@@ -184,11 +184,11 @@ func (b BaseType) Size() int {
 	case BaseInt16, BaseUint16:
 		return 2
 	case BaseBlock32:
-		return 32
+		return 4 // 32 bits = 4 bytes
 	case BaseBlock64:
-		return 64
+		return 8 // 64 bits = 8 bytes
 	case BaseBlock128:
-		return 128
+		return 16 // 128 bits = 16 bytes
 	default:
 		return -1
 	}

@@ -640,11 +640,11 @@ func (l *Lexer) sizeofType(typeName string) int64 {
 	case "int16", "uint16":
 		return 2
 	case "block32":
-		return 32
+		return 4 // 32 bits = 4 bytes
 	case "block64":
-		return 64
+		return 8 // 64 bits = 8 bytes
 	case "block128":
-		return 128
+		return 16 // 128 bits = 16 bytes
 	default:
 		// Pointer types
 		if strings.HasPrefix(typeName, "@") {
@@ -841,14 +841,35 @@ func (l *Lexer) Run() {
 }
 
 // Handle const declaration - parse and record the constant value
+// Syntax: const TypeSpecifier identifier = ConstExpr ;
 func (l *Lexer) handleConstDecl() {
 	l.emitToken(KEY, "const")
 
 	l.skipWhitespace()
 
+	// Handle pointer types (@)
+	for l.peek() == '@' {
+		l.advance()
+		l.emitToken(PUNCT, "@")
+		l.skipWhitespace()
+	}
+
+	// Get type name
+	if !isLetter(l.peek()) {
+		l.error("expected type after 'const'")
+	}
+	typeName := l.scanIdentifier()
+	if keywords[typeName] {
+		l.emitToken(KEY, typeName)
+	} else {
+		l.emitToken(ID, typeName)
+	}
+
+	l.skipWhitespace()
+
 	// Get identifier name
 	if !isLetter(l.peek()) {
-		l.error("expected identifier after 'const'")
+		l.error("expected identifier in const declaration")
 	}
 	name := l.scanIdentifier()
 	l.emitToken(ID, name)

@@ -2,9 +2,6 @@
 
 The content of this repo is [licensed](./LICENSE).
 
-(July 2025): most of the attention for the last several months has been
-on the digital simulator in the sim/ directory. Everything else in this
-repo is old and needs to be revised.
 
 #
 ## [asm](./asm) - wut4 assembler
@@ -15,6 +12,10 @@ Assembler written in Go by Claude Code.
 ## [emul](./emul) - wut4 emulator
 
 Functional emulator written in Go by Claude Code.
+
+## [lang] (./lang) - YAPL language)
+
+Four pass compiler written in Go by Claude Code.
 
 ## [exer/cex](./exer/cex) - chip exerciser/tester
 
@@ -30,4 +31,4 @@ YARC firmware.
 
 ## [pld](./pld) - 22v10 experiments
 
-including a general 8-bit register.
+Including a general 8-bit register.

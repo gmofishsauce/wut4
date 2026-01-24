@@ -1,0 +1,25 @@
+#!/bin/bash
+# YAPL compiler driver
+# Usage: ./y <source.yapl>
+#        ./y -              (read from stdin)
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <source.yapl>" >&2
+    echo "       $0 -  (read from stdin)" >&2
+    exit 1
+fi
+
+SOURCE="$1"
+
+if [ "$SOURCE" = "-" ]; then
+    # Read from stdin
+    cat | "$SCRIPT_DIR/lex/lexer" stdin | "$SCRIPT_DIR/parse/parser" | "$SCRIPT_DIR/sem/sem"
+else
+    if [ ! -f "$SOURCE" ]; then
+        echo "Error: $SOURCE not found" >&2
+        exit 1
+    fi
+    cat "$SOURCE" | "$SCRIPT_DIR/lex/lexer" "$SOURCE" | "$SCRIPT_DIR/parse/parser" | "$SCRIPT_DIR/sem/sem"
+fi

@@ -11,10 +11,11 @@
 *.prof
 foo
 out.bin
-asm
-emul
+asm/asm
+emul/emul
 lex/lexer
 parse/parser
+sem/sem
 
 
 # Garbage created by well-meaning but moronic system vendors

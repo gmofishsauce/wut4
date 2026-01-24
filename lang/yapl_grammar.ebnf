@@ -116,7 +116,7 @@ ConstPrimaryExpr = identifier
 (* DECLARATIONS                                                 *)
 (* ============================================================ *)
 
-ConstDecl       = "const" identifier "=" ConstExpr ";" .
+ConstDecl       = "const" TypeSpecifier identifier "=" ConstExpr ";" .
 
 VarDecl         = "var" TypeSpecifier identifier ";"
                 | "var" TypeSpecifier identifier "=" Initializer ";"

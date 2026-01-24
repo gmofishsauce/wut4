@@ -1,12 +1,13 @@
 # YAPL Compiler for WUT-4
+503-216-2610 opt 2
 
 ## Project Overview
 
-This directory contains the YAPL (Yet Another Programming Language) compiler, a self-hosting compiler designed to run natively on the WUT-4 architecture.
+This directory contains the YAPL (Yet Another Programming Language) compiler, a self-hosted (eventually) compiler designed to run natively on the WUT-4 architecture.
 
 **Primary Goal:** Self-hosting - the compiler must be small enough to compile itself while running on WUT-4's 64KB code space.
 
-**Language Specification:** https://docs.google.com/document/d/1hgsayGjZJc6WUVjSEsPRWVxPeXkVFLKpRCx5jc5hrx8/edit?usp=sharing
+**Language Description:** https://docs.google.com/document/d/1hgsayGjZJc6WUVjSEsPRWVxPeXkVFLKpRCx5jc5hrx8/edit?usp=sharing
 
 ## Why YAPL?
 
@@ -21,7 +22,7 @@ YAPL is specifically designed to be compiled by a small, simple compiler that fi
 
 ## Compiler Architecture
 
-The compiler uses a **multi-pass pipeline** with externalized state between passes. Each pass is a separate program that reads input files and writes output files, keeping each pass small enough to fit in 64KB.
+The compiler uses a **multi-pass pipeline** with externalized state between passes. Each pass is a separate program that reads input files and writes output files, keeping each pass small enough to fit in 64KB. All the intermediate files are ASCII, making debugging  and testing simpler.
 
 ### Four-Pass Design
 
@@ -49,7 +50,7 @@ Source Code (.yapl)
 │ - Convert AST to intermediate repr       │
 │ - Type checking                          │
 │ - Use symbol table from Pass 2           │
-│ - Output: IR (three-address code or SSA) │
+│ - Output: IR (DAGs, etc.)                │
 └─────────────────────────────────────────┘
     ↓ IR file
 ┌─────────────────────────────────────────┐
@@ -83,18 +84,12 @@ Source Code (.yapl)
 
 ### Current Specification (v0.1)
 
-- **Types**: byte, int16, uint16, @byte, @int16, @uint16, block32, block64, structs, arrays
-- **Control flow**: if/else, while
+- **Types**: byte (uint8), int16, uint16, @byte, @int16, @uint16, block32, block64, block128, void, structs, arrays
+- **Control flow**: if/else, while, for, goto, labels
 - **Operators**: Arithmetic, bitwise, logical, comparison
 - **Constants**: Compile-time expression evaluation
 - **Visibility**: Uppercase = public, lowercase = private
 - **Directives**: #if, #else, #endif, #line, #file
-
-### Not Yet Specified
-
-- Function definitions and calls (syntax)
-- Return statements (syntax)
-- Module/import system
 
 ## Runtime Model and Calling Convention
 
@@ -144,7 +139,7 @@ The runtime model follows early UNIX conventions, adapted for WUT-4's Harvard ar
 - No frame pointer
 - SP does not change during function execution (no dynamic allocation like `salloc()`)
 - Local variables and function arguments accessed at fixed offsets from SP
-- This fixed-SP model simplifies code generation and debugging
+- This fixed-SP model simplifies code generation and debugging (??? But not stack backtracing)
 
 ## Inter-Pass File Formats
 
@@ -186,17 +181,21 @@ These do not follow the `token#, CATEGORY, value` format.
 
 **Keywords:**
 
-Control flow: `if`, `else`, `while`, `return`, `break`, `continue`
+Control flow: `if`, `else`, `while`, `for`, `return`, `break`, `continue`, `goto`
 
 Declarations: `var`, `const`, `func`, `struct`
 
-Types: `byte`, `int16`, `uint16`, `block32`, `block64`
+Other: `sizeof`
+
+Reserved (not yet implemented): `case`, `default`, `select`, `switch`
+
+Types: `byte`, `uint8`, `int16`, `uint16`, `void`, `block32`, `block64`, `block128`
 
 **Example:**
 
 Source (file `example.yapl`):
 ```
-const SIZE = 64;
+const uint16 SIZE = 64;
 var int16 buf[SIZE * 2];
 ```
 
@@ -205,18 +204,19 @@ Token stream:
 #file example.yapl
 #line 1
 1, KEY, const
-2, ID, SIZE
-3, PUNCT, =
-4, LIT, 0x0040
-5, PUNCT, ;
+2, KEY, uint16
+3, ID, SIZE
+4, PUNCT, =
+5, LIT, 0x0040
+6, PUNCT, ;
 #line 2
-6, KEY, var
-7, KEY, int16
-8, ID, buf
-9, PUNCT, [
-10, LIT, 0x0080
-11, PUNCT, ]
-12, PUNCT, ;
+7, KEY, var
+8, KEY, int16
+9, ID, buf
+10, PUNCT, [
+11, LIT, 0x0080
+12, PUNCT, ]
+13, PUNCT, ;
 ```
 
 Note: `SIZE * 2` is folded to `0x0080` (128) by the lexer.
@@ -250,11 +250,73 @@ Note: `SIZE * 2` is folded to `0x0080` (128) by the lexer.
 
 ### Pass 2 Output: AST + Symbol Table
 
-**To Be Defined**
+The parser outputs a text-based AST representation. Structure:
+
+```
+#file <filename>
+
+STRUCT <name>
+  FIELD <type> <name> <offset>
+  ...
+  SIZE <n> ALIGN <m>
+
+CONST <name> <value>
+
+VAR <visibility> <type> <name> OFFSET <n>
+
+FUNC <returnType> <name>
+  PARAM <type> <name> <regHint>
+  ...
+  LOCAL <type> <name> OFFSET <n>
+  ...
+  FRAMESIZE <n>
+  BODY
+    <statements>
+  END
+```
+
+Statements include EXPR, RETURN, IF/ELSE/ENDIF, WHILE/ENDWHILE, FOR/ENDFOR, GOTO, LABEL, BREAK, CONTINUE.
+
+Expressions are represented as prefix notation: BINARY <op>, UNARY <op>, CALL, INDEX, FIELD, ASSIGN, LIT <value>, ID <name>, etc.
 
 ### Pass 3 Output: IR
 
-**To Be Defined**
+The semantic analyzer outputs three-address code IR. See `IR_FORMAT.md` for complete specification.
+
+**Quick Reference:**
+
+```
+#ir 1
+#source filename.yapl
+
+STRUCT <name> <size> <align>
+  FIELD <name> <offset> <type>
+ENDSTRUCT
+
+CONST <name> <visibility> <type> <value>
+DATA <name> <visibility> <type> <size>
+
+FUNC <name>
+  VISIBILITY PUBLIC|STATIC
+  RETURN <type>
+  PARAMS <n>
+    PARAM <name> <type> <index>
+  LOCALS <nbytes>
+    LOCAL <name> <type> <offset>
+  FRAMESIZE <n>
+
+  ; Three-address code with virtual registers (t0, t1, ...)
+  t0 = CONST.W 0x000A
+  t1 = LOAD.W [SP+0]
+  t2 = ADD.W t0, t1
+  STORE.W [SP+2], t2
+  JUMPZ t2, .label
+  RETURN t2
+
+ENDFUNC
+```
+
+**Implementation Limits:** Max 16 parameters, 32 locals, 256-byte frame size.
 
 ## Bootstrap Strategy
 
@@ -276,27 +338,30 @@ Since passes externalize state to files, testing is straightforward.
 
 ## Current Status
 
-**Status**: Design phase
+**Status**: Implementation phase
 
 **Completed:**
 - Language specification (v0.1)
 - Compiler architecture design
 - Project structure
 - Runtime model and calling convention
-- Pass 1 token stream format
+- Pass 1 lexical analyzer with tests
+- Pass 2 parser with tests
+- Pass 3 IR format specification (`IR_FORMAT.md`)
+- Pass 3 semantic analyzer with type checking and IR generation
 
 **Next Steps:**
-1. Define function syntax in language spec
-2. Define Pass 2 output format (AST + symbol table)
-3. Define Pass 3 output format (IR)
-4. Implement Pass 1 (Lexer + Constant Evaluator) in Go
-5. Build test framework for Pass 1
+1. Build test framework for Pass 3
+2. Define Pass 4 input/output format
+3. Implement Pass 4 code generator in Go
 
 ## Related Documentation
 
 - **WUT-4 Architecture**: `../emul/README.md`
 - **WUT-4 Assembler**: `../asm/README.md`
 - **YAPL Language Spec**: https://docs.google.com/document/d/1hgsayGjZJc6WUVjSEsPRWVxPeXkVFLKpRCx5jc5hrx8/edit?usp=sharing
+- **Pass 3 IR Format**: `IR_FORMAT.md`
+- **Semantic Analyzer**: `sem/README.md`
 
 ## Implementation Notes
 

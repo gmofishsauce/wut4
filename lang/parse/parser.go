@@ -245,14 +245,20 @@ func (p *Parser) parseDeclaration() Decl {
 	return nil
 }
 
-// parseConstDecl parses: const identifier = ConstExpr ;
+// parseConstDecl parses: const TypeSpecifier identifier = ConstExpr ;
 func (p *Parser) parseConstDecl() *ConstDecl {
 	loc := p.currentLoc()
 	p.tokens.Next() // consume 'const'
 
+	constType := p.parseType()
+	if constType == nil {
+		p.synchronize()
+		return nil
+	}
+
 	nameTok, err := p.tokens.ExpectID()
 	if err != nil {
-		p.error("expected identifier after 'const'")
+		p.error("expected identifier in const declaration")
 		p.synchronize()
 		return nil
 	}
@@ -279,9 +285,10 @@ func (p *Parser) parseConstDecl() *ConstDecl {
 	}
 
 	decl := &ConstDecl{
-		Name:  nameTok.Value,
-		Value: value,
-		Loc:   loc,
+		Name:      nameTok.Value,
+		ConstType: constType,
+		Value:     value,
+		Loc:       loc,
 	}
 
 	// Add to symbol table
