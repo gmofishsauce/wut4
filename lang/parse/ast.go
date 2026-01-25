@@ -108,6 +108,15 @@ type StructDecl struct {
 func (d *StructDecl) declNode()         {}
 func (d *StructDecl) GetLoc() SourceLoc { return d.Loc }
 
+// AsmDecl represents an inline assembly declaration at file level
+type AsmDecl struct {
+	AsmText string    // The raw assembly text (without quotes)
+	Loc     SourceLoc
+}
+
+func (d *AsmDecl) declNode()         {}
+func (d *AsmDecl) GetLoc() SourceLoc { return d.Loc }
+
 // FieldDecl represents a struct field
 type FieldDecl struct {
 	Name      string
@@ -223,6 +232,16 @@ type LabelStmt struct {
 
 func (s *LabelStmt) funcStmtNode()     {} // LabelStmt is FuncStmt but not Stmt
 func (s *LabelStmt) GetLoc() SourceLoc { return s.Loc }
+
+// AsmStmt represents an inline assembly statement within a function
+type AsmStmt struct {
+	AsmText string    // The raw assembly text (without quotes)
+	Loc     SourceLoc
+}
+
+func (s *AsmStmt) stmtNode()         {}
+func (s *AsmStmt) funcStmtNode()     {}
+func (s *AsmStmt) GetLoc() SourceLoc { return s.Loc }
 
 // ============================================================
 // Expressions

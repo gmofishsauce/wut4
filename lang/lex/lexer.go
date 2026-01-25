@@ -353,6 +353,30 @@ func (l *Lexer) scanString() string {
 	return result.String()
 }
 
+// scanRawString scans a string literal without processing escapes
+// Used for #asm directive where escapes are not allowed
+func (l *Lexer) scanRawString() string {
+	l.advance() // skip opening "
+	var result strings.Builder
+	result.WriteByte('"')
+
+	for l.peek() != '"' && l.peek() != 0 && l.peek() != '\n' {
+		ch := l.peek()
+		if ch == '\\' {
+			l.error("escape sequences not allowed in #asm string")
+			return ""
+		}
+		result.WriteByte(l.advance())
+	}
+
+	if l.peek() != '"' {
+		l.error("unterminated #asm string literal")
+	}
+	l.advance() // skip closing "
+	result.WriteByte('"')
+	return result.String()
+}
+
 func (l *Lexer) handleDirective() {
 	l.advance() // skip #
 
@@ -395,6 +419,35 @@ func (l *Lexer) handleDirective() {
 		// #line directive in source - update our line number
 		val := l.scanNumber()
 		l.line = int(val)
+
+	case "asm":
+		// #asm("assembly code") - inline assembly
+		// Emit #asm as a keyword, then parse and emit the raw string
+		if !l.skipping {
+			l.emitToken(KEY, "#asm")
+		}
+		l.skipWhitespace()
+		if l.peek() != '(' {
+			l.error("expected '(' after #asm")
+			return
+		}
+		l.advance() // consume '('
+		l.skipWhitespace()
+		if l.peek() != '"' {
+			l.error("expected string literal in #asm")
+			return
+		}
+		// Parse raw string (no escape processing)
+		rawStr := l.scanRawString()
+		if !l.skipping {
+			l.emitToken(LIT, rawStr)
+		}
+		l.skipWhitespace()
+		if l.peek() != ')' {
+			l.error("expected ')' after #asm string")
+			return
+		}
+		l.advance() // consume ')'
 
 	default:
 		l.error(fmt.Sprintf("unknown directive #%s", name))

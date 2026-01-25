@@ -40,6 +40,9 @@ func (ow *OutputWriter) WriteProgram(prog *Program, symtab *SymbolTable, filenam
 	ow.write("#file %s", filename)
 	ow.write("")
 
+	// Write file-level inline assembly first
+	ow.writeAsmDecls(prog)
+
 	// Write symbol table sections
 	ow.writeStructs(prog, symtab)
 	ow.writeConstants(prog)
@@ -78,6 +81,15 @@ func (ow *OutputWriter) writeConstants(prog *Program) {
 	for _, decl := range prog.Decls {
 		if cd, ok := decl.(*ConstDecl); ok {
 			ow.write("CONST %s %d", cd.Name, cd.Value)
+		}
+	}
+}
+
+// writeAsmDecls writes file-level inline assembly declarations
+func (ow *OutputWriter) writeAsmDecls(prog *Program) {
+	for _, decl := range prog.Decls {
+		if ad, ok := decl.(*AsmDecl); ok {
+			ow.write("ASM \"%s\"", ad.AsmText)
 		}
 	}
 }
@@ -160,6 +172,8 @@ func (ow *OutputWriter) writeFuncStmt(stmt FuncStmt) {
 	switch s := stmt.(type) {
 	case *LabelStmt:
 		ow.write("LABEL %s", s.Label)
+	case *AsmStmt:
+		ow.write("ASM \"%s\"", s.AsmText)
 	default:
 		ow.writeStmt(stmt.(Stmt))
 	}
@@ -255,6 +269,9 @@ func (ow *OutputWriter) writeStmt(stmt Stmt) {
 
 	case *GotoStmt:
 		ow.write("GOTO %s %d", s.Label, s.Loc.Line)
+
+	case *AsmStmt:
+		ow.write("ASM \"%s\"", s.AsmText)
 	}
 }
 

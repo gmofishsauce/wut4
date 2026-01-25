@@ -54,6 +54,7 @@ func (r *ASTReader) Read() (*Program, error) {
 		Constants: make([]*ConstDef, 0),
 		Globals:   make([]*VarDef, 0),
 		Functions: make([]*FuncDef, 0),
+		AsmDecls:  make([]string, 0),
 	}
 
 	for r.nextLine() {
@@ -109,9 +110,28 @@ func (r *ASTReader) Read() (*Program, error) {
 			prog.Functions = append(prog.Functions, f)
 			continue
 		}
+
+		// Parse file-level inline assembly
+		if strings.HasPrefix(line, "ASM ") {
+			asmText := r.extractAsmText(line)
+			prog.AsmDecls = append(prog.AsmDecls, asmText)
+			continue
+		}
 	}
 
 	return prog, nil
+}
+
+// extractAsmText extracts the assembly text from an ASM line
+// The format is: ASM "assembly text"
+func (r *ASTReader) extractAsmText(line string) string {
+	// Skip "ASM " prefix
+	rest := strings.TrimPrefix(line, "ASM ")
+	// Remove surrounding quotes
+	if len(rest) >= 2 && rest[0] == '"' && rest[len(rest)-1] == '"' {
+		return rest[1 : len(rest)-1]
+	}
+	return rest
 }
 
 func (r *ASTReader) readStruct() (*StructDef, error) {
@@ -423,6 +443,11 @@ func (r *ASTReader) readStmt(line string, depth int) (Stmt, error) {
 			lineNum, _ = strconv.Atoi(parts[1])
 		}
 		return &ContinueStmt{baseStmt: baseStmt{Line: lineNum}}, nil
+
+	case "ASM":
+		// Inline assembly statement
+		asmText := r.extractAsmText(line)
+		return &AsmStmt{baseStmt: baseStmt{Line: 0}, AsmText: asmText}, nil
 	}
 
 	return nil, nil

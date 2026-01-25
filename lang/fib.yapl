@@ -1,0 +1,54 @@
+// fibonacci numbers in hex in yapl
+#asm(".bootstrap");
+
+var uint16 n1 = 0;
+var uint16 n2 = 1;
+var byte itoxbuf[6];
+const byte SP = ' ';
+const byte @msg = &"fib numbers: \0"
+
+func void main() {
+    uint16 next = 0
+
+    putstr(msg);
+    while(n2+n1 > next) {
+        next = n2 + n1;
+	itox(next);
+        n1 = n2;
+        n2 = next;
+    }
+}
+
+// convert arg to hex ascii in itoxbuf
+func void itox(uint16 u) {
+    const byte[] hexdig = "0123456789ABCDEF";
+    var byte b;
+
+    b = u&0xF000;
+    b = b>>12;
+    itoxbuf[0] = hexdig[b];
+
+    b = u&0xF00;
+    b = b>>8;
+    itoxbuf[1] = hexdig[b];
+
+    b = u&0xF0;
+    b = b>>4;
+    itoxbuf[2] = hexdig[b];
+
+    b = u&0xF;
+    itoxbuf[3] = hexdig[b];
+
+    itoxbuf[4] = 0;
+}
+
+func void putc(byte b) {
+    asm("ldi r2 96");
+    asm("ssp r1 r2");
+}
+
+func void putstr(byte @bp) {
+    while (@bp != 0) {
+	putc(@bp)
+    }
+}

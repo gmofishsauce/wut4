@@ -22,9 +22,11 @@ hex_digits      = hex_digit { [ "_" ] hex_digit } .
 
 char_literal    = "'" ( char_char | escape_seq ) "'" .
 string_literal  = '"' { string_char | escape_seq } '"' .
+raw_string      = '"' { raw_char } '"' .       (* no escape sequences allowed *)
 
 char_char       = (* any single byte except ', \, or newline *) .
 string_char     = (* any UTF-8 sequence except ", \, or newline *) .
+raw_char        = (* any single byte except ", \, or newline *) .
 
 escape_seq      = "\0" | "\a" | "\b" | "\f" | "\n" | "\r"
                 | "\t" | "\v" | "\\" | "\'" | "\""
@@ -47,7 +49,8 @@ Program         = { Declaration } .
 Declaration     = ConstDecl
                 | VarDecl
                 | FuncDecl
-                | StructDecl .
+                | StructDecl
+                | AsmDecl .
 
 
 (* ============================================================ *)
@@ -154,6 +157,9 @@ StructDecl      = "struct" identifier "{" { StructMember } "}" ";" .
 StructMember    = TypeSpecifier identifier ";"
                 | TypeSpecifier identifier "[" ConstExpr "]" ";" .
 
+(* Inline assembly - passes through to generated assembly unchanged *)
+AsmDecl         = "#asm" "(" raw_string ")" ";" .
+
 
 (* ============================================================ *)
 (* STATEMENTS                                                   *)
@@ -169,7 +175,10 @@ Statement       = Block
                 | GotoStmt
                 | ReturnStmt
                 | BreakStmt
-                | ContinueStmt .
+                | ContinueStmt
+                | AsmStmt .
+
+AsmStmt         = "#asm" "(" raw_string ")" ";" .
 
 Block           = "{" { Statement } "}" .
 
@@ -278,6 +287,9 @@ PrimaryExpr     = identifier
  *
  * Lexer directives (contain #, handled by lexer, not parser):
  *   #if      #else    #endif     #file     #line
+ *
+ * Inline assembly directive (passed through to generated code):
+ *   #asm
  *)
 
 

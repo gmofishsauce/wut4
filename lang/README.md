@@ -89,7 +89,48 @@ Source Code (.yapl)
 - **Operators**: Arithmetic, bitwise, logical, comparison
 - **Constants**: Compile-time expression evaluation
 - **Visibility**: Uppercase = public, lowercase = private
-- **Directives**: #if, #else, #endif, #line, #file
+- **Directives**: #if, #else, #endif, #line, #file, #asm
+
+### Inline Assembly (#asm)
+
+The `#asm` directive allows embedding raw assembly code directly in YAPL source. The assembly text passes through the entire compiler unchanged and appears in the generated assembly output exactly where it is positioned in the source.
+
+**Syntax:**
+```
+#asm("assembly text");
+```
+
+**Usage contexts:**
+
+1. **File level** - Outside any function, for assembler directives:
+   ```
+   #asm(".section .data");
+   #asm(".align 2");
+   ```
+
+2. **Within functions** - For instructions the compiler cannot generate:
+   ```
+   func void EnableInterrupts() {
+       #asm("sei");
+   }
+   ```
+
+**Constraints:**
+- The string cannot contain escape sequences (no `\n`, `\t`, etc.)
+- Each `#asm` statement produces exactly one line of assembly
+- For multiple lines of assembly, use multiple `#asm` statements
+- Must be terminated with a semicolon
+
+**Example:**
+```
+// File-level: assembler directive
+#asm(".global _start");
+
+func void Halt() {
+    // Function-level: emit a halt instruction
+    #asm("hlt");
+}
+```
 
 ## Runtime Model and Calling Convention
 

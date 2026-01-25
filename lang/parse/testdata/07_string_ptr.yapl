@@ -1,0 +1,18 @@
+// Test 07: String pointer initialization
+// Tests that @byte can be initialized with &"string"
+
+var @byte g_str = &"hello world";
+var @byte g_empty = &"";
+var @byte g_escaped = &"line1\nline2\ttab";
+
+func void PrintStr(@byte s) {
+    // Placeholder for string printing
+    return;
+}
+
+func void UseStrings() {
+    PrintStr(&"inline string");
+    PrintStr(g_str);
+
+    return;
+}

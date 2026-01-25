@@ -239,10 +239,40 @@ func (p *Parser) parseDeclaration() Decl {
 	if tok.IsKeyword("struct") {
 		return p.parseStructDecl()
 	}
+	if tok.IsKeyword("#asm") {
+		return p.parseAsmDecl()
+	}
 
 	p.error("expected declaration, got %s %q", tok.Category, tok.Value)
 	p.synchronize()
 	return nil
+}
+
+// parseAsmDecl parses a file-level inline assembly: #asm("text");
+func (p *Parser) parseAsmDecl() *AsmDecl {
+	loc := p.currentLoc()
+	p.tokens.Next() // consume '#asm'
+
+	// The string literal follows (already parsed by lexer)
+	strTok := p.tokens.Next()
+	if strTok.Category != TokLIT || !strings.HasPrefix(strTok.Value, "\"") {
+		p.error("expected string literal after #asm")
+		p.synchronize()
+		return nil
+	}
+
+	// Extract the text (remove quotes)
+	asmText := strTok.Value[1 : len(strTok.Value)-1]
+
+	if _, err := p.tokens.ExpectPunct(";"); err != nil {
+		p.error("expected ';' after #asm declaration")
+		p.synchronize()
+	}
+
+	return &AsmDecl{
+		AsmText: asmText,
+		Loc:     loc,
+	}
 }
 
 // parseConstDecl parses: const TypeSpecifier identifier = ConstExpr ;
@@ -747,9 +777,39 @@ func (p *Parser) parseStatement() Stmt {
 	if tok.IsKeyword("goto") {
 		return p.parseGotoStmt()
 	}
+	if tok.IsKeyword("#asm") {
+		return p.parseAsmStmt()
+	}
 
 	// Expression statement
 	return p.parseExprStmt()
+}
+
+// parseAsmStmt parses an inline assembly statement: #asm("text");
+func (p *Parser) parseAsmStmt() *AsmStmt {
+	loc := p.currentLoc()
+	p.tokens.Next() // consume '#asm'
+
+	// The string literal follows (already parsed by lexer)
+	strTok := p.tokens.Next()
+	if strTok.Category != TokLIT || !strings.HasPrefix(strTok.Value, "\"") {
+		p.error("expected string literal after #asm")
+		p.synchronizeStmt()
+		return nil
+	}
+
+	// Extract the text (remove quotes)
+	asmText := strTok.Value[1 : len(strTok.Value)-1]
+
+	if _, err := p.tokens.ExpectPunct(";"); err != nil {
+		p.error("expected ';' after #asm statement")
+		p.synchronizeStmt()
+	}
+
+	return &AsmStmt{
+		AsmText: asmText,
+		Loc:     loc,
+	}
 }
 
 // parseBlock parses a block: { statements }

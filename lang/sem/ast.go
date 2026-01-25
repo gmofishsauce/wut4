@@ -12,6 +12,7 @@ type Program struct {
 	Constants  []*ConstDef
 	Globals    []*VarDef
 	Functions  []*FuncDef
+	AsmDecls   []string // File-level inline assembly declarations
 }
 
 // StructDef represents a struct definition
@@ -255,6 +256,12 @@ type BreakStmt struct {
 // ContinueStmt is a continue statement
 type ContinueStmt struct {
 	baseStmt
+}
+
+// AsmStmt is an inline assembly statement
+type AsmStmt struct {
+	baseStmt
+	AsmText string // The raw assembly text
 }
 
 // Expr represents an expression

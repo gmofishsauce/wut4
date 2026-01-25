@@ -11,6 +11,7 @@ import (
 // IR represents the intermediate representation
 type IR struct {
 	SourceFile string
+	AsmDecls   []string // File-level inline assembly
 	Structs    []*IRStruct
 	Constants  []*IRConst
 	Globals    []*IRData
@@ -146,6 +147,9 @@ func (g *IRGen) emitJumpNZ(cond, target string) {
 
 // Generate produces the IR
 func (g *IRGen) Generate() *IR {
+	// Copy file-level inline assembly
+	g.ir.AsmDecls = append(g.ir.AsmDecls, g.prog.AsmDecls...)
+
 	// Generate struct definitions
 	for _, s := range g.prog.Structs {
 		g.genStruct(s)
@@ -328,6 +332,11 @@ func (g *IRGen) genStmt(stmt Stmt) {
 		if len(g.loopCont) > 0 {
 			g.emitJump(g.loopCont[len(g.loopCont)-1])
 		}
+
+	case *AsmStmt:
+		// Inline assembly - emit as ASM instruction
+		instr := &IRInstr{Op: "ASM", Args: []string{s.AsmText}}
+		g.currentFn.Instrs = append(g.currentFn.Instrs, instr)
 	}
 }
 
@@ -849,6 +858,14 @@ func (ir *IR) Write(w *bufio.Writer) {
 	fmt.Fprintf(w, "#source %s\n", ir.SourceFile)
 	fmt.Fprintln(w)
 
+	// Write file-level inline assembly
+	for _, asm := range ir.AsmDecls {
+		fmt.Fprintf(w, "ASM \"%s\"\n", asm)
+	}
+	if len(ir.AsmDecls) > 0 {
+		fmt.Fprintln(w)
+	}
+
 	// Write structs
 	for _, s := range ir.Structs {
 		fmt.Fprintf(w, "STRUCT %s %d %d\n", s.Name, s.Size, s.Align)
@@ -911,6 +928,9 @@ func (ir *IR) Write(w *bufio.Writer) {
 
 func writeInstr(w *bufio.Writer, instr *IRInstr) {
 	switch instr.Op {
+	case "ASM":
+		// Inline assembly - output verbatim
+		fmt.Fprintf(w, "  ASM \"%s\"\n", instr.Args[0])
 	case "LABEL":
 		fmt.Fprintf(w, "%s:\n", instr.Label)
 	case "JUMP":
