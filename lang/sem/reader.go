@@ -13,22 +13,29 @@ import (
 
 // ASTReader reads the parser's AST output
 type ASTReader struct {
-	scanner *bufio.Scanner
-	line    string
-	lineNum int
-	atEOF   bool
+	scanner    *bufio.Scanner
+	line       string
+	lineNum    int
+	atEOF      bool
+	hasPending bool // true if current line should be re-processed
 }
 
 // NewASTReader creates a new AST reader
 func NewASTReader(r io.Reader) *ASTReader {
 	return &ASTReader{
-		scanner: bufio.NewScanner(r),
-		lineNum: 0,
-		atEOF:   false,
+		scanner:    bufio.NewScanner(r),
+		lineNum:    0,
+		atEOF:      false,
+		hasPending: false,
 	}
 }
 
 func (r *ASTReader) nextLine() bool {
+	// If we have a pending line (from unreadLine), use it
+	if r.hasPending {
+		r.hasPending = false
+		return true
+	}
 	if r.scanner.Scan() {
 		r.line = r.scanner.Text()
 		r.lineNum++
@@ -36,6 +43,11 @@ func (r *ASTReader) nextLine() bool {
 	}
 	r.atEOF = true
 	return false
+}
+
+// unreadLine marks the current line to be re-read on the next nextLine() call
+func (r *ASTReader) unreadLine() {
+	r.hasPending = true
 }
 
 func (r *ASTReader) peekLine() string {
@@ -767,16 +779,18 @@ func (r *ASTReader) readExprFromLine(line string, depth int, stmtLine int) (Expr
 				// Check if this looks like an expression
 				argParts := strings.Fields(argLine)
 				if len(argParts) == 0 {
+					r.unreadLine() // Put back empty line for caller to handle
 					break
 				}
 				if argParts[0] == "LIT" || argParts[0] == "ID" || argParts[0] == "BINARY" ||
 					argParts[0] == "UNARY" || argParts[0] == "CALL" || argParts[0] == "INDEX" ||
-					argParts[0] == "FIELD" || argParts[0] == "STRLIT" {
+					argParts[0] == "FIELD" || argParts[0] == "STRLIT" || argParts[0] == "CAST" {
 					arg, _ := r.readExprFromLine(argLine, depth+1, stmtLine)
 					if arg != nil {
 						args = append(args, arg)
 					}
 				} else {
+					r.unreadLine() // Put back non-expression line for caller to handle
 					break
 				}
 			}

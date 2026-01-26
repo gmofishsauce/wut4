@@ -842,8 +842,9 @@ func (g *IRGen) genStore(lhs Expr, value string) {
 		if g.locals != nil {
 			if v, exists := g.locals[e.Name]; exists {
 				if v.IsParam {
-					// Can't directly store to param register, would need spill
-					// For now, treat as error or no-op
+					// Store to parameter - emit SETPARAM for Pass 4 to handle
+					idx := g.paramIndex(e.Name)
+					g.emit("SETPARAM", "", fmt.Sprintf("%d", idx), value)
 					return
 				}
 				// Locals have negative offsets from SP in parser output
@@ -1026,6 +1027,8 @@ func writeInstr(w *bufio.Writer, instr *IRInstr) {
 		fmt.Fprintf(w, "  ARG %s, %s\n", instr.Args[0], instr.Args[1])
 	case "STORE.W", "STORE.B":
 		fmt.Fprintf(w, "  %s %s, %s\n", instr.Op, instr.Args[0], instr.Args[1])
+	case "SETPARAM":
+		fmt.Fprintf(w, "  SETPARAM %s, %s\n", instr.Args[0], instr.Args[1])
 	default:
 		// Regular assignment: dest = OP args...
 		if instr.Dest != "" {

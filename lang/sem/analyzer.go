@@ -41,6 +41,38 @@ func (a *Analyzer) errorAt(file string, line int, format string, args ...interfa
 	a.errors = append(a.errors, fmt.Sprintf("%s:%d: error: %s", file, line, msg))
 }
 
+// valueFitsInType checks if an integer value fits in the given type
+func valueFitsInType(val int64, t *Type) bool {
+	if t == nil || t.Kind != TypeBase {
+		return false
+	}
+	switch t.BaseType {
+	case BaseUint8:
+		return val >= 0 && val <= 255
+	case BaseInt16:
+		return val >= -32768 && val <= 32767
+	case BaseUint16:
+		return val >= 0 && val <= 65535
+	}
+	return false
+}
+
+// adaptLiteralToType attempts to adapt a literal expression's type to match
+// the target type. Returns true if successful, false if the value doesn't fit.
+func (a *Analyzer) adaptLiteralToType(lit *LiteralExpr, target *Type) bool {
+	if lit.IsStr {
+		return false // string literals don't adapt
+	}
+	if target == nil || !target.IsIntegral() {
+		return false
+	}
+	if !valueFitsInType(lit.IntVal, target) {
+		return false
+	}
+	lit.SetType(target)
+	return true
+}
+
 // Analyze performs semantic analysis and generates IR
 func (a *Analyzer) Analyze() (*IR, []string) {
 	// Phase 1: Build symbol tables
@@ -229,6 +261,36 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 			return nil
 		}
 
+		// Try to adapt literals to match the other operand's type
+		if leftLit, ok := e.Left.(*LiteralExpr); ok && rightType.IsIntegral() {
+			if a.adaptLiteralToType(leftLit, rightType) {
+				leftType = rightType
+			} else if !leftLit.IsStr {
+				a.errorAt(a.prog.SourceFile, e.GetLine(), "literal value %d out of range for %s", leftLit.IntVal, rightType)
+			}
+		}
+		if rightLit, ok := e.Right.(*LiteralExpr); ok && leftType.IsIntegral() {
+			if a.adaptLiteralToType(rightLit, leftType) {
+				rightType = leftType
+			} else if !rightLit.IsStr {
+				a.errorAt(a.prog.SourceFile, e.GetLine(), "literal value %d out of range for %s", rightLit.IntVal, leftType)
+			}
+		}
+
+		// Handle pointer arithmetic: pointer +/- integral
+		if e.Op == OpAdd || e.Op == OpSub {
+			if leftType.IsPointer() && rightType.IsIntegral() {
+				// pointer + int or pointer - int → pointer
+				e.SetType(leftType)
+				return leftType
+			}
+			if e.Op == OpAdd && rightType.IsPointer() && leftType.IsIntegral() {
+				// int + pointer → pointer
+				e.SetType(rightType)
+				return rightType
+			}
+		}
+
 		// Check operand compatibility
 		if !a.typesCompatible(leftType, rightType) {
 			a.errorAt(a.prog.SourceFile, e.GetLine(), "type mismatch in binary expression")
@@ -277,6 +339,15 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 
 		if lhsType == nil || rhsType == nil {
 			return nil
+		}
+
+		// Try to adapt RHS literal to match LHS type
+		if rhsLit, ok := e.RHS.(*LiteralExpr); ok && lhsType.IsIntegral() {
+			if a.adaptLiteralToType(rhsLit, lhsType) {
+				rhsType = lhsType
+			} else if !rhsLit.IsStr {
+				a.errorAt(a.prog.SourceFile, e.GetLine(), "literal value %d out of range for %s", rhsLit.IntVal, lhsType)
+			}
 		}
 
 		if !a.typesCompatible(lhsType, rhsType) {
