@@ -1,0 +1,28 @@
+// Test 08: String initialization for byte arrays
+
+// Global var with explicit size and bare string
+var byte hello[6] = "hello";
+
+// Global var with explicit size and braced string
+var byte world[8] = {"world"};
+
+// Global var with inferred size
+var byte message[] = {"Hello, World!"};
+
+// Global const array with inferred size
+const byte GREETING[] = {"Hi!"};
+
+// Global const array with explicit size
+const byte NAME[10] = {"YAPL"};
+
+// Function that uses string arrays
+func void UseStrings() {
+    var @byte p;
+
+    // Take address of global string array
+    p = &hello[0];
+    p = &message[0];
+    p = &GREETING[0];
+
+    return;
+}

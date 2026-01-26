@@ -119,16 +119,20 @@ ConstPrimaryExpr = identifier
 (* DECLARATIONS                                                 *)
 (* ============================================================ *)
 
-ConstDecl       = "const" TypeSpecifier identifier "=" ConstExpr ";" .
+ConstDecl       = "const" TypeSpecifier identifier "=" ConstExpr ";"
+                | "const" TypeSpecifier identifier "[" ConstExpr "]" "=" ArrayInit ";"
+                | "const" TypeSpecifier identifier "[" "]" "=" ArrayInit ";" .
 
 VarDecl         = "var" TypeSpecifier identifier ";"
                 | "var" TypeSpecifier identifier "=" Initializer ";"
                 | "var" TypeSpecifier identifier "[" ConstExpr "]" ";"
-                | "var" TypeSpecifier identifier "[" ConstExpr "]" "=" ArrayInit ";" .
+                | "var" TypeSpecifier identifier "[" ConstExpr "]" "=" ArrayInit ";"
+                | "var" TypeSpecifier identifier "[" "]" "=" ArrayInit ";" .
 
 Initializer     = Expression .
 
 ArrayInit       = "{" ConstExprList "}"
+                | "{" string_literal "}"
                 | string_literal .
 
 ConstExprList   = ConstExpr { "," ConstExpr } .
@@ -323,6 +327,9 @@ PrimaryExpr     = identifier
  * - No type promotion: arithmetic requires explicit casts between types
  * - Block types: only & (address-of) operator allowed; cannot participate in expressions
  * - Labels: must be unique within a function
+ * - String array init: byte arrays may be initialized with string literals
+ *   The string is automatically null-terminated. For inferred size (byte[]),
+ *   the array size is the string length plus 1 for the null terminator.
  *
  * STRUCTURAL CONSTRAINTS (simplifications for compiler implementation):
  * - Function-level declarations only: all var/const declarations in a function

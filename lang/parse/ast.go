@@ -42,7 +42,9 @@ type Expr interface {
 type ConstDecl struct {
 	Name      string
 	ConstType *Type
-	Value     int64
+	Value     int64     // scalar value (for non-array constants)
+	ArrayLen  int       // 0 if not array, -1 if inferred from initializer
+	Init      Expr      // for array initializers (string literal)
 	Loc       SourceLoc
 }
 

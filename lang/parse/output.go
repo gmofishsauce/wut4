@@ -80,7 +80,27 @@ func (ow *OutputWriter) writeStructs(prog *Program, symtab *SymbolTable) {
 func (ow *OutputWriter) writeConstants(prog *Program) {
 	for _, decl := range prog.Decls {
 		if cd, ok := decl.(*ConstDecl); ok {
-			ow.write("CONST %s %d", cd.Name, cd.Value)
+			if cd.ArrayLen != 0 {
+				// Const array with initializer
+				initStr := ""
+				if cd.Init != nil {
+					if lit, ok := cd.Init.(*LiteralExpr); ok && lit.Kind == LitString {
+						initStr = lit.StrVal
+					}
+				}
+				arrayLen := cd.ArrayLen
+				if arrayLen == -1 {
+					arrayLen = 0 // Will be inferred by semantic analyzer
+				}
+				if initStr != "" {
+					ow.write("CONSTARRAY %s [%d]%s INIT %s", cd.Name, arrayLen, cd.ConstType.String(), initStr)
+				} else {
+					ow.write("CONSTARRAY %s [%d]%s", cd.Name, arrayLen, cd.ConstType.String())
+				}
+			} else {
+				// Scalar constant
+				ow.write("CONST %s %d", cd.Name, cd.Value)
+			}
 		}
 	}
 }
@@ -103,8 +123,24 @@ func (ow *OutputWriter) writeGlobalVars(prog *Program, symtab *SymbolTable) {
 				continue
 			}
 			storage := sym.Storage.String()
-			if vd.ArrayLen > 0 {
-				ow.write("VAR %s [%d]%s %s OFFSET %d", storage, vd.ArrayLen, vd.VarType.String(), vd.Name, sym.Offset)
+			// Get initializer string if present
+			initStr := ""
+			if vd.Init != nil {
+				if lit, ok := vd.Init.(*LiteralExpr); ok && lit.Kind == LitString {
+					initStr = lit.StrVal
+				}
+			}
+			if vd.ArrayLen > 0 || vd.ArrayLen == -1 {
+				// ArrayLen > 0 is explicit size, -1 is inferred
+				arrayLen := vd.ArrayLen
+				if arrayLen == -1 {
+					arrayLen = 0 // Will be inferred by semantic analyzer
+				}
+				if initStr != "" {
+					ow.write("VAR %s [%d]%s %s OFFSET %d INIT %s", storage, arrayLen, vd.VarType.String(), vd.Name, sym.Offset, initStr)
+				} else {
+					ow.write("VAR %s [%d]%s %s OFFSET %d", storage, arrayLen, vd.VarType.String(), vd.Name, sym.Offset)
+				}
 			} else {
 				ow.write("VAR %s %s %s OFFSET %d", storage, vd.VarType.String(), vd.Name, sym.Offset)
 			}
@@ -133,8 +169,13 @@ func (ow *OutputWriter) writeFunc(fd *FuncDecl, symtab *SymbolTable) {
 		for _, local := range sym.Locals {
 			if local.IsConst {
 				ow.write("CONST %s %d", local.Name, local.ConstVal)
-			} else if local.ArrayLen > 0 {
-				ow.write("LOCAL [%d]%s %s OFFSET %d", local.ArrayLen, local.Type.String(), local.Name, local.Offset)
+			} else if local.ArrayLen > 0 || local.ArrayLen == -1 {
+				// ArrayLen > 0 is explicit size, -1 is inferred (output as 0)
+				arrayLen := local.ArrayLen
+				if arrayLen == -1 {
+					arrayLen = 0
+				}
+				ow.write("LOCAL [%d]%s %s OFFSET %d", arrayLen, local.Type.String(), local.Name, local.Offset)
 			} else {
 				ow.write("LOCAL %s %s OFFSET %d", local.Type.String(), local.Name, local.Offset)
 			}

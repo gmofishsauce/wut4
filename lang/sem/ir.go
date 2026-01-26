@@ -6,6 +6,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"strings"
 )
 
 // IR represents the intermediate representation
@@ -191,6 +192,45 @@ func (g *IRGen) genStruct(s *StructDef) {
 }
 
 func (g *IRGen) genConst(c *ConstDef) {
+	// Check if this is a const array with initializer
+	if c.ArrayLen != 0 || len(c.InitBytes) > 0 {
+		// Treat const arrays as global data (read-only semantically)
+		arrayLen := c.ArrayLen
+		if arrayLen == -1 && len(c.InitBytes) > 0 {
+			arrayLen = len(c.InitBytes)
+		}
+
+		irType := "WORD"
+		size := 2
+		if c.Type != nil {
+			size = c.Type.Size()
+			if arrayLen > 0 {
+				if c.Type.Kind == TypeBase && c.Type.BaseType == BaseUint8 {
+					irType = fmt.Sprintf("BYTES %d", arrayLen)
+				} else {
+					irType = fmt.Sprintf("WORDS %d", arrayLen)
+				}
+				size = c.Type.Size() * arrayLen
+			}
+		}
+
+		var initStr string
+		if len(c.InitBytes) > 0 {
+			initStr = formatInitBytes(c.InitBytes)
+		}
+
+		ird := &IRData{
+			Name:       c.Name,
+			Visibility: visibility(c.Name),
+			Type:       irType,
+			Size:       size,
+			Init:       initStr,
+		}
+		g.ir.Globals = append(g.ir.Globals, ird)
+		return
+	}
+
+	// Scalar constant
 	irc := &IRConst{
 		Name:       c.Name,
 		Visibility: visibility(c.Name),
@@ -203,18 +243,29 @@ func (g *IRGen) genConst(c *ConstDef) {
 func (g *IRGen) genGlobal(v *VarDef) {
 	irType := "WORD"
 	size := 2
+	arrayLen := v.ArrayLen
+	if arrayLen == -1 && len(v.InitBytes) > 0 {
+		// Inferred size from initializer
+		arrayLen = len(v.InitBytes)
+	}
 	if v.Type != nil {
 		size = v.Type.Size()
-		if v.ArrayLen > 0 {
+		if arrayLen > 0 {
 			if v.Type.Kind == TypeBase && v.Type.BaseType == BaseUint8 {
-				irType = fmt.Sprintf("BYTES %d", v.ArrayLen)
+				irType = fmt.Sprintf("BYTES %d", arrayLen)
 			} else {
-				irType = fmt.Sprintf("WORDS %d", v.ArrayLen)
+				irType = fmt.Sprintf("WORDS %d", arrayLen)
 			}
-			size = v.Type.Size() * v.ArrayLen
+			size = v.Type.Size() * arrayLen
 		} else {
 			irType = typeToIRData(v.Type)
 		}
+	}
+
+	// Format initializer string for IR
+	var initStr string
+	if len(v.InitBytes) > 0 {
+		initStr = formatInitBytes(v.InitBytes)
 	}
 
 	ird := &IRData{
@@ -222,8 +273,24 @@ func (g *IRGen) genGlobal(v *VarDef) {
 		Visibility: visibility(v.Name),
 		Type:       irType,
 		Size:       size,
+		Init:       initStr,
 	}
 	g.ir.Globals = append(g.ir.Globals, ird)
+}
+
+// formatInitBytes formats byte array as a hex string for IR output
+func formatInitBytes(b []byte) string {
+	var sb strings.Builder
+	sb.WriteString("\"")
+	for _, c := range b {
+		if c >= 32 && c < 127 && c != '"' && c != '\\' {
+			sb.WriteByte(c)
+		} else {
+			sb.WriteString(fmt.Sprintf("\\x%02X", c))
+		}
+	}
+	sb.WriteString("\"")
+	return sb.String()
 }
 
 func (g *IRGen) genFunc(f *FuncDef) {
@@ -886,7 +953,11 @@ func (ir *IR) Write(w *bufio.Writer) {
 
 	// Write globals
 	for _, d := range ir.Globals {
-		fmt.Fprintf(w, "DATA %s %s %s %d\n", d.Name, d.Visibility, d.Type, d.Size)
+		if d.Init != "" {
+			fmt.Fprintf(w, "DATA %s %s %s %d %s\n", d.Name, d.Visibility, d.Type, d.Size, d.Init)
+		} else {
+			fmt.Fprintf(w, "DATA %s %s %s %d\n", d.Name, d.Visibility, d.Type, d.Size)
+		}
 	}
 	if len(ir.Globals) > 0 {
 		fmt.Fprintln(w)

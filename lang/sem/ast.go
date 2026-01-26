@@ -32,19 +32,22 @@ type FieldDef struct {
 
 // ConstDef represents a constant definition
 type ConstDef struct {
-	Name  string
-	Type  *Type
-	Value int64
+	Name      string
+	Type      *Type
+	Value     int64  // for scalar constants
+	ArrayLen  int    // for const arrays: 0 if not array, -1 if inferred
+	InitBytes []byte // for const array initializers (string data + null)
 }
 
 // VarDef represents a global or local variable
 type VarDef struct {
-	Name     string
-	Type     *Type
-	Offset   int    // for globals: data offset; for locals: stack offset
-	ArrayLen int    // 0 if not an array
-	IsParam  bool   // true if function parameter
-	RegHint  string // for params: R1, R2, R3, or empty for stack
+	Name      string
+	Type      *Type
+	Offset    int    // for globals: data offset; for locals: stack offset
+	ArrayLen  int    // 0 if not an array, -1 if inferred from initializer
+	IsParam   bool   // true if function parameter
+	RegHint   string // for params: R1, R2, R3, or empty for stack
+	InitBytes []byte // for string/array initializers (includes null terminator)
 }
 
 // FuncDef represents a function definition

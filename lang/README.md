@@ -287,7 +287,7 @@ Note: `SIZE * 2` is folded to `0x0080` (128) by the lexer.
 - Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=` (for `#if`)
 - Unary: `-`, `~`, `!`
 
-(No ternary operator)
+(No ternary operator and no comma operator, even in declarations)
 
 ### Pass 2 Output: AST + Symbol Table
 
@@ -398,7 +398,7 @@ Since passes externalize state to files, testing is straightforward.
 
 ## Related Documentation
 
-- **WUT-4 Architecture**: `../emul/README.md`
+- **WUT-4 Architecture**: `../specs/wut4arch.pdf``
 - **WUT-4 Assembler**: `../asm/README.md`
 - **YAPL Language Spec**: https://docs.google.com/document/d/1hgsayGjZJc6WUVjSEsPRWVxPeXkVFLKpRCx5jc5hrx8/edit?usp=sharing
 - **Pass 3 IR Format**: `IR_FORMAT.md`

@@ -396,17 +396,26 @@ func (a *Analyzer) lookupType(name string) *Type {
 	// Check locals first
 	if a.locals != nil {
 		if v, exists := a.locals[name]; exists {
+			if v.ArrayLen > 0 {
+				return &Type{Kind: TypeArray, ElemType: v.Type, ArrayLen: v.ArrayLen}
+			}
 			return v.Type
 		}
 	}
 
-	// Check constants
+	// Check constants (including const arrays)
 	if c, exists := a.constants[name]; exists {
+		if c.ArrayLen > 0 {
+			return &Type{Kind: TypeArray, ElemType: c.Type, ArrayLen: c.ArrayLen}
+		}
 		return c.Type
 	}
 
 	// Check globals
 	if v, exists := a.globals[name]; exists {
+		if v.ArrayLen > 0 {
+			return &Type{Kind: TypeArray, ElemType: v.Type, ArrayLen: v.ArrayLen}
+		}
 		return v.Type
 	}
 

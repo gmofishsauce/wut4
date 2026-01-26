@@ -91,6 +91,16 @@ func (r *ASTReader) Read() (*Program, error) {
 			continue
 		}
 
+		// Parse constant array
+		if strings.HasPrefix(line, "CONSTARRAY ") {
+			c, err := r.readConstArray(line)
+			if err != nil {
+				return nil, err
+			}
+			prog.Constants = append(prog.Constants, c)
+			continue
+		}
+
 		// Parse global variable
 		if strings.HasPrefix(line, "VAR ") {
 			v, err := r.readGlobalVar(line)
@@ -208,9 +218,123 @@ func (r *ASTReader) readConst(line string) (*ConstDef, error) {
 	}, nil
 }
 
+func (r *ASTReader) readConstArray(line string) (*ConstDef, error) {
+	// "CONSTARRAY name [n]type [INIT "string"]"
+	// Example: "CONSTARRAY GREETING [0]byte INIT "Hello""
+	parts := strings.Fields(line)
+	if len(parts) < 3 {
+		return nil, r.error("invalid CONSTARRAY line: %s", line)
+	}
+
+	name := parts[1]
+
+	// Parse array type [n]type
+	typePart := parts[2]
+	var arrayLen int
+	var baseTypeName string
+
+	if strings.HasPrefix(typePart, "[") {
+		idx := strings.Index(typePart, "]")
+		if idx > 0 {
+			arrayLen, _ = strconv.Atoi(typePart[1:idx])
+			if arrayLen == 0 {
+				arrayLen = -1 // Sentinel for inferred size
+			}
+			baseTypeName = typePart[idx+1:]
+		}
+	}
+
+	// Check for INIT
+	var initBytes []byte
+	initIdx := strings.Index(line, " INIT ")
+	if initIdx >= 0 {
+		initPart := line[initIdx+6:]
+		// Extract the string literal
+		if strings.HasPrefix(initPart, "\"") {
+			initBytes = processStringLiteral(initPart)
+			// If array length is inferred (-1), set it from string length
+			if arrayLen == -1 {
+				arrayLen = len(initBytes)
+			}
+		}
+	}
+
+	return &ConstDef{
+		Name:      name,
+		Type:      parseType(baseTypeName),
+		ArrayLen:  arrayLen,
+		InitBytes: initBytes,
+	}, nil
+}
+
+// processStringLiteral extracts bytes from a quoted string literal,
+// handles escape sequences, and adds a null terminator.
+func processStringLiteral(s string) []byte {
+	// Remove surrounding quotes
+	if len(s) < 2 || s[0] != '"' {
+		return nil
+	}
+
+	// Find the closing quote
+	endIdx := strings.LastIndex(s, "\"")
+	if endIdx <= 0 {
+		return nil
+	}
+	s = s[1:endIdx]
+
+	result := make([]byte, 0, len(s)+1)
+	for i := 0; i < len(s); {
+		if s[i] == '\\' && i+1 < len(s) {
+			switch s[i+1] {
+			case '0':
+				result = append(result, 0)
+				i += 2
+			case 'n':
+				result = append(result, '\n')
+				i += 2
+			case 't':
+				result = append(result, '\t')
+				i += 2
+			case 'r':
+				result = append(result, '\r')
+				i += 2
+			case '\\':
+				result = append(result, '\\')
+				i += 2
+			case '"':
+				result = append(result, '"')
+				i += 2
+			case 'x':
+				// \xHH hex escape
+				if i+3 < len(s) {
+					b, err := strconv.ParseUint(s[i+2:i+4], 16, 8)
+					if err == nil {
+						result = append(result, byte(b))
+						i += 4
+						continue
+					}
+				}
+				// Invalid escape, just copy
+				result = append(result, s[i+1])
+				i += 2
+			default:
+				result = append(result, s[i+1])
+				i += 2
+			}
+		} else {
+			result = append(result, s[i])
+			i++
+		}
+	}
+	// Auto-add null terminator
+	result = append(result, 0)
+	return result
+}
+
 func (r *ASTReader) readGlobalVar(line string) (*VarDef, error) {
-	// "VAR visibility type name OFFSET n"
+	// "VAR visibility type name OFFSET n [INIT "string"]"
 	// Example: "VAR STATIC int16 x OFFSET 0"
+	// Example: "VAR STATIC [0]byte msg OFFSET 4 INIT "hello""
 	parts := strings.Fields(line)
 	if len(parts) < 6 {
 		return nil, r.error("invalid VAR line: %s", line)
@@ -218,7 +342,7 @@ func (r *ASTReader) readGlobalVar(line string) (*VarDef, error) {
 
 	offset, _ := strconv.Atoi(parts[5])
 
-	// Check for array syntax like [128]int16
+	// Check for array syntax like [128]int16 or [0]byte (inferred)
 	typePart := parts[2]
 	var arrayLen int
 	var baseTypeName string
@@ -228,17 +352,36 @@ func (r *ASTReader) readGlobalVar(line string) (*VarDef, error) {
 		idx := strings.Index(typePart, "]")
 		if idx > 0 {
 			arrayLen, _ = strconv.Atoi(typePart[1:idx])
+			if arrayLen == 0 {
+				arrayLen = -1 // Sentinel for inferred size
+			}
 			baseTypeName = typePart[idx+1:]
 		}
 	} else {
 		baseTypeName = typePart
 	}
 
+	// Check for INIT
+	var initBytes []byte
+	initIdx := strings.Index(line, " INIT ")
+	if initIdx >= 0 {
+		initPart := line[initIdx+6:]
+		// Extract the string literal
+		if strings.HasPrefix(initPart, "\"") {
+			initBytes = processStringLiteral(initPart)
+			// If array length is inferred (-1), set it from string length
+			if arrayLen == -1 {
+				arrayLen = len(initBytes)
+			}
+		}
+	}
+
 	return &VarDef{
-		Name:     parts[3],
-		Type:     parseType(baseTypeName),
-		Offset:   offset,
-		ArrayLen: arrayLen,
+		Name:      parts[3],
+		Type:      parseType(baseTypeName),
+		Offset:    offset,
+		ArrayLen:  arrayLen,
+		InitBytes: initBytes,
 	}, nil
 }
 

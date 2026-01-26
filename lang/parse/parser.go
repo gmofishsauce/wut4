@@ -276,6 +276,8 @@ func (p *Parser) parseAsmDecl() *AsmDecl {
 }
 
 // parseConstDecl parses: const TypeSpecifier identifier = ConstExpr ;
+// or: const TypeSpecifier identifier [ ] = ArrayInit ;
+// or: const TypeSpecifier identifier [ ConstExpr ] = ArrayInit ;
 func (p *Parser) parseConstDecl() *ConstDecl {
 	loc := p.currentLoc()
 	p.tokens.Next() // consume 'const'
@@ -293,21 +295,55 @@ func (p *Parser) parseConstDecl() *ConstDecl {
 		return nil
 	}
 
+	// Check for array dimension
+	var arrayLen int
+	if p.tokens.Peek().IsPunct("[") {
+		p.tokens.Next() // consume '['
+
+		if p.tokens.Peek().IsPunct("]") {
+			// const byte[] - inferred size from initializer
+			p.tokens.Next() // consume ']'
+			arrayLen = -1   // sentinel for "infer from initializer"
+		} else {
+			// const byte[N] - explicit size
+			dimTok := p.tokens.Next()
+			if dimTok.Category != TokLIT {
+				p.error("expected constant array dimension")
+				p.synchronize()
+				return nil
+			}
+			arrayLen = int(p.parseLiteralValue(dimTok))
+
+			if _, err := p.tokens.ExpectPunct("]"); err != nil {
+				p.error("expected ']' after array dimension")
+				p.synchronize()
+				return nil
+			}
+		}
+	}
+
 	if _, err := p.tokens.ExpectPunct("="); err != nil {
 		p.error("expected '=' after constant name")
 		p.synchronize()
 		return nil
 	}
 
-	// The value should be a literal (lexer has already folded constant expressions)
-	valTok := p.tokens.Next()
-	if valTok.Category != TokLIT {
-		p.error("expected constant value")
-		p.synchronize()
-		return nil
-	}
+	var value int64
+	var init Expr
 
-	value := p.parseLiteralValue(valTok)
+	if arrayLen != 0 {
+		// Array const - parse array initializer
+		init = p.parseArrayInit()
+	} else {
+		// Scalar const - parse literal value
+		valTok := p.tokens.Next()
+		if valTok.Category != TokLIT {
+			p.error("expected constant value")
+			p.synchronize()
+			return nil
+		}
+		value = p.parseLiteralValue(valTok)
+	}
 
 	if _, err := p.tokens.ExpectPunct(";"); err != nil {
 		p.error("expected ';' after constant declaration")
@@ -318,17 +354,22 @@ func (p *Parser) parseConstDecl() *ConstDecl {
 		Name:      nameTok.Value,
 		ConstType: constType,
 		Value:     value,
+		ArrayLen:  arrayLen,
+		Init:      init,
 		Loc:       loc,
 	}
 
-	// Add to symbol table
-	if p.funcScope != nil {
-		if err := p.funcScope.AddLocalConst(nameTok.Value, value, loc); err != nil {
-			p.errorAt(loc, "%v", err)
-		}
-	} else {
-		if err := p.symtab.DefineConst(nameTok.Value, value, loc); err != nil {
-			p.errorAt(loc, "%v", err)
+	// Add to symbol table (only scalar constants for now)
+	// Array constants will be handled in semantic analysis
+	if arrayLen == 0 {
+		if p.funcScope != nil {
+			if err := p.funcScope.AddLocalConst(nameTok.Value, value, loc); err != nil {
+				p.errorAt(loc, "%v", err)
+			}
+		} else {
+			if err := p.symtab.DefineConst(nameTok.Value, value, loc); err != nil {
+				p.errorAt(loc, "%v", err)
+			}
 		}
 	}
 
@@ -360,19 +401,26 @@ func (p *Parser) parseVarDecl(isGlobal bool) *VarDecl {
 	if p.tokens.Peek().IsPunct("[") {
 		p.tokens.Next() // consume '['
 
-		// Array dimension should be a literal (already folded by lexer)
-		dimTok := p.tokens.Next()
-		if dimTok.Category != TokLIT {
-			p.error("expected constant array dimension")
-			p.synchronize()
-			return nil
-		}
-		arrayLen = int(p.parseLiteralValue(dimTok))
+		if p.tokens.Peek().IsPunct("]") {
+			// byte[] - inferred size from initializer
+			p.tokens.Next() // consume ']'
+			arrayLen = -1   // sentinel for "infer from initializer"
+		} else {
+			// byte[N] - explicit size
+			// Array dimension should be a literal (already folded by lexer)
+			dimTok := p.tokens.Next()
+			if dimTok.Category != TokLIT {
+				p.error("expected constant array dimension")
+				p.synchronize()
+				return nil
+			}
+			arrayLen = int(p.parseLiteralValue(dimTok))
 
-		if _, err := p.tokens.ExpectPunct("]"); err != nil {
-			p.error("expected ']' after array dimension")
-			p.synchronize()
-			return nil
+			if _, err := p.tokens.ExpectPunct("]"); err != nil {
+				p.error("expected ']' after array dimension")
+				p.synchronize()
+				return nil
+			}
 		}
 	}
 
@@ -380,12 +428,16 @@ func (p *Parser) parseVarDecl(isGlobal bool) *VarDecl {
 	if p.tokens.Peek().IsPunct("=") {
 		p.tokens.Next() // consume '='
 
-		if arrayLen > 0 {
+		if arrayLen != 0 {
 			// Array initializer: { expr, expr, ... } or string literal
+			// arrayLen > 0 means explicit size, arrayLen == -1 means inferred size
 			init = p.parseArrayInit()
 		} else {
 			init = p.parseExpression()
 		}
+	} else if arrayLen == -1 {
+		// byte[] without initializer is an error
+		p.error("array with inferred size requires an initializer")
 	}
 
 	if _, err := p.tokens.ExpectPunct(";"); err != nil {
@@ -419,7 +471,7 @@ func (p *Parser) parseVarDecl(isGlobal bool) *VarDecl {
 func (p *Parser) parseArrayInit() Expr {
 	tok := p.tokens.Peek()
 
-	// String literal
+	// String literal directly (bare string)
 	if tok.Category == TokLIT && strings.HasPrefix(tok.Value, "\"") {
 		p.tokens.Next()
 		return &LiteralExpr{
@@ -429,10 +481,36 @@ func (p *Parser) parseArrayInit() Expr {
 		}
 	}
 
-	// Brace-enclosed list: { expr, expr, ... }
-	// For now, just parse as a single expression (simplified)
-	// Full array initializer support would require a list
-	return p.parseExpression()
+	// Brace-enclosed: { ... }
+	if tok.IsPunct("{") {
+		p.tokens.Next() // consume '{'
+
+		nextTok := p.tokens.Peek()
+		if nextTok.Category == TokLIT && strings.HasPrefix(nextTok.Value, "\"") {
+			// { "string" }
+			p.tokens.Next()
+			strExpr := &LiteralExpr{
+				baseExpr: baseExpr{Loc: SourceLoc{File: nextTok.File, Line: nextTok.Line}},
+				Kind:     LitString,
+				StrVal:   nextTok.Value,
+			}
+			if _, err := p.tokens.ExpectPunct("}"); err != nil {
+				p.error("expected '}' after string initializer")
+			}
+			return strExpr
+		}
+
+		// { expr, expr, ... } - numeric initializer list
+		// For now, parse as a single expression (simplified)
+		expr := p.parseExpression()
+		if _, err := p.tokens.ExpectPunct("}"); err != nil {
+			p.error("expected '}' after initializer")
+		}
+		return expr
+	}
+
+	p.error("expected array initializer")
+	return nil
 }
 
 // parseStructDecl parses a struct declaration

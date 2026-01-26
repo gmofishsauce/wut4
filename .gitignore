@@ -13,9 +13,9 @@ foo
 out.bin
 asm/asm
 emul/emul
-lex/lexer
-parse/parser
-sem/sem
+lang/lex/lexer
+lang/parse/parser
+lang/sem/sem
 
 
 # Garbage created by well-meaning but moronic system vendors

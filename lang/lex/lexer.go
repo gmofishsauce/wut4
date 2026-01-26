@@ -895,6 +895,8 @@ func (l *Lexer) Run() {
 
 // Handle const declaration - parse and record the constant value
 // Syntax: const TypeSpecifier identifier = ConstExpr ;
+// Or: const TypeSpecifier identifier [ ] = ArrayInit ;
+// Or: const TypeSpecifier identifier [ ConstExpr ] = ArrayInit ;
 func (l *Lexer) handleConstDecl() {
 	l.emitToken(KEY, "const")
 
@@ -929,6 +931,35 @@ func (l *Lexer) handleConstDecl() {
 
 	l.skipWhitespace()
 
+	// Check for array dimension
+	isArray := false
+	if l.peek() == '[' {
+		isArray = true
+		l.advance()
+		l.emitToken(PUNCT, "[")
+		l.skipWhitespace()
+
+		// Check for empty brackets [] (inferred size)
+		if l.peek() == ']' {
+			// Empty brackets - inferred size from initializer
+			l.advance()
+			l.emitToken(PUNCT, "]")
+			l.skipWhitespace()
+		} else {
+			// Parse constant expression for array dimension
+			val := l.parseConstExpr()
+			l.emitToken(LIT, fmt.Sprintf("0x%04X", val&0xFFFF))
+
+			l.skipWhitespace()
+			if l.peek() != ']' {
+				l.error("expected ']' after array dimension")
+			}
+			l.advance()
+			l.emitToken(PUNCT, "]")
+			l.skipWhitespace()
+		}
+	}
+
 	// Expect '='
 	if l.peek() != '=' {
 		l.error("expected '=' in const declaration")
@@ -938,7 +969,13 @@ func (l *Lexer) handleConstDecl() {
 
 	l.skipWhitespace()
 
-	// Parse constant expression
+	if isArray {
+		// Const array - don't parse as constant expression, let parser handle it
+		// Just continue with normal lexing for the initializer
+		return
+	}
+
+	// Parse constant expression for scalar const
 	val := l.parseConstExpr()
 
 	// Store in constant table
@@ -998,17 +1035,25 @@ func (l *Lexer) handleVarDecl() {
 		l.emitToken(PUNCT, "[")
 		l.skipWhitespace()
 
-		// Parse constant expression for array dimension
-		val := l.parseConstExpr()
-		l.emitToken(LIT, fmt.Sprintf("0x%04X", val&0xFFFF))
+		// Check for empty brackets [] (inferred size)
+		if l.peek() == ']' {
+			// Empty brackets - inferred size from initializer
+			l.advance()
+			l.emitToken(PUNCT, "]")
+			l.skipWhitespace()
+		} else {
+			// Parse constant expression for array dimension
+			val := l.parseConstExpr()
+			l.emitToken(LIT, fmt.Sprintf("0x%04X", val&0xFFFF))
 
-		l.skipWhitespace()
-		if l.peek() != ']' {
-			l.error("expected ']' after array dimension")
+			l.skipWhitespace()
+			if l.peek() != ']' {
+				l.error("expected ']' after array dimension")
+			}
+			l.advance()
+			l.emitToken(PUNCT, "]")
+			l.skipWhitespace()
 		}
-		l.advance()
-		l.emitToken(PUNCT, "]")
-		l.skipWhitespace()
 	}
 
 	// Check for initializer
