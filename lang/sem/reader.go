@@ -519,7 +519,7 @@ func (r *ASTReader) readStmt(line string, depth int) (Stmt, error) {
 		if len(parts) > 1 {
 			lineNum, _ = strconv.Atoi(parts[1])
 		}
-		expr, err := r.readExpr(depth + 1)
+		expr, err := r.readExpr(depth+1, lineNum)
 		if err != nil {
 			return nil, err
 		}
@@ -531,7 +531,7 @@ func (r *ASTReader) readStmt(line string, depth int) (Stmt, error) {
 			lineNum, _ = strconv.Atoi(parts[1])
 		}
 		// Check if there's a return value
-		expr, _ := r.readExpr(depth + 1)
+		expr, _ := r.readExpr(depth+1, lineNum)
 		return &ReturnStmt{baseStmt: baseStmt{Line: lineNum}, Value: expr}, nil
 
 	case "IF":
@@ -600,7 +600,7 @@ func (r *ASTReader) readIf(lineNum int, depth int) (*IfStmt, error) {
 	stmt := &IfStmt{baseStmt: baseStmt{Line: lineNum}}
 
 	// Read condition
-	cond, err := r.readExpr(depth + 1)
+	cond, err := r.readExpr(depth+1, lineNum)
 	if err != nil {
 		return nil, err
 	}
@@ -639,7 +639,7 @@ func (r *ASTReader) readWhile(lineNum int, depth int) (*WhileStmt, error) {
 	stmt := &WhileStmt{baseStmt: baseStmt{Line: lineNum}}
 
 	// Read condition
-	cond, err := r.readExpr(depth + 1)
+	cond, err := r.readExpr(depth+1, lineNum)
 	if err != nil {
 		return nil, err
 	}
@@ -669,7 +669,7 @@ func (r *ASTReader) readFor(lineNum int, depth int) (*ForStmt, error) {
 		r.nextLine()
 		line := strings.TrimSpace(r.line)
 		if line != "EMPTY" {
-			expr, _ := r.readExprFromLine(line, depth+1)
+			expr, _ := r.readExprFromLine(line, depth+1, lineNum)
 			switch i {
 			case 0:
 				stmt.Init = expr
@@ -697,14 +697,14 @@ func (r *ASTReader) readFor(lineNum int, depth int) (*ForStmt, error) {
 	return stmt, nil
 }
 
-func (r *ASTReader) readExpr(depth int) (Expr, error) {
+func (r *ASTReader) readExpr(depth int, stmtLine int) (Expr, error) {
 	if !r.nextLine() {
 		return nil, nil
 	}
-	return r.readExprFromLine(strings.TrimSpace(r.line), depth)
+	return r.readExprFromLine(strings.TrimSpace(r.line), depth, stmtLine)
 }
 
-func (r *ASTReader) readExprFromLine(line string, depth int) (Expr, error) {
+func (r *ASTReader) readExprFromLine(line string, depth int, stmtLine int) (Expr, error) {
 	parts := strings.Fields(line)
 	if len(parts) == 0 {
 		return nil, nil
@@ -716,7 +716,7 @@ func (r *ASTReader) readExprFromLine(line string, depth int) (Expr, error) {
 		if len(parts) > 1 {
 			val, _ = strconv.ParseInt(parts[1], 0, 64)
 		}
-		return &LiteralExpr{IntVal: val}, nil
+		return &LiteralExpr{baseExpr: baseExpr{Line: stmtLine}, IntVal: val}, nil
 
 	case "STRLIT":
 		// String literal - rest of line is the string
@@ -724,33 +724,33 @@ func (r *ASTReader) readExprFromLine(line string, depth int) (Expr, error) {
 		if len(parts) > 1 {
 			str = strings.Join(parts[1:], " ")
 		}
-		return &LiteralExpr{StrVal: str, IsStr: true}, nil
+		return &LiteralExpr{baseExpr: baseExpr{Line: stmtLine}, StrVal: str, IsStr: true}, nil
 
 	case "ID":
 		name := ""
 		if len(parts) > 1 {
 			name = parts[1]
 		}
-		return &IdentExpr{Name: name}, nil
+		return &IdentExpr{baseExpr: baseExpr{Line: stmtLine}, Name: name}, nil
 
 	case "BINARY":
 		op := parseBinaryOp(parts[1])
-		left, _ := r.readExpr(depth + 1)
-		right, _ := r.readExpr(depth + 1)
-		return &BinaryExpr{Op: op, Left: left, Right: right}, nil
+		left, _ := r.readExpr(depth+1, stmtLine)
+		right, _ := r.readExpr(depth+1, stmtLine)
+		return &BinaryExpr{baseExpr: baseExpr{Line: stmtLine}, Op: op, Left: left, Right: right}, nil
 
 	case "UNARY":
 		op := parseUnaryOp(parts[1])
-		operand, _ := r.readExpr(depth + 1)
-		return &UnaryExpr{Op: op, Operand: operand}, nil
+		operand, _ := r.readExpr(depth+1, stmtLine)
+		return &UnaryExpr{baseExpr: baseExpr{Line: stmtLine}, Op: op, Operand: operand}, nil
 
 	case "ASSIGN":
-		lhs, _ := r.readExpr(depth + 1)
-		rhs, _ := r.readExpr(depth + 1)
-		return &AssignExpr{LHS: lhs, RHS: rhs}, nil
+		lhs, _ := r.readExpr(depth+1, stmtLine)
+		rhs, _ := r.readExpr(depth+1, stmtLine)
+		return &AssignExpr{baseExpr: baseExpr{Line: stmtLine}, LHS: lhs, RHS: rhs}, nil
 
 	case "CALL":
-		funcExpr, _ := r.readExpr(depth + 1)
+		funcExpr, _ := r.readExpr(depth+1, stmtLine)
 		funcName := ""
 		if id, ok := funcExpr.(*IdentExpr); ok {
 			funcName = id.Name
@@ -772,7 +772,7 @@ func (r *ASTReader) readExprFromLine(line string, depth int) (Expr, error) {
 				if argParts[0] == "LIT" || argParts[0] == "ID" || argParts[0] == "BINARY" ||
 					argParts[0] == "UNARY" || argParts[0] == "CALL" || argParts[0] == "INDEX" ||
 					argParts[0] == "FIELD" || argParts[0] == "STRLIT" {
-					arg, _ := r.readExprFromLine(argLine, depth+1)
+					arg, _ := r.readExprFromLine(argLine, depth+1, stmtLine)
 					if arg != nil {
 						args = append(args, arg)
 					}
@@ -781,16 +781,16 @@ func (r *ASTReader) readExprFromLine(line string, depth int) (Expr, error) {
 				}
 			}
 		}
-		return &CallExpr{Func: funcName, Args: args}, nil
+		return &CallExpr{baseExpr: baseExpr{Line: stmtLine}, Func: funcName, Args: args}, nil
 
 	case "INDEX":
-		array, _ := r.readExpr(depth + 1)
-		index, _ := r.readExpr(depth + 1)
-		return &IndexExpr{Array: array, Index: index}, nil
+		array, _ := r.readExpr(depth+1, stmtLine)
+		index, _ := r.readExpr(depth+1, stmtLine)
+		return &IndexExpr{baseExpr: baseExpr{Line: stmtLine}, Array: array, Index: index}, nil
 
 	case "FIELD":
 		isArrow := len(parts) > 1 && parts[1] == "ARROW"
-		obj, _ := r.readExpr(depth + 1)
+		obj, _ := r.readExpr(depth+1, stmtLine)
 		r.nextLine()
 		fieldLine := strings.TrimSpace(r.line)
 		fieldParts := strings.Fields(fieldLine)
@@ -798,16 +798,16 @@ func (r *ASTReader) readExprFromLine(line string, depth int) (Expr, error) {
 		if len(fieldParts) > 1 {
 			fieldName = fieldParts[1]
 		}
-		return &FieldExpr{Object: obj, Field: fieldName, IsArrow: isArrow}, nil
+		return &FieldExpr{baseExpr: baseExpr{Line: stmtLine}, Object: obj, Field: fieldName, IsArrow: isArrow}, nil
 
 	case "CAST":
 		targetType := parseType(parts[1])
-		operand, _ := r.readExpr(depth + 1)
-		return &CastExpr{Target: targetType, Operand: operand}, nil
+		operand, _ := r.readExpr(depth+1, stmtLine)
+		return &CastExpr{baseExpr: baseExpr{Line: stmtLine}, Target: targetType, Operand: operand}, nil
 
 	case "SIZEOF":
 		targetType := parseType(parts[1])
-		return &SizeofExpr{Target: targetType}, nil
+		return &SizeofExpr{baseExpr: baseExpr{Line: stmtLine}, Target: targetType}, nil
 	}
 
 	return nil, nil

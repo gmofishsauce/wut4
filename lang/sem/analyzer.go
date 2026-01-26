@@ -215,7 +215,7 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 		// Look up identifier
 		t := a.lookupType(e.Name)
 		if t == nil {
-			a.error("undefined identifier: %s", e.Name)
+			a.errorAt(a.prog.SourceFile, e.GetLine(), "undefined identifier: %s", e.Name)
 			return nil
 		}
 		e.SetType(t)
@@ -231,7 +231,7 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 
 		// Check operand compatibility
 		if !a.typesCompatible(leftType, rightType) {
-			a.error("type mismatch in binary expression")
+			a.errorAt(a.prog.SourceFile, e.GetLine(), "type mismatch in binary expression")
 		}
 
 		// Comparison operators return int16 (0 or 1)
@@ -259,7 +259,7 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 		case OpDeref:
 			// Dereference: operand must be pointer
 			if operandType.Kind != TypePointer {
-				a.error("cannot dereference non-pointer type")
+				a.errorAt(a.prog.SourceFile, e.GetLine(), "cannot dereference non-pointer type")
 				return nil
 			}
 			t := operandType.Pointee
@@ -280,7 +280,7 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 		}
 
 		if !a.typesCompatible(lhsType, rhsType) {
-			a.error("type mismatch in assignment")
+			a.errorAt(a.prog.SourceFile, e.GetLine(), "type mismatch in assignment")
 		}
 
 		e.SetType(lhsType)
@@ -290,13 +290,13 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 		// Look up function
 		fn, exists := a.functions[e.Func]
 		if !exists {
-			a.error("undefined function: %s", e.Func)
+			a.errorAt(a.prog.SourceFile, e.GetLine(), "undefined function: %s", e.Func)
 			return nil
 		}
 
 		// Check argument count
 		if len(e.Args) != len(fn.Params) {
-			a.error("wrong number of arguments to %s: expected %d, got %d",
+			a.errorAt(a.prog.SourceFile, e.GetLine(), "wrong number of arguments to %s: expected %d, got %d",
 				e.Func, len(fn.Params), len(e.Args))
 		}
 
@@ -305,7 +305,7 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 			argType := a.typeCheckExpr(arg)
 			if i < len(fn.Params) && argType != nil {
 				if !a.typesCompatible(fn.Params[i].Type, argType) {
-					a.error("argument %d type mismatch in call to %s", i+1, e.Func)
+					a.errorAt(a.prog.SourceFile, e.GetLine(), "argument %d type mismatch in call to %s", i+1, e.Func)
 				}
 			}
 		}
@@ -323,7 +323,7 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 
 		// Index must be integral
 		if indexType != nil && !indexType.IsIntegral() {
-			a.error("array index must be integral type")
+			a.errorAt(a.prog.SourceFile, e.GetLine(), "array index must be integral type")
 		}
 
 		// Array must be array or pointer type
@@ -333,7 +333,7 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 		} else if arrayType.Kind == TypePointer {
 			elemType = arrayType.Pointee
 		} else {
-			a.error("cannot index non-array/non-pointer type")
+			a.errorAt(a.prog.SourceFile, e.GetLine(), "cannot index non-array/non-pointer type")
 			return nil
 		}
 
@@ -349,7 +349,7 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 		// For ->, object must be pointer to struct
 		if e.IsArrow {
 			if objType.Kind != TypePointer {
-				a.error("-> requires pointer type")
+				a.errorAt(a.prog.SourceFile, e.GetLine(), "-> requires pointer type")
 				return nil
 			}
 			objType = objType.Pointee
@@ -357,14 +357,14 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 
 		// Object must be struct type
 		if objType.Kind != TypeStruct {
-			a.error("field access requires struct type")
+			a.errorAt(a.prog.SourceFile, e.GetLine(), "field access requires struct type")
 			return nil
 		}
 
 		// Look up struct
 		structDef, exists := a.structs[objType.Name]
 		if !exists {
-			a.error("undefined struct: %s", objType.Name)
+			a.errorAt(a.prog.SourceFile, e.GetLine(), "undefined struct: %s", objType.Name)
 			return nil
 		}
 
@@ -376,7 +376,7 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 			}
 		}
 
-		a.error("struct %s has no field %s", objType.Name, e.Field)
+		a.errorAt(a.prog.SourceFile, e.GetLine(), "struct %s has no field %s", objType.Name, e.Field)
 		return nil
 
 	case *CastExpr:

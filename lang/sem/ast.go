@@ -272,15 +272,20 @@ type Expr interface {
 	exprNode()
 	GetType() *Type
 	SetType(*Type)
+	GetLine() int
+	SetLine(int)
 }
 
 type baseExpr struct {
 	ExprType *Type
+	Line     int
 }
 
 func (e *baseExpr) exprNode()         {}
 func (e *baseExpr) GetType() *Type    { return e.ExprType }
 func (e *baseExpr) SetType(t *Type)   { e.ExprType = t }
+func (e *baseExpr) GetLine() int      { return e.Line }
+func (e *baseExpr) SetLine(line int)  { e.Line = line }
 
 // LiteralExpr is a literal value
 type LiteralExpr struct {
