@@ -13,8 +13,8 @@ foo
 out.bin
 asm/asm
 emul/emul
-lang/lex/lexer
-lang/parse/parser
+lang/lex/lex
+lang/parse/parse
 lang/sem/sem
 
 
