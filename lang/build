@@ -1,0 +1,3 @@
+cd lex && go build -o lexer lexer.go
+cd ../parse && go build -o parser
+cd ../sem && go build -o sem
