@@ -92,7 +92,7 @@ func TestImmediateValueRanges(t *testing.T) {
 			}
 
 			// Run assembler
-			err = assemble(inputFile, outputFile)
+			err = assemble(inputFile, tt.code, outputFile)
 
 			if tt.wantErr && err == nil {
 				t.Errorf("expected error but got none")
@@ -175,7 +175,7 @@ func TestCommasOptional(t *testing.T) {
 			}
 
 			// Run assembler
-			err = assemble(inputFile, outputFile)
+			err = assemble(inputFile, tt.code, outputFile)
 
 			if tt.wantErr && err == nil {
 				t.Errorf("expected error but got none")
@@ -223,7 +223,7 @@ func TestExpressions(t *testing.T) {
 			}
 
 			// Run assembler
-			err = assemble(inputFile, outputFile)
+			err = assemble(inputFile, tt.code, outputFile)
 
 			if tt.wantErr && err == nil {
 				t.Errorf("expected error but got none")
@@ -418,7 +418,7 @@ func TestAllInstructions(t *testing.T) {
 			}
 
 			// Assemble
-			err = assemble(inputFile, outputFile)
+			err = assemble(inputFile, source, outputFile)
 			if err != nil {
 				t.Fatalf("assembly failed: %v", err)
 			}
@@ -617,7 +617,7 @@ func TestPseudoInstructions(t *testing.T) {
 			}
 
 			// Assemble
-			err = assemble(inputFile, outputFile)
+			err = assemble(inputFile, source, outputFile)
 			if err != nil {
 				t.Fatalf("assembly failed: %v", err)
 			}

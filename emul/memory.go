@@ -302,14 +302,6 @@ func (cpu *CPU) LoadBinary(data []byte) error {
 			len(data), expectedSize, HEADER_SIZE, codeSize, dataSize)
 	}
 
-	// Code size and data size must be even (16-bit words)
-	if codeSize%2 != 0 {
-		return fmt.Errorf("code size must be even: %d bytes", codeSize)
-	}
-	if dataSize%2 != 0 {
-		return fmt.Errorf("data size must be even: %d bytes", dataSize)
-	}
-
 	// Load code section (file offset 16+) into physical memory at address 0
 	codeOffset := HEADER_SIZE
 	for i := 0; i < int(codeSize)/2; i++ {
@@ -317,6 +309,10 @@ func (cpu *CPU) LoadBinary(data []byte) error {
 		low := uint16(data[offset])
 		high := uint16(data[offset+1])
 		cpu.physMem[i] = (high << 8) | low
+	}
+	if codeSize%2 != 0 {
+		// Odd trailing byte goes into the low byte of the next word
+		cpu.physMem[int(codeSize)/2] = uint16(data[codeOffset+int(codeSize)-1])
 	}
 
 	// Load data section (follows code) into physical memory at address 0 (overlapping with code)
@@ -334,6 +330,10 @@ func (cpu *CPU) LoadBinary(data []byte) error {
 			low := uint16(data[offset])
 			high := uint16(data[offset+1])
 			cpu.physMem[i] = (high << 8) | low
+		}
+		if dataSize%2 != 0 {
+			// Odd trailing byte goes into the low byte of the next word
+			cpu.physMem[int(dataSize)/2] = uint16(data[dataOffset+int(dataSize)-1])
 		}
 	}
 

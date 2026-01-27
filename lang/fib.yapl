@@ -6,7 +6,7 @@ var uint16 n2 = 1;
 var byte itoxbuf[6];
 const byte SP = ' ';
 const byte hexdigits[] = "0123456789ABCDEF";
-var byte msg[] = {"fib numbers: "};
+const byte msg[] = "fib numbers: ";
 
 func void main() {
     var uint16 next = 0;
@@ -23,23 +23,22 @@ func void main() {
 // convert arg to hex ascii in itoxbuf
 func void itox(uint16 u) {
     // Use address of const array for hex digits
-    var @byte hexdig = &hexdigits[0];
     var uint16 b;
 
     b = u&uint16(0xF000);
     b = b>>12;
-    itoxbuf[0] = @(hexdig+b);
+    itoxbuf[0] = hexdigits[b];
 
     b = u&0xF00;
     b = b>>8;
-    itoxbuf[1] = @(hexdig+b);
+    itoxbuf[1] = hexdigits[b];
 
     b = u&0xF0;
     b = b>>4;
-    itoxbuf[2] = @(hexdig+b);
+    itoxbuf[2] = hexdigits[b];
 
     b = u&0xF;
-    itoxbuf[3] = @(hexdig+b);
+    itoxbuf[3] = hexdigits[b];
 
     itoxbuf[4] = 0;
 }

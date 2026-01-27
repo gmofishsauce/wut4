@@ -1,0 +1,21 @@
+// fibonacci numbers in hex in yapl
+#asm(".bootstrap");
+
+const byte hello[] = "hello, world.\n";
+
+func void main() {
+    putstr(&hello);
+}
+
+func void putc(byte b) {
+    // no check for overrun in this simpleminded function.
+    #asm("ldi r2 96");
+    #asm("ssp r1 r2");
+}
+
+func void putstr(@byte bp) {
+    while (@bp != 0) {
+	putc(@bp);
+	bp = bp + 1;
+    }
+}

@@ -338,16 +338,8 @@ func (asm *Assembler) printCapitalSymbols() {
 	}
 }
 
-func assemble(inputFile, outputFile string) error {
-	/* Read input file */
-	data, err := os.ReadFile(inputFile)
-	if err != nil {
-		return err
-	}
-
-	input := string(data)
-
-	asm := newAssembler(inputFile, outputFile)
+func assemble(inputName, input, outputFile string) error {
+	asm := newAssembler(inputName, outputFile)
 
 	/* Pass 1: collect labels and allocate space */
 	if err := asm.pass1(input); err != nil {
@@ -364,7 +356,7 @@ func assemble(inputFile, outputFile string) error {
 		return err
 	}
 
-	fmt.Printf("Assembly successful: %s -> %s\n", inputFile, outputFile)
+	fmt.Printf("Assembly successful: %s -> %s\n", inputName, outputFile)
 	fmt.Printf("Code: %d bytes, Data: %d bytes\n", asm.codeSize, asm.dataSize)
 
 	/* Print symbols that start with capital letters */
