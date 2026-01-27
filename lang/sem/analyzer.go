@@ -522,7 +522,17 @@ func (a *Analyzer) typesCompatible(t1, t2 *Type) bool {
 		if t1.Pointee.Kind == TypeVoid || t2.Pointee.Kind == TypeVoid {
 			return true
 		}
-		return a.typesCompatible(t1.Pointee, t2.Pointee)
+		if a.typesCompatible(t1.Pointee, t2.Pointee) {
+			return true
+		}
+		// Array-to-pointer decay: @T is compatible with @[N]T
+		if t2.Pointee.Kind == TypeArray && a.typesCompatible(t1.Pointee, t2.Pointee.ElemType) {
+			return true
+		}
+		if t1.Pointee.Kind == TypeArray && a.typesCompatible(t2.Pointee, t1.Pointee.ElemType) {
+			return true
+		}
+		return false
 	case TypeArray:
 		return t1.ArrayLen == t2.ArrayLen && a.typesCompatible(t1.ElemType, t2.ElemType)
 	case TypeStruct:

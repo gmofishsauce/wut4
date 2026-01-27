@@ -4,6 +4,7 @@
 #        ./y -              (read from stdin)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+set -o pipefail
 
 if [ $# -eq 0 ]; then
     echo "Usage: $0 <source.yapl>" >&2
