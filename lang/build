@@ -1,3 +1,4 @@
 cd lex && go build
 cd ../parse && go build
 cd ../sem && go build
+cd ../gen && go build

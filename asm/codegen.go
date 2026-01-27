@@ -277,8 +277,12 @@ func (asm *Assembler) genBRX(stmt *Statement, instr *Instruction) error {
 	offset := target - (currentPC + 2)
 
 	/* Check offset range: -512 to 511 */
-	if offset < -512 || offset > 511 {
-		return fmt.Errorf("branch offset %d out of range", offset)
+	/* In pass 1, forward references return target=0, so skip range check if
+	   offset is suspiciously negative (likely a forward reference) */
+	if asm.pass == 2 {
+		if offset < -512 || offset > 511 {
+			return fmt.Errorf("branch offset %d out of range", offset)
+		}
 	}
 
 	imm10 := offset & 0x3FF
