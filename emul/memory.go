@@ -295,6 +295,11 @@ func (cpu *CPU) LoadBinary(data []byte) error {
 		return fmt.Errorf("invalid magic number: 0x%04X (expected 0x%04X)", magic, MAGIC_NUMBER)
 	}
 
+	// Validate code size is non-zero
+	if codeSize == 0 {
+		return fmt.Errorf("binary file has no code (code size is 0)")
+	}
+
 	// Validate sizes
 	expectedSize := HEADER_SIZE + int(codeSize) + int(dataSize)
 	if len(data) < expectedSize {

@@ -80,26 +80,8 @@ func main() {
 
 	binaryFile := args[0]
 
-	// Set up terminal in raw mode for UART emulation
-	err := setupTerminal()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error setting up terminal: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Ensure terminal is restored on exit
-	defer restoreTerminal()
-
-	// Set up signal handler to restore terminal on interrupt
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		restoreTerminal()
-		os.Exit(130) // Standard exit code for SIGINT
-	}()
-
-	// Load binary file
+	// Load binary file before setting up terminal raw mode so that
+	// any errors are reported cleanly in normal terminal mode.
 	data, err := os.ReadFile(binaryFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading binary file: %v\n", err)
@@ -134,6 +116,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Set up terminal in raw mode for UART emulation
+	err = setupTerminal()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error setting up terminal: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Ensure terminal is restored on exit
+	defer restoreTerminal()
+
+	// Set up signal handler to restore terminal on interrupt
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		restoreTerminal()
+		os.Exit(130) // Standard exit code for SIGINT
+	}()
+
 	// Reset CPU to initial state
 	cpu.Reset()
 
@@ -156,6 +157,9 @@ func main() {
 	startTime := time.Now()
 	err = runEmulator(cpu, *maxCycles)
 	elapsed := time.Since(startTime)
+
+	// Restore terminal before printing statistics so output isn't garbled
+	restoreTerminal()
 
 	// Print statistics
 	fmt.Fprintf(os.Stderr, "\n========================================\n")
