@@ -16,6 +16,7 @@ emul/emul
 lang/lex/lex
 lang/parse/parse
 lang/sem/sem
+lang/gen/gen
 
 
 # Garbage created by well-meaning but moronic system vendors
