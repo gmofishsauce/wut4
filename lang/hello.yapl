@@ -1,4 +1,4 @@
-// fibonacci numbers in hex in yapl
+// hello, world.
 #asm(".bootstrap");
 
 const byte hello[] = "hello, world.\n";

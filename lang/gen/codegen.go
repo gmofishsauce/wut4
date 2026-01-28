@@ -58,8 +58,11 @@ func (cg *CodeGen) Generate() {
 		}
 	}
 
-	// Emit file-level inline assembly first (directives like .bootstrap)
+	// Emit file-level inline assembly (but filter out .bootstrap which is just a signal)
 	for _, asm := range cg.prog.AsmDecls {
+		if strings.Contains(asm, ".bootstrap") {
+			continue // .bootstrap is not a real assembler directive
+		}
 		// Emit without indentation since these are usually directives
 		fmt.Fprintln(cg.emit.out, asm)
 	}
@@ -70,6 +73,18 @@ func (cg *CodeGen) Generate() {
 	// Generate code section - but not for bootstrap programs
 	if !cg.isBootstrap {
 		cg.emit.DataCode()
+		cg.emit.BlankLine()
+	}
+
+	// For bootstrap programs, emit startup code at the very beginning
+	// This initializes the stack pointer and calls main
+	if cg.isBootstrap {
+		cg.emit.Comment("Bootstrap startup code")
+		cg.emit.Comment("Stack initialized to 0x1000 (top of page 0)")
+		cg.emit.Label("_start")
+		cg.emit.Ldi(R7, 0x1000)
+		cg.emit.Jal("main")
+		cg.emit.Instr0("hlt")
 		cg.emit.BlankLine()
 	}
 

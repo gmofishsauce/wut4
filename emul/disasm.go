@@ -75,13 +75,13 @@ func disassembleBase(inst *Instruction) string {
 
 	case 7: // JAL
 		if inst.rA == 0 && inst.rB == 0 {
-			return fmt.Sprintf("JAL LINK, LINK, %d", inst.imm10)
+			return fmt.Sprintf("JAL LINK, LINK, %d", inst.imm7)
 		} else if inst.rA == 0 {
-			return fmt.Sprintf("JAL LINK, r%d, %d", inst.rB, inst.imm10)
+			return fmt.Sprintf("JAL LINK, r%d, %d", inst.rB, inst.imm7)
 		} else if inst.rB == 0 {
-			return fmt.Sprintf("JAL r%d, LINK, %d", inst.rA, inst.imm10)
+			return fmt.Sprintf("JAL r%d, LINK, %d", inst.rA, inst.imm7)
 		}
-		return fmt.Sprintf("JAL r%d, r%d, %d", inst.rA, inst.rB, inst.imm10)
+		return fmt.Sprintf("JAL r%d, r%d, %d", inst.rA, inst.rB, inst.imm7)
 
 	default:
 		return fmt.Sprintf("??? (0x%04X)", inst.raw)
