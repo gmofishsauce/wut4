@@ -228,6 +228,16 @@ func (e *Emitter) Ji(reg int) {
 	e.Instr1("ji", RegName(reg))
 }
 
+// Lsp emits load special purpose register (LINK is SPR 0)
+func (e *Emitter) Lsp(dest, sprReg int) {
+	e.Instr2("lsp", RegName(dest), RegName(sprReg))
+}
+
+// Ssp emits store special purpose register (LINK is SPR 0)
+func (e *Emitter) Ssp(src, sprReg int) {
+	e.Instr2("ssp", RegName(src), RegName(sprReg))
+}
+
 // --- Data emission helpers ---
 
 // DataCode switches to code section

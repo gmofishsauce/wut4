@@ -20,6 +20,14 @@ type CodeGen struct {
 	// Saved register offsets within the frame
 	savedRegOffsets map[int]int
 
+	// Parameter stack offsets (for saving register params r1-r3)
+	paramOffsets map[int]int
+	numRegParams int // number of parameters passed in registers (0-3)
+
+	// Whether current function makes calls (needs to save LINK)
+	hasCalls   bool
+	linkOffset int // stack offset where LINK is saved
+
 	// Total frame size including saved registers and virtual register spill slots
 	totalFrameSize int
 
@@ -378,6 +386,7 @@ func (cg *CodeGen) genFunction(f *IRFunction) {
 	cg.currFunc = f
 	cg.virtRegSlots = make(map[string]int)
 	cg.pendingArgs = make(map[int]string)
+	cg.paramOffsets = make(map[int]int)
 
 	// Count virtual registers used to allocate spill space
 	maxVirtReg := 0
@@ -393,22 +402,41 @@ func (cg *CodeGen) genFunction(f *IRFunction) {
 	// Calculate frame layout:
 	// [SP+0 ... SP+frameSize-1] = locals from IR
 	// [SP+frameSize ... SP+frameSize+virtRegSpace-1] = virtual register spill slots
-	// [SP+frameSize+virtRegSpace ... ] = saved callee-saved registers
+	// [SP+frameSize+virtRegSpace ... SP+frameSize+virtRegSpace+paramSaveSpace-1] = saved register params
+	// [SP+frameSize+virtRegSpace+paramSaveSpace ... ] = saved callee-saved registers
 	virtRegSpace := (maxVirtReg + 1) * 2 // each virtual reg gets 2 bytes
 	cg.nextVirtSlot = f.FrameSize        // virtual regs start after locals
 
+	// Save register parameters (r1-r3) to stack so they survive function calls
+	cg.numRegParams = len(f.Params)
+	if cg.numRegParams > 3 {
+		cg.numRegParams = 3
+	}
+	paramSaveSpace := cg.numRegParams * 2
+	for i := 0; i < cg.numRegParams; i++ {
+		cg.paramOffsets[i] = f.FrameSize + virtRegSpace + i*2
+	}
+
+	// Check if function makes calls - if so, need to save LINK
+	cg.hasCalls = cg.functionHasCalls(f)
+	linkSaveSpace := 0
+	if cg.hasCalls {
+		linkSaveSpace = 2
+		cg.linkOffset = f.FrameSize + virtRegSpace + paramSaveSpace
+	}
+
 	savedRegSize := 6 // always save R4, R5, R6 to simplify
 	cg.savedRegOffsets = map[int]int{
-		R4: f.FrameSize + virtRegSpace,
-		R5: f.FrameSize + virtRegSpace + 2,
-		R6: f.FrameSize + virtRegSpace + 4,
+		R4: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace,
+		R5: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 2,
+		R6: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 4,
 	}
-	cg.totalFrameSize = f.FrameSize + virtRegSpace + savedRegSize
+	cg.totalFrameSize = f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + savedRegSize
 
 	cg.emit.Comment("Function: %s", f.Name)
 	cg.emit.Comment("Visibility: %s, Return: %s", f.Visibility, f.ReturnType)
-	cg.emit.Comment("Params: %d, Frame: %d bytes (locals=%d, virtregs=%d, saved=%d)",
-		len(f.Params), cg.totalFrameSize, f.FrameSize, virtRegSpace, savedRegSize)
+	cg.emit.Comment("Params: %d, Frame: %d bytes (locals=%d, virtregs=%d, params=%d, saved=%d)",
+		len(f.Params), cg.totalFrameSize, f.FrameSize, virtRegSpace, paramSaveSpace, savedRegSize)
 	cg.emit.BlankLine()
 
 	// Function label
@@ -470,6 +498,17 @@ func (cg *CodeGen) genPrologue() {
 			cg.emit.Stw(R5, R7, cg.savedRegOffsets[R5])
 			cg.emit.Stw(R6, R7, cg.savedRegOffsets[R6])
 		}
+
+		// Save register parameters (r1-r3) to stack so they survive function calls
+		for i := 0; i < cg.numRegParams; i++ {
+			cg.emit.Stw(R1+i, R7, cg.paramOffsets[i])
+		}
+
+		// Save LINK if this function makes calls (LINK is SPR 0)
+		if cg.hasCalls {
+			cg.emit.Lsp(R3, R0) // Load LINK into R3 (R0 contains 0, so SPR[0] = LINK)
+			cg.emit.Stw(R3, R7, cg.linkOffset)
+		}
 	}
 }
 
@@ -477,10 +516,17 @@ func (cg *CodeGen) genEpilogue() {
 	if cg.totalFrameSize > 0 {
 		if cg.totalFrameSize > 63 {
 			// Large frame epilogue:
-			// 1. Restore R5 and R6 using R4 as scratch
-			// 2. Load R4's saved value into R2 (temporary - R1 has return value)
-			// 3. Deallocate frame using R4 as scratch
-			// 4. Move R2 to R4
+			// 1. Restore LINK if needed
+			// 2. Restore R5 and R6 using R4 as scratch
+			// 3. Load R4's saved value into R2 (temporary - R1 has return value)
+			// 4. Deallocate frame using R4 as scratch
+			// 5. Move R2 to R4
+
+			// Restore LINK first if this function made calls
+			if cg.hasCalls {
+				cg.emitLoadStack(R3, cg.linkOffset)
+				cg.emit.Ssp(R3, R0) // Store R3 into SPR[0] = LINK
+			}
 
 			// Restore R5 (use R4 as scratch for address if needed)
 			cg.emitLoadStack(R5, cg.savedRegOffsets[R5])
@@ -506,6 +552,11 @@ func (cg *CodeGen) genEpilogue() {
 			cg.emit.Mv(R4, R2)
 		} else {
 			// Small frame: simple case
+			// Restore LINK first if this function made calls
+			if cg.hasCalls {
+				cg.emit.Ldw(R3, R7, cg.linkOffset)
+				cg.emit.Ssp(R3, R0) // Store R3 into SPR[0] = LINK
+			}
 			cg.emit.Ldw(R4, R7, cg.savedRegOffsets[R4])
 			cg.emit.Ldw(R5, R7, cg.savedRegOffsets[R5])
 			cg.emit.Ldw(R6, R7, cg.savedRegOffsets[R6])
@@ -789,11 +840,12 @@ func (cg *CodeGen) genParam(instr *IRInstr) {
 	paramIndex := cg.parseValue(instr.Args[0])
 
 	if paramIndex < 3 {
-		// Parameter is in R1, R2, or R3
-		srcReg := R1 + paramIndex
-		cg.emit.Mv(R4, srcReg)
+		// Parameter was passed in R1, R2, or R3 but saved to stack in prologue
+		// Load from saved location so it survives function calls
+		offset := cg.paramOffsets[paramIndex]
+		cg.emitLoadStack(R4, offset)
 	} else {
-		// Parameter is on stack
+		// Parameter is on stack (passed by caller)
 		// Stack args are at [SP + totalFrameSize + 2*(paramIndex-3) + 2]
 		offset := cg.totalFrameSize + 2*(paramIndex-3) + 2
 		cg.emit.Ldw(R4, R7, offset)
@@ -802,16 +854,17 @@ func (cg *CodeGen) genParam(instr *IRInstr) {
 }
 
 func (cg *CodeGen) genSetParam(instr *IRInstr) {
-	// SETPARAM n, value
+	// SETPARAM n, value - update a parameter's saved value
 	paramIndex := cg.parseValue(instr.Args[0])
 	cg.loadOperand(instr.Args[1], R4)
 
 	if paramIndex < 3 {
-		// Write to R1, R2, or R3
-		destReg := R1 + paramIndex
-		cg.emit.Mv(destReg, R4)
+		// Parameter was passed in R1, R2, or R3 but saved to stack
+		// Write to the saved stack location
+		offset := cg.paramOffsets[paramIndex]
+		cg.emitStoreStack(R4, offset)
 	} else {
-		// Write to stack location
+		// Write to stack location (caller's stack area)
 		offset := cg.totalFrameSize + 2*(paramIndex-3) + 2
 		cg.emit.Stw(R4, R7, offset)
 	}
@@ -934,78 +987,76 @@ func (cg *CodeGen) genShift(instr *IRInstr) {
 
 func (cg *CodeGen) genCompare(instr *IRInstr) {
 	// dest = CMP a, b -> produces 0 or 1
+	// IMPORTANT: ldi clobbers flags (uses lui+adi), so we must branch
+	// immediately after tst, before setting any values.
 	cg.loadOperand(instr.Args[0], R4)
 	cg.loadOperand(instr.Args[1], R5)
 
-	skipLabel := cg.emit.NewLabel("cmp")
+	trueLabel := cg.emit.NewLabel("cmp_t")
+	doneLabel := cg.emit.NewLabel("cmp_d")
 
 	// Compare
 	cg.emit.Tst(R4, R5)
 
-	// Assume true (1)
-	cg.emit.Ldi(R6, 1)
-
-	// Branch if condition true (skip setting to 0)
+	// Branch to true case if condition is met (must happen before ldi!)
 	switch instr.Op {
 	case OpEqW:
-		cg.emit.Brz(skipLabel)
+		cg.emit.Brz(trueLabel)
 	case OpNeW:
-		cg.emit.Brnz(skipLabel)
+		cg.emit.Brnz(trueLabel)
 	case OpLtS:
-		cg.emit.Brslt(skipLabel)
+		cg.emit.Brslt(trueLabel)
 	case OpGeS:
-		cg.emit.Brsge(skipLabel)
+		cg.emit.Brsge(trueLabel)
 	case OpLtU:
-		cg.emit.Brult(skipLabel)
+		cg.emit.Brult(trueLabel)
 	case OpGeU:
-		cg.emit.Bruge(skipLabel)
+		cg.emit.Bruge(trueLabel)
 	case OpLeS:
 		// a <= b: true if a < b OR a == b
-		cg.emit.Brslt(skipLabel)
-		cg.emit.Brz(skipLabel)
+		cg.emit.Brslt(trueLabel)
+		cg.emit.Brz(trueLabel)
 	case OpGtS:
 		// a > b: true if NOT (a <= b), i.e., NOT (a < b OR a == b)
-		falseLabel := cg.emit.NewLabel("cmpf")
-		cg.emit.Brslt(falseLabel)
-		cg.emit.Brz(falseLabel)
-		cg.emit.Br(skipLabel)
-		cg.emit.Label(falseLabel)
-		cg.emit.Ldi(R6, 0)
-		cg.emit.Label(skipLabel)
-		cg.storeVirtReg(R6, instr.Dest)
-		return
+		cg.emit.Brslt(doneLabel) // if a < b, false
+		cg.emit.Brz(doneLabel)   // if a == b, false
+		cg.emit.Br(trueLabel)    // otherwise true
 	case OpLeU:
-		cg.emit.Brult(skipLabel)
-		cg.emit.Brz(skipLabel)
+		cg.emit.Brult(trueLabel)
+		cg.emit.Brz(trueLabel)
 	case OpGtU:
-		falseLabel := cg.emit.NewLabel("cmpf")
-		cg.emit.Brult(falseLabel)
-		cg.emit.Brz(falseLabel)
-		cg.emit.Br(skipLabel)
-		cg.emit.Label(falseLabel)
-		cg.emit.Ldi(R6, 0)
-		cg.emit.Label(skipLabel)
-		cg.storeVirtReg(R6, instr.Dest)
-		return
+		cg.emit.Brult(doneLabel) // if a < b, false
+		cg.emit.Brz(doneLabel)   // if a == b, false
+		cg.emit.Br(trueLabel)    // otherwise true
 	}
 
-	// Set to false (0) if condition was not true
+	// Fall through: condition was false
 	cg.emit.Ldi(R6, 0)
-	cg.emit.Label(skipLabel)
+	cg.emit.Br(doneLabel)
+
+	// True case
+	cg.emit.Label(trueLabel)
+	cg.emit.Ldi(R6, 1)
+
+	cg.emit.Label(doneLabel)
 	cg.storeVirtReg(R6, instr.Dest)
 }
 
 func (cg *CodeGen) genJumpZ(instr *IRInstr) {
 	// JUMPZ cond, label
 	cg.loadOperand(instr.Args[0], R4)
-	cg.emit.Tst(R4, R4)
+	// Use adi r4, r4, 0 to test if r4 is zero (sets Z flag correctly)
+	// Note: tst r4, r4 computes r4-r4=0, which always sets Z=1!
+	cg.emit.Adi(R4, R4, 0)
 	cg.emit.Brz(cg.fixLabel(instr.Target))
 }
 
 func (cg *CodeGen) genJumpNZ(instr *IRInstr) {
 	// JUMPNZ cond, label
 	cg.loadOperand(instr.Args[0], R4)
-	cg.emit.Tst(R4, R4)
+	// Use adi r4, r4, 0 to test if r4 is zero (sets Z flag correctly)
+	// Note: tst r4, r4 computes r4-r4=0, which always sets Z=1!
+	cg.emit.Adi(R4, R4, 0)
 	cg.emit.Brnz(cg.fixLabel(instr.Target))
 }
 

@@ -712,7 +712,14 @@ func (g *IRGen) genUnary(e *UnaryExpr) string {
 		// Dereference: load through pointer
 		ptr := g.genExpr(e.Operand)
 		t := g.newTemp()
-		g.emit("LOAD.W", t, fmt.Sprintf("[%s]", ptr))
+		// Check if we're dereferencing a byte pointer - use LOAD.B
+		ptrType := e.Operand.GetType()
+		if ptrType != nil && ptrType.Kind == TypePointer && ptrType.Pointee != nil &&
+			ptrType.Pointee.Kind == TypeBase && ptrType.Pointee.BaseType == BaseUint8 {
+			g.emit("LOAD.BU", t, fmt.Sprintf("[%s]", ptr))
+		} else {
+			g.emit("LOAD.W", t, fmt.Sprintf("[%s]", ptr))
+		}
 		return t
 
 	case OpNeg:

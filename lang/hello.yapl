@@ -4,18 +4,18 @@
 const byte hello[] = "hello, world.\n";
 
 func void main() {
-    putstr(&hello);
+    Putstr(&hello);
 }
 
-func void putc(byte b) {
+func void Putc(byte b) {
     // no check for overrun in this simpleminded function.
     #asm("ldi r2 96");
     #asm("ssp r1 r2");
 }
 
-func void putstr(@byte bp) {
+func void Putstr(@byte bp) {
     while (@bp != 0) {
-	putc(@bp);
+	Putc(@bp);
 	bp = bp + 1;
     }
 }

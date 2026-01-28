@@ -11,78 +11,88 @@ _start:
 
 ; Function: main
 ; Visibility: STATIC, Return: VOID
-; Params: 0, Frame: 8 bytes (locals=0, virtregs=2, saved=6)
+; Params: 0, Frame: 10 bytes (locals=0, virtregs=2, params=0, saved=6)
 
 main:
-    adi r7, r7, -8
-    stw r4, r7, 2
-    stw r5, r7, 4
-    stw r6, r7, 6
+    adi r7, r7, -10
+    stw r4, r7, 4
+    stw r5, r7, 6
+    stw r6, r7, 8
+    lsp r3, r0
+    stw r3, r7, 2
     ldi r4, hello
     stw r4, r7, 0
     ldw r1, r7, 0
-    jal putstr
+    jal Putstr
 L_main_epilogue:
-    ldw r4, r7, 2
-    ldw r5, r7, 4
-    ldw r6, r7, 6
-    adi r7, r7, 8
+    ldw r3, r7, 2
+    ssp r3, r0
+    ldw r4, r7, 4
+    ldw r5, r7, 6
+    ldw r6, r7, 8
+    adi r7, r7, 10
     ret
 
-; Function: putc
-; Visibility: STATIC, Return: VOID
-; Params: 1, Frame: 8 bytes (locals=0, virtregs=2, saved=6)
+; Function: Putc
+; Visibility: PUBLIC, Return: VOID
+; Params: 1, Frame: 10 bytes (locals=0, virtregs=2, params=2, saved=6)
 
-putc:
-    adi r7, r7, -8
-    stw r4, r7, 2
-    stw r5, r7, 4
-    stw r6, r7, 6
+Putc:
+    adi r7, r7, -10
+    stw r4, r7, 4
+    stw r5, r7, 6
+    stw r6, r7, 8
+    stw r1, r7, 2
     ldi r2 96
     ssp r1 r2
-L_putc_epilogue:
-    ldw r4, r7, 2
-    ldw r5, r7, 4
-    ldw r6, r7, 6
-    adi r7, r7, 8
+L_Putc_epilogue:
+    ldw r4, r7, 4
+    ldw r5, r7, 6
+    ldw r6, r7, 8
+    adi r7, r7, 10
     ret
 
-; Function: putstr
-; Visibility: STATIC, Return: VOID
-; Params: 1, Frame: 24 bytes (locals=0, virtregs=18, saved=6)
+; Function: Putstr
+; Visibility: PUBLIC, Return: VOID
+; Params: 1, Frame: 28 bytes (locals=0, virtregs=18, params=2, saved=6)
 
-putstr:
-    adi r7, r7, -24
-    stw r4, r7, 18
-    stw r5, r7, 20
-    stw r6, r7, 22
+Putstr:
+    adi r7, r7, -28
+    stw r4, r7, 22
+    stw r5, r7, 24
+    stw r6, r7, 26
+    stw r1, r7, 18
+    lsp r3, r0
+    stw r3, r7, 20
 L_while0:
-    mv r4, r1
+    ldw r4, r7, 18
     stw r4, r7, 0
     ldw r5, r7, 0
-    ldw r4, r5, 0
+    ldb r4, r5, 0
     stw r4, r7, 2
     ldi r4, 0
     stw r4, r7, 4
     ldw r4, r7, 2
     ldw r5, r7, 4
     tst r4, r5
-    ldi r6, 1
-    brnz L_cmp0
+    brnz L_cmp_t0
     ldi r6, 0
-L_cmp0:
+    br L_cmp_d1
+L_cmp_t0:
+    ldi r6, 1
+L_cmp_d1:
     stw r6, r7, 6
     ldw r4, r7, 6
-    tst r4, r4
+    adi r4, r4, 0
     brz L_endwhile1
-    mv r4, r1
+    ldw r4, r7, 18
     stw r4, r7, 8
     ldw r5, r7, 8
-    ldw r4, r5, 0
+    ldb r4, r5, 0
     stw r4, r7, 10
     ldw r1, r7, 10
-    jal putc
-    mv r4, r1
+    jal Putc
+    ldw r4, r7, 18
     stw r4, r7, 12
     ldi r4, 1
     stw r4, r7, 14
@@ -91,14 +101,16 @@ L_cmp0:
     add r6, r4, r5
     stw r6, r7, 16
     ldw r4, r7, 16
-    mv r1, r4
+    stw r4, r7, 18
     br L_while0
 L_endwhile1:
-L_putstr_epilogue:
-    ldw r4, r7, 18
-    ldw r5, r7, 20
-    ldw r6, r7, 22
-    adi r7, r7, 24
+L_Putstr_epilogue:
+    ldw r3, r7, 20
+    ssp r3, r0
+    ldw r4, r7, 22
+    ldw r5, r7, 24
+    ldw r6, r7, 26
+    adi r7, r7, 28
     ret
 
 
