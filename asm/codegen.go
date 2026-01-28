@@ -382,28 +382,19 @@ func (asm *Assembler) genLDI(stmt *Statement) error {
 		return fmt.Errorf("immediate value %d out of range for ldi", imm)
 	}
 
-	/* Normalize to unsigned 16-bit for encoding selection */
+	/* Normalize to unsigned 16-bit for encoding */
 	uimm := uint16(imm & 0xFFFF)
 
-	/* Choose encoding based on value */
-	if uimm < 0x40 {
-		/* ADI rT, r0, imm6 */
-		word := uint16(0x8000) | uint16((uimm&0x7F)<<6) | uint16(rT&0x7)
-		asm.emitWord(word)
-	} else if (uimm & 0xFFC0) == uimm {
-		/* LUI rT, imm10 */
-		imm10 := (uimm >> 6) & 0x3FF
-		word := uint16(0xA000) | uint16((imm10&0x3FF)<<3) | uint16(rT&0x7)
-		asm.emitWord(word)
-	} else {
-		/* LUI rT, upper; ADI rT, rT, lower */
-		upper := (uimm >> 6) & 0x3FF
-		lower := uimm & 0x3F
-		word1 := uint16(0xA000) | uint16((upper&0x3FF)<<3) | uint16(rT&0x7)
-		asm.emitWord(word1)
-		word2 := uint16(0x8000) | uint16((lower&0x7F)<<6) | uint16((rT&0x7)<<3) | uint16(rT&0x7)
-		asm.emitWord(word2)
-	}
+	/* Always emit 2 words (LUI + ADI) to ensure consistent sizing between
+	   pass 1 and pass 2. This is necessary because forward references return
+	   0 in pass 1, which could select a different (shorter) encoding than
+	   the actual value in pass 2. */
+	upper := (uimm >> 6) & 0x3FF
+	lower := uimm & 0x3F
+	word1 := uint16(0xA000) | uint16((upper&0x3FF)<<3) | uint16(rT&0x7)
+	asm.emitWord(word1)
+	word2 := uint16(0x8000) | uint16((lower&0x7F)<<6) | uint16((rT&0x7)<<3) | uint16(rT&0x7)
+	asm.emitWord(word2)
 
 	return nil
 }
@@ -568,26 +559,20 @@ func (asm *Assembler) genJAL(stmt *Statement) error {
 			return err
 		}
 
-		/* Check if third arg is a small immediate or label */
-		imm, err := asm.evaluateExpr(stmt.args[2], true)
-		if err == nil && imm >= 0 && imm < 64 {
-			/* Direct JAL with imm6 */
-			word := uint16(0xE000) | uint16((imm&0x3F)<<6) | uint16((rS&0x7)<<3) | uint16(rT&0x7)
-			asm.emitWord(word)
-		} else {
-			/* Full address */
-			target, err := asm.evaluateExpr(stmt.args[2], true)
-			if err != nil {
-				return err
-			}
-			upper := (target >> 6) & 0x3FF
-			lower := target & 0x3F
-			/* LUI rT, upper; JAL rT, rS, lower */
-			word1 := uint16(0xA000) | uint16((upper&0x3FF)<<3) | uint16(rT&0x7)
-			asm.emitWord(word1)
-			word2 := uint16(0xE000) | uint16((lower&0x3F)<<6) | uint16((rS&0x7)<<3) | uint16(rT&0x7)
-			asm.emitWord(word2)
+		/* Always emit 2 words to ensure consistent sizing between passes.
+		   Forward references return 0 in pass 1, which could select a
+		   different (shorter) encoding than the actual value in pass 2. */
+		target, err := asm.evaluateExpr(stmt.args[2], true)
+		if err != nil {
+			return err
 		}
+		upper := (target >> 6) & 0x3FF
+		lower := target & 0x3F
+		/* LUI rT, upper; JAL rT, rS, lower */
+		word1 := uint16(0xA000) | uint16((upper&0x3FF)<<3) | uint16(rT&0x7)
+		asm.emitWord(word1)
+		word2 := uint16(0xE000) | uint16((lower&0x3F)<<6) | uint16((rS&0x7)<<3) | uint16(rT&0x7)
+		asm.emitWord(word2)
 	} else {
 		return fmt.Errorf("jal requires 1-3 arguments")
 	}

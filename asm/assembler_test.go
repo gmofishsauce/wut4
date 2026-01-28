@@ -329,13 +329,17 @@ func TestAllInstructions(t *testing.T) {
 				"hlt",
 			},
 		},
-		// JAL (FMT_JAL) - only the 3-operand form is non-pseudo
+		// JAL (FMT_JAL) - always uses 2 words (lui + jal) for consistent sizing
 		{
 			name:  "jal with small immediate",
 			input: "jal r1, r2, 0\njal r3, r4, 32\njal r7, r0, 63",
 			expected: []string{
+				// jal always uses 2 words for consistent sizing between passes
+				"lui r1, 0x0",
 				"jal r1, r2",
+				"lui r3, 0x0",
 				"jal r3, r4, 0x20",
+				"lui r7, 0x0",
 				"jal r7, r0, 0x3f",
 			},
 		},
@@ -478,18 +482,26 @@ func TestPseudoInstructions(t *testing.T) {
 			name:  "ldi small immediate (uses adi)",
 			input: "ldi r1, 0\nldi r2, 10\nldi r3, 63",
 			expected: []string{
-				"adi r1, r0",       // ldi r1, 0 -> adi r1, r0, 0
-				"adi r2, r0, 0xa",  // ldi r2, 10 -> adi r2, r0, 10
-				"adi r3, r0, 0x3f", // ldi r3, 63 -> adi r3, r0, 63
+				// ldi always uses 2 words (lui + adi) for consistent sizing
+				"lui r1, 0x0",     // ldi r1, 0 -> lui r1, 0
+				"adi r1, r1",      //            + adi r1, r1, 0
+				"lui r2, 0x0",     // ldi r2, 10 -> lui r2, 0
+				"adi r2, r2, 0xa", //             + adi r2, r2, 10
+				"lui r3, 0x0",     // ldi r3, 63 -> lui r3, 0
+				"adi r3, r3, 0x3f", //            + adi r3, r3, 63
 			},
 		},
 		{
-			name:  "ldi aligned to 64 (uses lui)",
+			name:  "ldi aligned to 64 (uses lui + adi)",
 			input: "ldi r1, 64\nldi r2, 128\nldi r3, 0x3FC0",
 			expected: []string{
-				"lui r1, 0x1",   // ldi r1, 64 -> lui r1, 1
-				"lui r2, 0x2",   // ldi r2, 128 -> lui r2, 2
-				"lui r3, 0xff",  // ldi r3, 0x3FC0 -> lui r3, 0xFF (0x3FC0 >> 6 = 0xFF)
+				// ldi always uses 2 words (lui + adi) for consistent sizing
+				"lui r1, 0x1",  // ldi r1, 64 -> lui r1, 1
+				"adi r1, r1",   //             + adi r1, r1, 0
+				"lui r2, 0x2",  // ldi r2, 128 -> lui r2, 2
+				"adi r2, r2",   //              + adi r2, r2, 0
+				"lui r3, 0xff", // ldi r3, 0x3FC0 -> lui r3, 0xFF
+				"adi r3, r3",   //                 + adi r3, r3, 0
 			},
 		},
 		{
@@ -555,7 +567,9 @@ func TestPseudoInstructions(t *testing.T) {
 			name:  "srr small immediate",
 			input: "srr r1, r2, 5",
 			expected: []string{
-				"adi r2, r0, 0x5", // srr r1, r2, 5 -> ldi r2, 5 (optimized to adi)
+				// ldi always uses 2 words (lui + adi) for consistent sizing
+				"lui r2, 0x0",     // srr r1, r2, 5 -> ldi r2, 5 (lui r2, 0)
+				"adi r2, r2, 0x5", //                           + adi r2, r2, 5
 				"lsp r1, r2",      //               -> lsp r1, r2
 			},
 		},
@@ -563,8 +577,10 @@ func TestPseudoInstructions(t *testing.T) {
 			name:  "srr large immediate",
 			input: "srr r3, r4, 0x100",
 			expected: []string{
-				"lui r4, 0x4",   // srr r3, r4, 0x100 -> ldi r4, 0x100 (lui r4, 4)
-				"lsp r3, r4",    //                   -> lsp r3, r4
+				// ldi always uses 2 words (lui + adi) for consistent sizing
+				"lui r4, 0x4", // srr r3, r4, 0x100 -> ldi r4, 0x100 (lui r4, 4)
+				"adi r4, r4",  //                                   + adi r4, r4, 0
+				"lsp r3, r4",  //                   -> lsp r3, r4
 			},
 		},
 		// SRW pseudo-instruction
@@ -572,7 +588,9 @@ func TestPseudoInstructions(t *testing.T) {
 			name:  "srw small immediate",
 			input: "srw r5, r6, 10",
 			expected: []string{
-				"adi r6, r0, 0xa", // srw r5, r6, 10 -> ldi r6, 10 (optimized to adi)
+				// ldi always uses 2 words (lui + adi) for consistent sizing
+				"lui r6, 0x0",     // srw r5, r6, 10 -> ldi r6, 10 (lui r6, 0)
+				"adi r6, r6, 0xa", //                            + adi r6, r6, 10
 				"ssp r5, r6",      //                -> ssp r5, r6
 			},
 		},
