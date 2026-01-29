@@ -5,7 +5,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LEXER="$SCRIPT_DIR/../ylex/ylex"
-PARSER="$SCRIPT_DIR/parser"
+PARSER="$SCRIPT_DIR/yparse"
 TESTDATA="$SCRIPT_DIR/testdata"
 
 PASS=0
@@ -30,8 +30,8 @@ fi
 
 if [ ! -x "$PARSER" ]; then
     echo -e "${RED}Error: Parser not found at $PARSER${NC}"
-    echo "Building parser..."
-    cd "$SCRIPT_DIR" && go build -o parser *.go
+    echo "Building yparse..."
+    cd "$SCRIPT_DIR" && go build -o yparse *.go
     if [ $? -ne 0 ]; then
         echo -e "${RED}Failed to build parser${NC}"
         exit 1

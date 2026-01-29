@@ -8,15 +8,15 @@ The semantic analyzer is Pass 3 of the YAPL compiler pipeline. It reads the AST 
 
 ```bash
 # As part of the pipeline
-cat source.yapl | ../ylex/ylex source.yapl | ../parse/parser | ./sem > output.ir
+cat source.yapl | ../ylex/ylex source.yapl | ../yparse/yparse | ./ysem > output.ir
 
 # Or with files
-./sem < ast_input.txt > output.ir
+./ysem < ast_input.txt > output.ir
 ```
 
 ## Input Format
 
-The semantic analyzer reads the parser's AST output from stdin. See `../parse/README.md` for the parser output format.
+The semantic analyzer reads the parser's AST output from stdin. See `../yparse/README.md` for the parser output format.
 
 ## Output Format
 
@@ -91,7 +91,7 @@ On error, no IR is written to stdout and exit code is 1.
 ## Building
 
 ```bash
-GO111MODULE=off go build -o sem .
+GO111MODULE=off go build -o ysem .
 ```
 
 ## Testing
@@ -99,5 +99,5 @@ GO111MODULE=off go build -o sem .
 ```bash
 # Test with a simple program
 echo 'func int16 Main() { return 42; }' | \
-  ../ylex/ylex test.yapl | ../parse/parser | ./sem
+  ../ylex/ylex test.yapl | ../yparse/yparse | ./ysem
 ```

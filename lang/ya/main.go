@@ -10,13 +10,13 @@
 //   -v         Verbose output
 //
 // The compiler pipeline:
-//   source.yapl → ylex → parse → sem → gen → asm → binary
+//   source.yapl → ylex → yparse → ysem → ygen → asm → binary
 //
 // Binary location:
 //   If YAPL environment variable is set, binaries are found at:
-//     $YAPL/ylex/ylex, $YAPL/parse/parse, $YAPL/sem/sem, $YAPL/gen/gen
+//     $YAPL/ylex/ylex, $YAPL/yparse/yparse, $YAPL/ysem/ysem, $YAPL/ygen/ygen
 //   Otherwise, binaries are found via PATH:
-//     ylex, parse, sem, gen, asm
+//     ylex, yparse, ysem, ygen, asm
 
 package main
 
@@ -77,15 +77,15 @@ func compile(sourceFile string) error {
 	if err != nil {
 		return err
 	}
-	parsePath, err := findBinary("parse", "parse")
+	parsePath, err := findBinary("yparse", "yparse")
 	if err != nil {
 		return err
 	}
-	semPath, err := findBinary("sem", "sem")
+	semPath, err := findBinary("ysem", "ysem")
 	if err != nil {
 		return err
 	}
-	genPath, err := findBinary("gen", "gen")
+	genPath, err := findBinary("ygen", "ygen")
 	if err != nil {
 		return err
 	}

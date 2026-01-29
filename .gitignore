@@ -15,9 +15,9 @@ wut4.out
 asm/asm
 emul/emul
 lang/ylex/ylex
-lang/parse/parse
-lang/sem/sem
-lang/gen/gen
+lang/yparse/yparse
+lang/ysem/ysem
+lang/ygen/ygen
 lang/ya/ya
 
 

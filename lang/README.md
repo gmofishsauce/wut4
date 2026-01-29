@@ -30,7 +30,7 @@ cd lang
 ./build
 ```
 
-This installs the compiler components (`ylex`, `parse`, `sem`, `gen`, `ya`) to your Go bin directory (typically `~/go/bin`). Ensure this directory is in your PATH.
+This installs the compiler components (`ylex`, `yparse`, `ysem`, `ygen`, `ya`) to your Go bin directory (typically `~/go/bin`). Ensure this directory is in your PATH.
 
 ### Compiling Programs
 
@@ -72,9 +72,9 @@ For development, you can build binaries locally and use the `YAPL` environment v
 ```bash
 # Build locally instead of installing
 cd ylex && go build -o ylex . && cd ..
-cd parse && go build -o parse . && cd ..
-cd sem && go build -o sem . && cd ..
-cd gen && go build -o gen . && cd ..
+cd yparse && go build -o yparse . && cd ..
+cd ysem && go build -o ysem . && cd ..
+cd ygen && go build -o ygen . && cd ..
 cd ya && go build -o ya . && cd ..
 
 # Point to local builds
@@ -82,7 +82,7 @@ export YAPL=/path/to/lang
 ya -v hello.yapl
 ```
 
-When `YAPL` is set, the driver looks for binaries at `$YAPL/ylex/ylex`, `$YAPL/parse/parse`, etc. Otherwise, it searches PATH.
+When `YAPL` is set, the driver looks for binaries at `$YAPL/ylex/ylex`, `$YAPL/yparse/yparse`, etc. Otherwise, it searches PATH.
 
 ## Compiler Architecture
 
@@ -451,10 +451,10 @@ Since passes externalize state to files, testing is straightforward.
 - Project structure
 - Runtime model and calling convention
 - Pass 1 lexical analyzer (`ylex`) with tests
-- Pass 2 parser (`parse`) with tests
+- Pass 2 parser (`yparse`) with tests
 - Pass 3 IR format specification (`IR_FORMAT.md`)
-- Pass 3 semantic analyzer (`sem`) with type checking and IR generation
-- Pass 4 code generator (`gen`)
+- Pass 3 semantic analyzer (`ysem`) with type checking and IR generation
+- Pass 4 code generator (`ygen`)
 - Compiler driver (`ya`)
 
 **Next Steps:**
@@ -467,7 +467,7 @@ Since passes externalize state to files, testing is straightforward.
 - **WUT-4 Assembler**: `../asm/README.md`
 - **YAPL Language Spec**: https://docs.google.com/document/d/1hgsayGjZJc6WUVjSEsPRWVxPeXkVFLKpRCx5jc5hrx8/edit?usp=sharing
 - **Pass 3 IR Format**: `IR_FORMAT.md`
-- **Semantic Analyzer**: `sem/README.md`
+- **Semantic Analyzer**: `ysem/README.md`
 
 ## Implementation Notes
 
