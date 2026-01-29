@@ -1,9 +1,16 @@
 #!/bin/bash
-# Build YAPL compiler components
+# Build and install YAPL compiler components
+# Binaries are installed to GOBIN (typically ~/go/bin)
+#
+# For development, you can also build locally and set YAPL:
+#   cd ylex && go build -o ylex . && cd ..
+#   (repeat for parse, sem, gen, ya)
+#   export YAPL=/path/to/lang
+#
 cd "$(dirname "$0")"
 
-cd ylex && go build -o ylex . && \
-cd ../parse && go build -o parse . && \
-cd ../sem && go build -o sem . && \
-cd ../gen && go build -o gen . && \
-cd ../ya && go build -o ya .
+cd ylex && go install && \
+cd ../parse && go install && \
+cd ../sem && go install && \
+cd ../gen && go install && \
+cd ../ya && go install

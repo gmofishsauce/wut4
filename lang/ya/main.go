@@ -11,6 +11,12 @@
 //
 // The compiler pipeline:
 //   source.yapl → ylex → parse → sem → gen → asm → binary
+//
+// Binary location:
+//   If YAPL environment variable is set, binaries are found at:
+//     $YAPL/ylex/ylex, $YAPL/parse/parse, $YAPL/sem/sem, $YAPL/gen/gen
+//   Otherwise, binaries are found via PATH:
+//     ylex, parse, sem, gen, asm
 
 package main
 
@@ -66,32 +72,30 @@ func compile(sourceFile string) error {
 	ext := filepath.Ext(baseName)
 	baseNoExt := strings.TrimSuffix(baseName, ext)
 
-	// Find compiler components relative to this binary
-	binDir, err := getBinDir()
+	// Find compiler components
+	ylexPath, err := findBinary("ylex", "ylex")
+	if err != nil {
+		return err
+	}
+	parsePath, err := findBinary("parse", "parse")
+	if err != nil {
+		return err
+	}
+	semPath, err := findBinary("sem", "sem")
+	if err != nil {
+		return err
+	}
+	genPath, err := findBinary("gen", "gen")
 	if err != nil {
 		return err
 	}
 
-	ylexPath := filepath.Join(binDir, "ylex", "ylex")
-	parsePath := filepath.Join(binDir, "parse", "parse")
-	semPath := filepath.Join(binDir, "sem", "sem")
-	genPath := filepath.Join(binDir, "gen", "gen")
-	asmPath := filepath.Join(binDir, "..", "asm", "asm")
-
-	// Verify compiler components exist
-	components := map[string]string{
-		"ylex":  ylexPath,
-		"parse": parsePath,
-		"sem":   semPath,
-		"gen":   genPath,
-	}
 	// Only need assembler if we're going to use it
+	var asmPath string
 	if !*asmOnly && !*compileOnly {
-		components["asm"] = asmPath
-	}
-	for name, path := range components {
-		if _, err := os.Stat(path); err != nil {
-			return fmt.Errorf("compiler component %s not found at %s", name, path)
+		asmPath, err = findBinary("asm", "asm")
+		if err != nil {
+			return err
 		}
 	}
 
@@ -197,19 +201,24 @@ func compile(sourceFile string) error {
 	return nil
 }
 
-// getBinDir returns the directory containing the compiler components
-func getBinDir() (string, error) {
-	// Get the path to this executable
-	exePath, err := os.Executable()
-	if err != nil {
-		return "", fmt.Errorf("cannot determine executable path: %v", err)
+// findBinary locates a compiler component binary.
+// If YAPL env var is set, looks in $YAPL/<subdir>/<name>.
+// Otherwise, looks in PATH for <name>.
+func findBinary(subdir, name string) (string, error) {
+	if yaplDir := os.Getenv("YAPL"); yaplDir != "" {
+		path := filepath.Join(yaplDir, subdir, name)
+		if _, err := os.Stat(path); err != nil {
+			return "", fmt.Errorf("compiler component %s not found at %s", name, path)
+		}
+		return path, nil
 	}
-	exePath, err = filepath.EvalSymlinks(exePath)
+
+	// Look in PATH
+	path, err := exec.LookPath(name)
 	if err != nil {
-		return "", fmt.Errorf("cannot resolve executable path: %v", err)
+		return "", fmt.Errorf("compiler component %s not found in PATH (set YAPL env var to specify location)", name)
 	}
-	// Go up from ya/ to lang/
-	return filepath.Dir(filepath.Dir(exePath)), nil
+	return path, nil
 }
 
 // runStage executes a compiler stage, returning its stdout

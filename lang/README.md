@@ -21,6 +21,69 @@ YAPL is specifically designed to be compiled by a small, simple compiler that fi
 - **Simple visibility rules** - uppercase = public, lowercase = private
 - **No string type** - byte arrays only (BCPL-style)
 
+## Compiler Usage
+
+### Building
+
+```bash
+cd lang
+./build
+```
+
+This installs the compiler components (`ylex`, `parse`, `sem`, `gen`, `ya`) to your Go bin directory (typically `~/go/bin`). Ensure this directory is in your PATH.
+
+### Compiling Programs
+
+```bash
+# Compile to binary
+ya hello.yapl
+
+# Compile with custom output name
+ya -o myprogram hello.yapl
+
+# Stop after generating assembly (don't run assembler)
+ya -S hello.yapl
+
+# Keep all intermediate files for debugging
+ya -k hello.yapl
+
+# Verbose output showing each compilation stage
+ya -v hello.yapl
+
+# Combine flags
+ya -k -v -S hello.yapl
+```
+
+### Intermediate Files
+
+With the `-k` flag, intermediate files are written to the source directory:
+
+| File | Contents |
+|------|----------|
+| `<name>.lexout` | Pass 1 token stream |
+| `<name>.parseout` | Pass 2 AST output |
+| `<name>.ir` | Pass 3 intermediate representation |
+| `<name>.asm` | Pass 4 assembly output |
+
+### Development Mode
+
+For development, you can build binaries locally and use the `YAPL` environment variable:
+
+```bash
+# Build locally instead of installing
+cd ylex && go build -o ylex . && cd ..
+cd parse && go build -o parse . && cd ..
+cd sem && go build -o sem . && cd ..
+cd gen && go build -o gen . && cd ..
+cd ya && go build -o ya . && cd ..
+
+# Point to local builds
+export YAPL=/path/to/lang
+ya -v hello.yapl
+```
+
+When `YAPL` is set, the driver looks for binaries at `$YAPL/ylex/ylex`, `$YAPL/parse/parse`, etc. Otherwise, it searches PATH.
+
 ## Compiler Architecture
 
 The compiler uses a **multi-pass pipeline** with externalized state between passes. Each pass is a separate program that reads input files and writes output files, keeping each pass small enough to fit in 64KB. All the intermediate files are ASCII, making debugging  and testing simpler.
@@ -380,22 +443,23 @@ Since passes externalize state to files, testing is straightforward.
 
 ## Current Status
 
-**Status**: Implementation phase
+**Status**: Go implementation complete
 
 **Completed:**
 - Language specification (v0.1)
 - Compiler architecture design
 - Project structure
 - Runtime model and calling convention
-- Pass 1 lexical analyzer with tests
-- Pass 2 parser with tests
+- Pass 1 lexical analyzer (`ylex`) with tests
+- Pass 2 parser (`parse`) with tests
 - Pass 3 IR format specification (`IR_FORMAT.md`)
-- Pass 3 semantic analyzer with type checking and IR generation
+- Pass 3 semantic analyzer (`sem`) with type checking and IR generation
+- Pass 4 code generator (`gen`)
+- Compiler driver (`ya`)
 
 **Next Steps:**
-1. Build test framework for Pass 3
-2. Define Pass 4 input/output format
-3. Implement Pass 4 code generator in Go
+1. Expand test coverage
+2. Write YAPL version of the compiler for self-hosting
 
 ## Related Documentation
 
