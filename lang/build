@@ -1,4 +1,9 @@
-cd lex && go build
-cd ../parse && go build
-cd ../sem && go build
-cd ../gen && go build
+#!/bin/bash
+# Build YAPL compiler components
+cd "$(dirname "$0")"
+
+cd ylex && go build -o ylex . && \
+cd ../parse && go build -o parse . && \
+cd ../sem && go build -o sem . && \
+cd ../gen && go build -o gen . && \
+cd ../ya && go build -o ya .

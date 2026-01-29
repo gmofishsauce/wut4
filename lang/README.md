@@ -1,9 +1,10 @@
 # YAPL Compiler for WUT-4
-503-216-2610 opt 2
 
 ## Project Overview
 
 This directory contains the YAPL (Yet Another Programming Language) compiler, a self-hosted (eventually) compiler designed to run natively on the WUT-4 architecture.
+
+WUT-4: ../specs/wut4arch.pdf
 
 **Primary Goal:** Self-hosting - the compiler must be small enough to compile itself while running on WUT-4's 64KB code space.
 

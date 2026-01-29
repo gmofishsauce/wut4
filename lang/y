@@ -16,11 +16,11 @@ SOURCE="$1"
 
 if [ "$SOURCE" = "-" ]; then
     # Read from stdin
-    cat | "$SCRIPT_DIR/lex/lex" - | "$SCRIPT_DIR/parse/parse" | "$SCRIPT_DIR/sem/sem"
+    cat | "$SCRIPT_DIR/ylex/ylex" - | "$SCRIPT_DIR/parse/parse" | "$SCRIPT_DIR/sem/sem"
 else
     if ! [ -r "$SOURCE" ]; then
         echo "Error: $SOURCE not found" >&2
         exit 1
     fi
-    cat "$SOURCE" | "$SCRIPT_DIR/lex/lex" "$SOURCE" | "$SCRIPT_DIR/parse/parse" | "$SCRIPT_DIR/sem/sem" | $SCRIPT_DIR/gen/gen | ../asm/asm
+    cat "$SOURCE" | "$SCRIPT_DIR/ylex/ylex" "$SOURCE" | "$SCRIPT_DIR/parse/parse" | "$SCRIPT_DIR/sem/sem" | $SCRIPT_DIR/gen/gen | ../asm/asm
 fi

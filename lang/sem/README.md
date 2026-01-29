@@ -8,7 +8,7 @@ The semantic analyzer is Pass 3 of the YAPL compiler pipeline. It reads the AST 
 
 ```bash
 # As part of the pipeline
-cat source.yapl | ../lex/lexer source.yapl | ../parse/parser | ./sem > output.ir
+cat source.yapl | ../ylex/ylex source.yapl | ../parse/parser | ./sem > output.ir
 
 # Or with files
 ./sem < ast_input.txt > output.ir
@@ -99,5 +99,5 @@ GO111MODULE=off go build -o sem .
 ```bash
 # Test with a simple program
 echo 'func int16 Main() { return 42; }' | \
-  ../lex/lexer test.yapl | ../parse/parser | ./sem
+  ../ylex/ylex test.yapl | ../parse/parser | ./sem
 ```

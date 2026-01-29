@@ -16,7 +16,7 @@ SOURCE="$1"
 
 if [ "$SOURCE" = "-" ]; then
     # Read from stdin
-    cat | "$SCRIPT_DIR/lex/lex" - | "$SCRIPT_DIR/parse/parse" | "$SCRIPT_DIR/sem/sem"
+    cat | "$SCRIPT_DIR/ylex/ylex" - | "$SCRIPT_DIR/parse/parse" | "$SCRIPT_DIR/sem/sem"
 else
     if ! [ -r "$SOURCE" ]; then
         echo "Error: $SOURCE not found" >&2
@@ -25,6 +25,6 @@ else
     ASMSRC="$(basename -s yapl "$SOURCE")asm"
     echo ASMSRC in "$ASMSRC"
 
-    cat "$SOURCE" | "$SCRIPT_DIR/lex/lex" "$SOURCE" | "$SCRIPT_DIR/parse/parse" | "$SCRIPT_DIR/sem/sem" | $SCRIPT_DIR/gen/gen > "$ASMSRC" 
+    cat "$SOURCE" | "$SCRIPT_DIR/ylex/ylex" "$SOURCE" | "$SCRIPT_DIR/parse/parse" | "$SCRIPT_DIR/sem/sem" | $SCRIPT_DIR/gen/gen > "$ASMSRC" 
     asm "$ASMSRC" -o wut4.out
 fi

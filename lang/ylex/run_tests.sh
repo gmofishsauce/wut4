@@ -4,10 +4,10 @@
 
 cd "$(dirname "$0")"
 
-# Build lexer if needed
-if [ ! -f lexer ] || [ lexer.go -nt lexer ]; then
-    echo "Building lexer..."
-    go build -o lexer lexer.go
+# Build ylex if needed
+if [ ! -f ylex ] || [ lexer.go -nt ylex ]; then
+    echo "Building ylex..."
+    go build -o ylex lexer.go
 fi
 
 PASS=0
@@ -22,7 +22,7 @@ for input in testdata/*.yapl; do
         continue
     fi
 
-    actual=$(./lexer "${name}.yapl" < "$input")
+    actual=$(./ylex "${name}.yapl" < "$input")
     expected_content=$(cat "$expected")
 
     if [ "$actual" = "$expected_content" ]; then

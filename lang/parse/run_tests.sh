@@ -4,7 +4,7 @@
 # Runs positive and negative tests
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LEXER="$SCRIPT_DIR/../lex/lexer"
+LEXER="$SCRIPT_DIR/../ylex/ylex"
 PARSER="$SCRIPT_DIR/parser"
 TESTDATA="$SCRIPT_DIR/testdata"
 
