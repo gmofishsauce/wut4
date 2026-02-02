@@ -11,7 +11,7 @@ const byte msg[] = "fib numbers: ";
 func void main() {
     var uint16 next = 0;
 
-    putstr(&msg[0]);
+    Putstr(&msg[0]);
     while(n2+n1 > next) {
         next = n2 + n1;
 	itox(next);
@@ -43,14 +43,24 @@ func void itox(uint16 u) {
     itoxbuf[4] = 0;
 }
 
-func void putc(byte b) {
+func void Putc(byte b) {
     #asm("ldi r2 96");
     #asm("ssp r1 r2");
 }
+// return true if the last byte we attempted to send was not sent
+// because the FIFO overflowed.
+func byte isOverflow() {
+    #asm("ldi r2 98"); // address of transmit status register
+    #asm("lsp r1 r2"); // status to r1
+    #asm("ldi r2 1");  // mask overflow bit 0
+    #asm("and r1, r1, r2"); // return with overflow bit in r1
+}
 
-func void putstr(@byte bp) {
+func void Putstr(@byte bp) {
+
     while (@bp != 0) {
-	putc(@bp);
+	Putc(@bp);
+	if (isOverflow()) {continue;}
 	bp = bp + 1;
     }
 }

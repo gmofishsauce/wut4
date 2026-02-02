@@ -224,6 +224,14 @@ func (cpu *CPU) loadIO(spr uint16) (uint16, error) {
 		// u3 - Receive status register
 		return cpu.uartReadRxStatus(), nil
 
+	case SPR_SPI_DATA:
+		// s0 - SPI data register (read)
+		return cpu.spiReadData(), nil
+
+	case SPR_SPI_SELECT:
+		// s1 - SPI select register (read returns current state)
+		return cpu.spiReadSelect(), nil
+
 	default:
 		// Other I/O registers undefined
 		return 0, nil
@@ -247,6 +255,14 @@ func (cpu *CPU) storeIO(spr uint16, value uint16) error {
 
 	case 98, 99:
 		// u2, u3 - Status registers, writes ignored
+
+	case SPR_SPI_DATA:
+		// s0 - SPI data register (write)
+		cpu.spiWriteData(value)
+
+	case SPR_SPI_SELECT:
+		// s1 - SPI select register (write)
+		cpu.spiWriteSelect(value)
 
 	default:
 		// Other I/O registers undefined

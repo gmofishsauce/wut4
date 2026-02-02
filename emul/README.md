@@ -53,7 +53,7 @@ Run with cycle limit:
 
 ## Architecture
 
-### WUT-4 Specification
+### WUT-4 Specification (../specs/wut4arch.pdf)
 
 - 16-bit little-endian architecture
 - 8 general-purpose registers (r0-r7), r0 hardwired to zero

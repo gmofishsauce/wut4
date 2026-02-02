@@ -150,3 +150,46 @@ func (cpu *CPU) uartReadRxStatus() uint16 {
 
 	return status
 }
+
+// spiSelectState tracks the current SPI select register value
+var spiSelectState uint16 = 0xFFFF // All devices deselected by default
+
+// spiWriteData writes a byte to the SPI data register (s0, SPR 100)
+// This performs an SPI transfer - simultaneously sends and receives
+func (cpu *CPU) spiWriteData(value uint16) {
+	if cpu.sdcard == nil {
+		return
+	}
+
+	// Perform SPI transfer (write also triggers a read internally)
+	txByte := byte(value & 0xFF)
+	cpu.sdcard.Transfer(txByte)
+}
+
+// spiReadData reads a byte from the SPI data register (s0, SPR 100)
+// This performs an SPI transfer - sends 0xFF and returns the received byte
+func (cpu *CPU) spiReadData() uint16 {
+	if cpu.sdcard == nil {
+		return 0xFFFF
+	}
+
+	// SPI read sends 0xFF and returns received byte
+	rxByte := cpu.sdcard.Transfer(0xFF)
+	return uint16(rxByte)
+}
+
+// spiWriteSelect writes to the SPI select register (s1, SPR 101)
+// Bit 0 controls SD card select (active low: 0=selected, 1=deselected)
+func (cpu *CPU) spiWriteSelect(value uint16) {
+	spiSelectState = value
+
+	if cpu.sdcard != nil {
+		// Pass bit 0 to SD card (active low)
+		cpu.sdcard.SetSelect(byte(value & 0x01))
+	}
+}
+
+// spiReadSelect reads the SPI select register (s1, SPR 101)
+func (cpu *CPU) spiReadSelect() uint16 {
+	return spiSelectState
+}

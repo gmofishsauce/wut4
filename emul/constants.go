@@ -47,6 +47,12 @@ const (
 	// u1 = 97: Read receive data (low byte)
 	// u2 = 98: Transmit status (bit 0=overflow, bit 15=empty)
 	// u3 = 99: Receive status (bit 0=underflow, bit 15=data available)
+
+	// SPI registers for SD card
+	// s0 = 100: SPI data register (read/write)
+	// s1 = 101: SPI select register (active low: bit 0 = SD card)
+	SPR_SPI_DATA   = 100
+	SPR_SPI_SELECT = 101
 )
 
 // CPU Flags

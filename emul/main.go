@@ -27,6 +27,7 @@ var (
 	traceFile   = flag.String("trace", "", "Write execution trace to file")
 	maxCycles   = flag.Uint64("max-cycles", 0, "Stop after N cycles (0 = unlimited)")
 	showVersion = flag.Bool("version", false, "Show version and exit")
+	sdFile      = flag.String("sd", "", "SD card image file (512B-2GB, multiple of 512)")
 )
 
 const version = "1.0.0"
@@ -93,6 +94,18 @@ func main() {
 	cpu.consoleIn = os.Stdin
 	cpu.consoleOut = os.Stderr
 
+	// Set up SD card if requested (do this early so tracer can be attached)
+	var sdCardFile *os.File
+	if *sdFile != "" {
+		var err error
+		sdCardFile, err = os.OpenFile(*sdFile, os.O_RDWR, 0)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error opening SD card file: %v\n", err)
+			os.Exit(1)
+		}
+		defer sdCardFile.Close()
+	}
+
 	// Set up tracing if requested
 	if *traceFile != "" {
 		f, err := os.Create(*traceFile)
@@ -107,6 +120,19 @@ func main() {
 		fmt.Fprintf(f, "Binary: %s\n", binaryFile)
 		fmt.Fprintf(f, "Size: %d bytes (%d words)\n", len(data), len(data)/2)
 		fmt.Fprintf(f, "========================================\n\n")
+	}
+
+	// Create SD card emulator if file was specified
+	if sdCardFile != nil {
+		sd, err := NewSDCard(sdCardFile, cpu.tracer)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing SD card: %v\n", err)
+			os.Exit(1)
+		}
+		cpu.sdcard = sd
+		if cpu.tracer != nil {
+			fmt.Fprintf(cpu.tracer.out, "SD Card: %s (%d bytes)\n\n", *sdFile, sd.fileSize)
+		}
 	}
 
 	// Load binary into memory
@@ -243,4 +269,5 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  <binary-file>    WUT-4 binary file to execute\n")
 	fmt.Fprintf(os.Stderr, "\nThe emulator executes the binary and connects console I/O to stdin/stderr.\n")
 	fmt.Fprintf(os.Stderr, "Use -trace to generate a detailed execution trace file.\n")
+	fmt.Fprintf(os.Stderr, "Use -sd to attach an SD card image (access via SPR 100-101).\n")
 }

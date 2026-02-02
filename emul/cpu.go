@@ -53,7 +53,8 @@ type CPU struct {
 	// I/O
 	consoleIn  io.Reader // stdin
 	consoleOut io.Writer // stdout
-	uart       *UART    // Emulated UART
+	uart       *UART     // Emulated UART
+	sdcard     *SDCard   // Emulated SD card (optional)
 
 	// Execution state
 	cycles     uint64 // Cycle counter
