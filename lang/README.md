@@ -1,476 +1,274 @@
-# YAPL Compiler for WUT-4
+# YAPL Compiler for WUT-4 - Context Reference
 
-## Project Overview
+This document is designed to efficiently rebuild Claude's context for working on the YAPL compiler. Point Claude at this file at the start of a session.
 
-This directory contains the YAPL (Yet Another Programming Language) compiler, a self-hosted (eventually) compiler designed to run natively on the WUT-4 architecture.
+## Quick Orientation
 
-WUT-4: ../specs/wut4arch.pdf
+**YAPL** (Yet Another Programming Language) is a C-like systems language targeting the **WUT-4**, a 16-bit RISC processor (real hardware, not just emulated). The compiler is written in Go, organized as 4 separate pass programs driven by the `ya` driver. The long-term goal is self-hosting: YAPL compiling itself on WUT-4's 64KB address space.
 
-**Primary Goal:** Self-hosting - the compiler must be small enough to compile itself while running on WUT-4's 64KB code space.
+**Repository root:** `github.com/gmofishsauce/wut4`
 
-**Language Description:** https://docs.google.com/document/d/1hgsayGjZJc6WUVjSEsPRWVxPeXkVFLKpRCx5jc5hrx8/edit?usp=sharing
-
-## Why YAPL?
-
-YAPL is specifically designed to be compiled by a small, simple compiler that fits within WUT-4's memory constraints:
-
-- **Machine types only** (byte, int16, uint16) - no complex type system
-- **No preprocessor** - constant expressions evaluated in lexer pass
-- **Single-dimensional arrays** - simpler than multidimensional
-- **Minimal operators** - compact parser and code generator
-- **Simple visibility rules** - uppercase = public, lowercase = private
-- **No string type** - byte arrays only (BCPL-style)
-
-## Compiler Usage
-
-### Building
-
-```bash
-cd lang
-./build
-```
-
-This installs the compiler components (`ylex`, `yparse`, `ysem`, `ygen`, `ya`) to your Go bin directory (typically `~/go/bin`). Ensure this directory is in your PATH.
-
-### Compiling Programs
-
-```bash
-# Compile to binary
-ya hello.yapl
-
-# Compile with custom output name
-ya -o myprogram hello.yapl
-
-# Stop after generating assembly (don't run assembler)
-ya -S hello.yapl
-
-# Keep all intermediate files for debugging
-ya -k hello.yapl
-
-# Verbose output showing each compilation stage
-ya -v hello.yapl
-
-# Combine flags
-ya -k -v -S hello.yapl
-```
-
-### Intermediate Files
-
-With the `-k` flag, intermediate files are written to the source directory:
-
-| File | Contents |
+**Key locations:**
+| Path | Contents |
 |------|----------|
-| `<name>.lexout` | Pass 1 token stream |
-| `<name>.parseout` | Pass 2 AST output |
-| `<name>.ir` | Pass 3 intermediate representation |
-| `<name>.asm` | Pass 4 assembly output |
+| `lang/` | Compiler source (this directory) |
+| `lang/ya/` | Driver program |
+| `lang/ylex/` | Pass 1: Lexer + constant evaluator |
+| `lang/yparse/` | Pass 2: Parser + AST builder |
+| `lang/ysem/` | Pass 3: Semantic analyzer + IR generator |
+| `lang/ygen/` | Pass 4: Code generator (IR -> WUT-4 asm) |
+| `lang/test/` | Test programs (.yapl files) |
+| `lang/yapl_grammar.ebnf` | Authoritative YAPL grammar |
+| `lang/IR_FORMAT.md` | IR specification (Pass 3 output format) |
+| `asm/` | WUT-4 assembler (separate from lang/) |
+| `emul/` | WUT-4 emulator |
+| `specs/wut4arch.pdf` | WUT-4 architecture specification |
+| `specs/wut4asm.pdf` | WUT-4 assembly language specification |
+| `specs/YAPL.pdf` | Informal YAPL language description |
 
-### Development Mode
+## Important Rules for Claude
 
-For development, you can build binaries locally and use the `YAPL` environment variable:
+1. **Do NOT rename binaries** without asking the user first, even if names seem generic or conflicting.
+2. **Use the `ya` driver** to compile, not ad-hoc pipelines. Use `ya -k` to preserve intermediate files.
+3. **`YAPL` environment variable** can point at the compiler tree root to use local builds instead of installed ones.
+4. **Binaries are installed to `~/go/bin/`**: `ya`, `ylex`, `yparse`, `ysem`, `ygen`, `asm`.
+5. **Build with:** `cd lang && ./build` (runs `go install` for each pass).
 
-```bash
-# Build locally instead of installing
-cd ylex && go build -o ylex . && cd ..
-cd yparse && go build -o yparse . && cd ..
-cd ysem && go build -o ysem . && cd ..
-cd ygen && go build -o ygen . && cd ..
-cd ya && go build -o ya . && cd ..
-
-# Point to local builds
-export YAPL=/path/to/lang
-ya -v hello.yapl
-```
-
-When `YAPL` is set, the driver looks for binaries at `$YAPL/ylex/ylex`, `$YAPL/yparse/yparse`, etc. Otherwise, it searches PATH.
-
-## Compiler Architecture
-
-The compiler uses a **multi-pass pipeline** with externalized state between passes. Each pass is a separate program that reads input files and writes output files, keeping each pass small enough to fit in 64KB. All the intermediate files are ASCII, making debugging  and testing simpler.
-
-### Four-Pass Design
+## Compiler Pipeline
 
 ```
-Source Code (.yapl)
-    ↓
-┌─────────────────────────────────────────┐
-│ Pass 1: Lexer + Constant Evaluator      │
-│ - Tokenize source                        │
-│ - Handle #if/#line/#file directives      │
-│ - Evaluate constant expressions          │
-│ - Output: Token stream                   │
-└─────────────────────────────────────────┘
-    ↓ tokens file
-┌─────────────────────────────────────────┐
-│ Pass 2: Parser                           │
-│ - Parse tokens into AST                  │
-│ - Build symbol table                     │
-│ - Check visibility rules                 │
-│ - Output: AST + Symbol Table             │
-└─────────────────────────────────────────┘
-    ↓ AST file + symbol table
-┌─────────────────────────────────────────┐
-│ Pass 3: IR Generator                     │
-│ - Convert AST to intermediate repr       │
-│ - Type checking                          │
-│ - Use symbol table from Pass 2           │
-│ - Output: IR (DAGs, etc.)                │
-└─────────────────────────────────────────┘
-    ↓ IR file
-┌─────────────────────────────────────────┐
-│ Pass 4: Code Generator                   │
-│ - Register allocation                    │
-│ - Instruction selection                  │
-│ - Generate WUT-4 assembly                │
-│ - Output: .w4a assembly file             │
-└─────────────────────────────────────────┘
-    ↓ assembly file
-[WUT-4 Assembler] → Object/Executable
+source.yapl --> ylex --> yparse --> ysem --> ygen --> asm --> wut4.out
+              tokens   AST+syms   IR(3addr)  .asm     binary
 ```
 
-## Design Benefits
+All inter-pass formats are ASCII text. Use `ya -k -v source.yapl` to see all stages and keep intermediate files:
+- `<name>.lexout` - Token stream
+- `<name>.parseout` - AST + symbol table
+- `<name>.ir` - Three-address IR with virtual registers
+- `<name>.asm` - WUT-4 assembly
 
-1. **Each pass stays small** - focused single responsibility fits in 64KB
-2. **Independently testable** - feed known input files, verify output files
-3. **Debuggable** - inspect intermediate files between passes
-4. **Parallelizable development** - define formats, implement passes independently
-5. **Classic approach** - proven strategy from memory-constrained systems
+Other useful flags: `-S` or `-c` stop after assembly generation, `-o file` sets output name.
 
-## WUT-4 Architecture Constraints
+## YAPL Language Summary
 
-- **Harvard architecture**: 64KB code space + 64KB data space (separate)
-- **16-bit word size**
-- **8 general-purpose registers** (r0-r7, r0 hardwired to zero)
-- **Memory-mapped I/O**
-- See `../emul/README.md` for full architecture details
+YAPL resembles C with deliberate simplifications for a small compiler.
 
-## Target Language Features
+### Types
+- **Integer:** `byte` (alias `uint8`), `int16`, `uint16`
+- **Pointer:** `@byte`, `@int16`, `@uint16`, `@void` (note: `@` not `*`)
+- **Block:** `block32`, `block64`, `block128` (opaque; only `&` allowed)
+- **Struct:** `struct name { fields };`
+- **Arrays:** 1D only: `var byte buf[256];`
+- **void:** function return type only (but `@void` is a valid pointer type)
 
-### Current Specification (v0.1)
+### Key Syntax Differences from C
+- **`@` is dereference** (not `*`): `@ptr` dereferences, `&x` takes address
+- **`var` and `const` keywords** for declarations (not bare types)
+- **`func` keyword** for functions: `func int16 add(int16 a, int16 b) { ... }`
+- **No type promotion** - must use explicit casts: `int16(x)`
+- **Visibility by case** - uppercase initial = public/global, lowercase = static/private
+- **No preprocessor** - `#if`/`#else`/`#endif` handled by lexer; constant expressions folded at lex time
+- **`#asm("...")`** for inline assembly (raw string, no escapes)
+- **Declarations before statements** in function bodies
+- **Labels only at function level**, not inside blocks
+- **No `for`-init declarations** - declare loop vars before the `for`
+- **String literals** initialize byte arrays with auto null terminator
+- **Max identifier length:** 15 chars
 
-- **Types**: byte (uint8), int16, uint16, @byte, @int16, @uint16, block32, block64, block128, void, structs, arrays
-- **Control flow**: if/else, while, for, goto, labels
-- **Operators**: Arithmetic, bitwise, logical, comparison
-- **Constants**: Compile-time expression evaluation
-- **Visibility**: Uppercase = public, lowercase = private
-- **Directives**: #if, #else, #endif, #line, #file, #asm
+### Operator Precedence (low to high)
+1. Assignment `=` (right-assoc)
+2. `||`
+3. `&&`
+4. Comparison `== != < > <= >=` (non-associative)
+5. Additive `+ - | ^`
+6. Multiplicative `* / % & << >>`
+7. Unary `@ & - ~ ! sizeof` and type casts
+8. Postfix `() [] . ->`
 
-### Inline Assembly (#asm)
-
-The `#asm` directive allows embedding raw assembly code directly in YAPL source. The assembly text passes through the entire compiler unchanged and appears in the generated assembly output exactly where it is positioned in the source.
-
-**Syntax:**
+### Example Program
 ```
-#asm("assembly text");
-```
+const byte hello[] = "hello, world.\n";
 
-**Usage contexts:**
+func void main() {
+    Putstr(&hello);
+}
 
-1. **File level** - Outside any function, for assembler directives:
-   ```
-   #asm(".section .data");
-   #asm(".align 2");
-   ```
+func void Putc(byte b) {
+    #asm("ldi r2 96");
+    #asm("ssp r1 r2");
+}
 
-2. **Within functions** - For instructions the compiler cannot generate:
-   ```
-   func void EnableInterrupts() {
-       #asm("sei");
-   }
-   ```
-
-**Constraints:**
-- The string cannot contain escape sequences (no `\n`, `\t`, etc.)
-- Each `#asm` statement produces exactly one line of assembly
-- For multiple lines of assembly, use multiple `#asm` statements
-- Must be terminated with a semicolon
-
-**Example:**
-```
-// File-level: assembler directive
-#asm(".global _start");
-
-func void Halt() {
-    // Function-level: emit a halt instruction
-    #asm("hlt");
+func void Putstr(@byte bp) {
+    while (@bp != 0) {
+        Putc(@bp);
+        bp = bp + 1;
+    }
 }
 ```
 
-## Runtime Model and Calling Convention
+## WUT-4 Architecture Essentials
 
-The runtime model follows early UNIX conventions, adapted for WUT-4's Harvard architecture.
-
-### Memory Layout
-
-**Code Space (I-space):**
-- Code begins at address 0 and fills increasing addresses as it is generated
-
-**Data Space (D-space):**
-- Static data begins at address 0 and is allocated at increasing addresses
-- The end of allocated static data is called "the break"
-- Stack starts at 0xFFFE and grows downward toward the break
+16-bit RISC, Harvard architecture (separate 64KB I-space and D-space).
 
 ### Registers
-
-| Register | Purpose |
-|----------|---------|
-| R0 | Hardwired to zero |
-| R1 | Argument 1 / Return value |
-| R2 | Argument 2 |
-| R3 | Argument 3 |
+| Reg | Purpose |
+|-----|---------|
+| R0 | Hardwired zero |
+| R1 | Arg 1 / return value (caller-saved) |
+| R2 | Arg 2 (caller-saved) |
+| R3 | Arg 3 (caller-saved) |
 | R4 | Callee-saved |
 | R5 | Callee-saved |
 | R6 | Callee-saved |
-| R7 | Stack Pointer (SP) |
+| R7 | Stack pointer (grows downward) |
+
+**LINK register** (SPR 0) holds return address from `jal`. Callee must save it if making further calls.
 
 ### Calling Convention
-
-**Argument Passing:**
-- First three arguments passed in R1, R2, R3
-- Additional arguments (if any) passed on the stack
-- Only 16-bit arguments are allowed
-
-**Return Values:**
+- Args 0-2 in R1-R3; args 3+ pushed on stack right-to-left
 - Return value in R1
-- Only 16-bit return values are allowed
+- SP is fixed during function execution (no dynamic alloc)
+- Callee saves/restores R4-R6 if used
 
-**Register Preservation:**
-- **Caller-saved:** R1, R2, R3 (caller must save if values needed after call)
-- **Callee-saved:** R4, R5, R6 (callee must save before use and restore before return)
-
-**Stack Discipline:**
-- R7 is the stack pointer
-- Stack grows downward (toward lower addresses)
-- No frame pointer
-- SP does not change during function execution (no dynamic allocation like `salloc()`)
-- Local variables and function arguments accessed at fixed offsets from SP
-- This fixed-SP model simplifies code generation and debugging (??? But not stack backtracing)
-
-## Inter-Pass File Formats
-
-### Pass 1 Output: Token Stream (.tok)
-
-The token stream is a human-readable text file with one token per line.
-
-**Format:** `token#, CATEGORY, value`
-
-Fields are comma-separated (commas do not appear in the YAPL language). A space after each comma is recommended for readability.
-
-The token number is a sequential identifier (1, 2, 3, ...) for debugging purposes, allowing specific tokens to be referenced by number. It is *not* the source line number—source lines are tracked separately via `#line` directives.
-
-**Special Directives:**
-
-Two directives appear in the token stream as metadata (not as regular tokens):
-
-- `#file <filename>` - appears before the first token; identifies source file for error messages
-- `#line <number>` - appears when source line number changes; applies to subsequent tokens
-
-These do not follow the `token#, CATEGORY, value` format.
-
-**Token Fields:**
-
-| Field | Description |
-|-------|-------------|
-| `token#` | Sequential token identifier (1, 2, 3, ...) for debugging |
-| `CATEGORY` | One of: `KEY`, `ID`, `PUNCT`, `LIT` |
-| `value` | Token value (see below) |
-
-**Categories:**
-
-| Category | Description | Value |
-|----------|-------------|-------|
-| `KEY` | Keywords (including type names) | The keyword itself |
-| `ID` | Identifiers | The identifier string |
-| `PUNCT` | Punctuation and operators | The operator or punctuation mark |
-| `LIT` | Literals | Numeric (hex) or string (in double quotes) |
-
-**Keywords:**
-
-Control flow: `if`, `else`, `while`, `for`, `return`, `break`, `continue`, `goto`
-
-Declarations: `var`, `const`, `func`, `struct`
-
-Other: `sizeof`
-
-Reserved (not yet implemented): `case`, `default`, `select`, `switch`
-
-Types: `byte`, `uint8`, `int16`, `uint16`, `void`, `block32`, `block64`, `block128`
-
-**Example:**
-
-Source (file `example.yapl`):
+### Stack Frame Layout
 ```
-const uint16 SIZE = 64;
-var int16 buf[SIZE * 2];
+[higher addresses]
+  arg N (if N > 3)     [SP + FRAMESIZE + ...]
+  return address       [SP + FRAMESIZE]
+  saved R6 (if used)
+  saved R5 (if used)
+  saved R4 (if used)
+  local variables
+[SP points here - lower addresses]
 ```
 
-Token stream:
-```
-#file example.yapl
-#line 1
-1, KEY, const
-2, KEY, uint16
-3, ID, SIZE
-4, PUNCT, =
-5, LIT, 0x0040
-6, PUNCT, ;
-#line 2
-7, KEY, var
-8, KEY, int16
-9, ID, buf
-10, PUNCT, [
-11, LIT, 0x0080
-12, PUNCT, ]
-13, PUNCT, ;
-```
+### Key Instructions
+- `ldi Rd, imm` - load immediate (lots of details in ISA - can use labels)
+- `ldw Rd, Rs, imm` - load word: Rd = mem[Rs + imm]
+- `ldb Rd, Rs, imm` - load byte
+- `stw Rs, Rd, imm` - store word: mem[Rd + imm] = Rs
+- `stb Rs, Rd, imm` - store byte
+- `adi Rd, Rs, imm` - add immediate
+- `lui Rd, imm` - load upper immediate
+- `jal target` - jump and link (return addr in LINK SPR)
+- `brz/brnz/brn/brnn/brc/brnc Rs, offset` - conditional branches
+- XOP (3-reg ALU): `add Rd, Rs1, Rs2`, `sub`, `and`, `or`, `xor`, etc.
+- YOP: `lsp` / `ssp` (load/store special reg), `tst` (set flags)
+- ZOP: `not`, `neg`, `sxt`, `sra`, `srl`, `ji` (jump indirect via LINK)
+- VOP: `hlt`, `ccf`, `scf`, `di`, `ei`, `rti`, `brk`, `die`
 
-Note: `SIZE * 2` is folded to `0x0080` (128) by the lexer.
+### I/O (for test programs)
+- SPR 96: Console output (write byte via `ssp`)
+- SPR 97: Console input (read byte via `lsp`)
+- SPR 98: Console status
 
-**Literal Representation:**
-- Numeric literals: hexadecimal (e.g., `0x0040`, `0xFFFB` for -5)
-- String literals: double-quoted, as in source (e.g., `"hello\n"`)
+## IR Format Quick Reference
 
-### Lexer Responsibilities
-
-1. **Tokenization** - convert source text to token stream
-2. **Constant symbol table** - track `const` declarations for folding
-3. **Constant expression folding** - evaluate and emit single `LIT` token
-4. **Conditional compilation** - process `#if`/`#else`/`#endif` (exclude/include code)
-5. **File tracking** - emit `#file <filename>` before first token
-6. **Line tracking** - emit `#line <number>` when source line changes
-7. **File as r-value** - resolve `#file` in expressions to string literal of filename
-
-**Constant Expression Contexts:**
-- After `const <identifier> =`
-- Inside array dimension brackets `[...]`
-- After `#if`
-
-**Constant Expression Operators:**
-- Arithmetic: `+`, `-`, `*`, `/`, `%`
-- Bitwise: `&`, `|`, `^`, `~`, `<<`, `>>`
-- Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=` (for `#if`)
-- Unary: `-`, `~`, `!`
-
-(No ternary operator and no comma operator, even in declarations)
-
-### Pass 2 Output: AST + Symbol Table
-
-The parser outputs a text-based AST representation. Structure:
+Three-address code with virtual registers `t0, t1, ...`. Key instructions:
 
 ```
-#file <filename>
-
-STRUCT <name>
-  FIELD <type> <name> <offset>
-  ...
-  SIZE <n> ALIGN <m>
-
-CONST <name> <value>
-
-VAR <visibility> <type> <name> OFFSET <n>
-
-FUNC <returnType> <name>
-  PARAM <type> <name> <regHint>
-  ...
-  LOCAL <type> <name> OFFSET <n>
-  ...
-  FRAMESIZE <n>
-  BODY
-    <statements>
-  END
+t = CONST.W 0x000A          # load 16-bit constant
+t = CONST.B 0xFF            # load 8-bit constant
+t = LOAD.W [SP+n]           # load word from stack
+t = LOAD.B [addr]           # load byte (sign-extend)
+t = LOAD.BU [addr]          # load byte (zero-extend)
+STORE.W [addr], t            # store word
+STORE.B [addr], t            # store byte
+t = ADDR label               # load address of global/static
+t = PARAM n                  # load parameter n
+t = ADD.W a, b               # arithmetic (also SUB, MUL, DIV.S, DIV.U, MOD.S, MOD.U, NEG)
+t = AND.W a, b               # bitwise (also OR, XOR, NOT, SHL, SHR, SAR)
+t = EQ.W a, b                # comparison -> 0/1 (also NE, LT.S, LE.S, GT.S, GE.S, LT.U, LE.U, GT.U, GE.U)
+LABEL name                   # define label
+JUMP label                   # unconditional jump
+JUMPZ t, label               # jump if zero
+JUMPNZ t, label              # jump if nonzero
+ARG n, t                     # set call argument
+t = CALL func, n             # call with n args, result in t
+CALL func, n                 # void call
+RETURN t                     # return value
+RETURN                       # void return
 ```
 
-Statements include EXPR, RETURN, IF/ELSE/ENDIF, WHILE/ENDWHILE, FOR/ENDFOR, GOTO, LABEL, BREAK, CONTINUE.
+Address forms: `[SP+n]`, `[label]`, `[t]`, `[t+n]`
 
-Expressions are represented as prefix notation: BINARY <op>, UNARY <op>, CALL, INDEX, FIELD, ASSIGN, LIT <value>, ID <name>, etc.
+Implementation limits: 16 params, 32 locals, 256-byte frame, 32 struct fields, 16 nesting depth.
 
-### Pass 3 Output: IR
+## Pass Details
 
-The semantic analyzer outputs three-address code IR. See `IR_FORMAT.md` for complete specification.
+### Pass 1 (ylex) - Lexer + Constant Evaluator
+- Tokenizes source into `token#, CATEGORY, value` lines (CATEGORY: KEY, ID, PUNCT, LIT)
+- Evaluates constant expressions in `const` initializers, array dimensions, and `#if` conditions
+- Handles `#if`/`#else`/`#endif`, `#file`, `#line` directives
+- Numeric literals output as hex; strings as quoted
+- Example: `const uint16 SIZE = 64;` -> token stream with `LIT, 0x0040`
 
-**Quick Reference:**
+### Pass 2 (yparse) - Parser
+- Parses token stream into text-based AST with STRUCT, CONST, VAR, FUNC sections
+- Builds symbol table; validates visibility rules
+- Outputs hierarchical structure: FUNC contains PARAM, LOCAL, FRAMESIZE, BODY with statements
+- Expressions in prefix notation: `BINARY +`, `UNARY @`, `CALL`, `INDEX`, `FIELD`, etc.
 
+### Pass 3 (ysem) - Semantic Analyzer + IR Generator
+- Reads AST from Pass 2
+- Performs type checking on all expressions
+- Resolves symbols, validates types in assignments/operations/calls
+- Generates three-address IR with virtual registers (see IR format above)
+- Output format specified in `IR_FORMAT.md`
+
+### Pass 4 (ygen) - Code Generator
+- Reads IR, parses instructions
+- Maps virtual registers (t0-tN) to physical registers (R1-R6)
+- Generates WUT-4 assembly with prologue/epilogue
+- Emits bootstrap code (_start: sets SP, calls main, halts)
+- Handles LINK register save/restore for non-leaf functions
+
+## Test Programs
+
+| File | Tests |
+|------|-------|
+| `test/hello.yapl` | Basic I/O, string output via SPR, inline asm |
+| `test/fib.yapl` | Loops, arithmetic, function calls, uint16-to-string |
+| `test/bootstrap.yapl` | Stack init stub for multi-file compilation |
+| `test/utoa.yapl` | Integer-to-ASCII conversion helper |
+| `test/fib-combined.yapl` | Combined fib + helpers in single file |
+| `test/test-simple.yapl` | Parameter passing, pointers, function returns |
+
+## Running Programs
+
+```bash
+# Compile and run on emulator
+ya test/hello.yapl && emul wut4.out
+
+# Compile with intermediate files preserved
+ya -k -v test/hello.yapl
+
+# Compile to assembly only
+ya -S test/hello.yapl
+
+# Run emulator with tracing
+emul -trace trace.log wut4.out
+
+# Run emulator with cycle limit
+emul -max-cycles 10000 wut4.out
+
+# Disassemble a binary
+asm -d wut4.out
 ```
-#ir 1
-#source filename.yapl
 
-STRUCT <name> <size> <align>
-  FIELD <name> <offset> <type>
-ENDSTRUCT
+## Known Architectural Decisions
 
-CONST <name> <visibility> <type> <value>
-DATA <name> <visibility> <type> <size>
+- Multi-pass with ASCII inter-pass files: debuggability over speed; each pass must fit in 64KB for self-hosting
+- No frame pointer: SP fixed during function execution, locals at fixed offsets
+- `@` for dereference instead of `*`: avoids ambiguity with multiplication
+- Visibility by identifier case: eliminates need for `static`/`extern` keywords
+- Constant folding in lexer: simplifies parser and later passes
+- `#asm()` passes through all passes unchanged to final assembly output
 
-FUNC <name>
-  VISIBILITY PUBLIC|STATIC
-  RETURN <type>
-  PARAMS <n>
-    PARAM <name> <type> <index>
-  LOCALS <nbytes>
-    LOCAL <name> <type> <offset>
-  FRAMESIZE <n>
+## Authoritative References
 
-  ; Three-address code with virtual registers (t0, t1, ...)
-  t0 = CONST.W 0x000A
-  t1 = LOAD.W [SP+0]
-  t2 = ADD.W t0, t1
-  STORE.W [SP+2], t2
-  JUMPZ t2, .label
-  RETURN t2
-
-ENDFUNC
-```
-
-**Implementation Limits:** Max 16 parameters, 32 locals, 256-byte frame size.
-
-## Bootstrap Strategy
-
-1. **Phase 1**: Write compiler in Go (leverage existing Go toolchain)
-2. **Phase 2**: Compiler generates WUT-4 assembly, runs via cross-compilation
-3. **Phase 3**: Compiler compiles itself (written in YAPL), runs on WUT-4 emulator
-4. **Phase 4**: Self-hosted compiler runs natively on WUT-4 hardware
-
-## Testing Strategy
-
-Each pass will have comprehensive tests:
-
-- **Pass 1 tests**: Known source → expected tokens
-- **Pass 2 tests**: Known tokens → expected AST/symbols
-- **Pass 3 tests**: Known AST → expected IR
-- **Pass 4 tests**: Known IR → expected assembly
-
-Since passes externalize state to files, testing is straightforward.
-
-## Current Status
-
-**Status**: Go implementation complete
-
-**Completed:**
-- Language specification (v0.1)
-- Compiler architecture design
-- Project structure
-- Runtime model and calling convention
-- Pass 1 lexical analyzer (`ylex`) with tests
-- Pass 2 parser (`yparse`) with tests
-- Pass 3 IR format specification (`IR_FORMAT.md`)
-- Pass 3 semantic analyzer (`ysem`) with type checking and IR generation
-- Pass 4 code generator (`ygen`)
-- Compiler driver (`ya`)
-
-**Next Steps:**
-1. Expand test coverage
-2. Write YAPL version of the compiler for self-hosting
-
-## Related Documentation
-
-- **WUT-4 Architecture**: `../specs/wut4arch.pdf``
-- **WUT-4 Assembler**: `../asm/README.md`
-- **YAPL Language Spec**: https://docs.google.com/document/d/1hgsayGjZJc6WUVjSEsPRWVxPeXkVFLKpRCx5jc5hrx8/edit?usp=sharing
-- **Pass 3 IR Format**: `IR_FORMAT.md`
-- **Semantic Analyzer**: `ysem/README.md`
-
-## Implementation Notes
-
-This is a long-term project requiring patience and methodical development. The multi-pass architecture with externalized state is specifically chosen to make the project tractable despite the ambitious self-hosting goal.
-
-Each pass should be developed, tested, and validated independently before moving to the next pass. The intermediate file formats are as important as the code itself.
+- **Grammar:** `yapl_grammar.ebnf` (this is the canonical grammar)
+- **IR format:** `IR_FORMAT.md`
+- **Architecture:** `../specs/wut4arch.pdf`
+- **Assembly:** `../specs/wut4asm.pdf`
+- **Language (informal):** `../specs/YAPL.pdf`
