@@ -1,0 +1,131 @@
+// bootstrap.yapl - Bootstrap initialization for standalone WUT-4 programs
+//
+// This file must be placed FIRST when concatenating YAPL source files
+// for compilation. It generates the bootstrap code that initializes
+// the stack pointer and calls main().
+//
+// The bootstrap is required because there is no operating system or
+// loader to establish MMU registers and other machine state. The
+// .bootstrap directive causes the assembler to emit startup code that:
+//   1. Initializes the stack pointer (R7) to 0x1000
+//   2. Calls main()
+//   3. Halts the processor when main() returns
+//
+// Usage:
+//   cat bootstrap.yapl itoa.yapl fib.yapl > program.yapl
+//   ya program.yapl
+
+#asm(".bootstrap");
+// itoa.yapl - unsigned 16-bit integer to ASCII conversion
+
+// Reverse a string in place
+// str: pointer to first byte of string
+// len: number of characters to reverse (not including null terminator)
+func void reverse(@byte str, uint16 len) {
+    var uint16 start;
+    var uint16 end;
+    var byte temp;
+
+    start = 0;
+    if (len == 0) {
+        return;
+    }
+    end = len - 1;
+
+    while (start < end) {
+        temp = @(str + start);
+        @(str + start) = @(str + end);
+        @(str + end) = temp;
+        start = start + 1;
+        end = end - 1;
+    }
+}
+
+// Convert unsigned 16-bit integer to ASCII string
+// n: the number to convert
+// buf: pointer to buffer (must be at least 6 bytes for max uint16 = 65535 + null)
+// Returns: pointer to buf
+func @byte Utoa(uint16 n, @byte buf) {
+    var uint16 i;
+    var uint16 digit;
+
+    i = 0;
+
+    // Handle zero specially
+    if (n == 0) {
+        @buf = '0';
+        @(buf + 1) = 0;
+        return buf;
+    }
+
+    // Extract digits in reverse order
+    while (n != 0) {
+        digit = n % 10;
+        @(buf + i) = byte(digit + '0');
+        i = i + 1;
+        n = n / 10;
+    }
+
+    // Null terminate
+    @(buf + i) = 0;
+
+    // Reverse to get correct order
+    reverse(buf, i);
+
+    return buf;
+}
+// fib.yapl - Print Fibonacci numbers up to the largest that fits in uint16
+// Compile together with bootstrap.yapl and itoa.yapl
+
+// Largest Fibonacci number that fits in uint16 (65535)
+const uint16 MAX_FIB = 46368;
+
+func void main() {
+    var byte buf[6];
+    var uint16 n1;
+    var uint16 n2;
+    var uint16 next;
+
+    n1 = 0;
+    n2 = 1;
+
+    // Print first Fibonacci number (1)
+    Utoa(n2, &buf[0]);
+    Putstr(&buf[0]);
+    Putc(byte('\n'));
+
+    // Generate and print remaining Fibonacci numbers
+    while (n1 + n2 <= MAX_FIB) {
+        next = n1 + n2;
+        Utoa(next, &buf[0]);
+        Putstr(&buf[0]);
+        Putc(byte('\n'));
+        n1 = n2;
+        n2 = next;
+    }
+}
+
+// Write a byte to the serial transmit FIFO
+func void Putc(byte b) {
+    #asm("ldi r2 96");
+    #asm("ssp r1 r2");
+}
+
+// Return 1 if the transmit FIFO overflowed, 0 otherwise
+func byte isOverflow() {
+    #asm("ldi r2 98");
+    #asm("lsp r1 r2");
+    #asm("ldi r2 1");
+    #asm("and r1 r1 r2");
+}
+
+// Print a null-terminated string
+func void Putstr(@byte bp) {
+    while (@bp != 0) {
+        Putc(@bp);
+        if (isOverflow()) {
+            continue;
+        }
+        bp = bp + 1;
+    }
+}

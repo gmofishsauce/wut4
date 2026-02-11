@@ -542,8 +542,19 @@ func (r *ASTReader) readStmt(line string, depth int) (Stmt, error) {
 		if len(parts) > 1 {
 			lineNum, _ = strconv.Atoi(parts[1])
 		}
-		// Check if there's a return value
-		expr, _ := r.readExpr(depth+1, lineNum)
+		// Check if there's a return value by peeking at the next line
+		var expr Expr
+		if r.nextLine() {
+			nextLine := strings.TrimSpace(r.line)
+			nextParts := strings.Fields(nextLine)
+			if len(nextParts) > 0 && isExprKeyword(nextParts[0]) {
+				// It's an expression, parse it
+				expr, _ = r.readExprFromLine(nextLine, depth+1, lineNum)
+			} else {
+				// Not an expression, put the line back
+				r.unreadLine()
+			}
+		}
 		return &ReturnStmt{baseStmt: baseStmt{Line: lineNum}, Value: expr}, nil
 
 	case "IF":
@@ -825,6 +836,15 @@ func (r *ASTReader) readExprFromLine(line string, depth int, stmtLine int) (Expr
 	}
 
 	return nil, nil
+}
+
+// isExprKeyword returns true if the keyword starts an expression in the AST
+func isExprKeyword(keyword string) bool {
+	switch keyword {
+	case "LIT", "STRLIT", "ID", "BINARY", "UNARY", "ASSIGN", "CALL", "INDEX", "FIELD", "CAST", "SIZEOF":
+		return true
+	}
+	return false
 }
 
 func parseType(s string) *Type {

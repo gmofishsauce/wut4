@@ -1,0 +1,18 @@
+// bootstrap.yapl - Bootstrap initialization for standalone WUT-4 programs
+//
+// This file must be placed FIRST when concatenating YAPL source files
+// for compilation. It generates the bootstrap code that initializes
+// the stack pointer and calls main().
+//
+// The bootstrap is required because there is no operating system or
+// loader to establish MMU registers and other machine state. The
+// .bootstrap directive causes the assembler to emit startup code that:
+//   1. Initializes the stack pointer (R7) to 0x1000
+//   2. Calls main()
+//   3. Halts the processor when main() returns
+//
+// Usage:
+//   cat bootstrap.yapl itoa.yapl fib.yapl > program.yapl
+//   ya program.yapl
+
+#asm(".bootstrap");

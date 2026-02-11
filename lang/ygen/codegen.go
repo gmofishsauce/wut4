@@ -31,6 +31,9 @@ type CodeGen struct {
 	// Total frame size including saved registers and virtual register spill slots
 	totalFrameSize int
 
+	// Alignment padding at the start of the frame (0 or 1)
+	alignmentPadding int
+
 	// Virtual register to stack offset mapping
 	virtRegSlots map[string]int
 	nextVirtSlot int
@@ -236,9 +239,7 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Label("L_divu_loop")
 		cg.emit.Sll(R4)         // remainder <<= 1
 		// Get high bit of dividend into low bit of remainder
-		cg.emit.Mv(R6, R1)
-		cg.emit.Ldi(R0, 15)     // Actually need to shift right by 15
-		// Shift R1 left, carry high bit
+		// Test if R1 is negative (high bit set) and add 1 to remainder if so
 		cg.emit.Tst(R1, R1)
 		cg.emit.Brslt("L_divu_setbit")
 		cg.emit.Br("L_divu_nobit")
@@ -400,12 +401,19 @@ func (cg *CodeGen) genFunction(f *IRFunction) {
 	}
 
 	// Calculate frame layout:
-	// [SP+0 ... SP+frameSize-1] = locals from IR
+	// [SP+0 ... SP+frameSize-1] = locals from IR (padded to even)
 	// [SP+frameSize ... SP+frameSize+virtRegSpace-1] = virtual register spill slots
 	// [SP+frameSize+virtRegSpace ... SP+frameSize+virtRegSpace+paramSaveSpace-1] = saved register params
-	// [SP+frameSize+virtRegSpace+paramSaveSpace ... ] = saved callee-saved registers
+	// [SP+frameSize+virtRegSpace+paramSaveSpace ... ] = saved callee-saved registers + alignment padding
+
+	// Ensure frame size (locals area) is even so that virtual registers are word-aligned
+	localFrameSize := f.FrameSize
+	if localFrameSize%2 != 0 {
+		localFrameSize++
+	}
+
 	virtRegSpace := (maxVirtReg + 1) * 2 // each virtual reg gets 2 bytes
-	cg.nextVirtSlot = f.FrameSize        // virtual regs start after locals
+	savedRegSize := 6                    // always save R4, R5, R6 to simplify
 
 	// Save register parameters (r1-r3) to stack so they survive function calls
 	cg.numRegParams = len(f.Params)
@@ -413,25 +421,34 @@ func (cg *CodeGen) genFunction(f *IRFunction) {
 		cg.numRegParams = 3
 	}
 	paramSaveSpace := cg.numRegParams * 2
-	for i := 0; i < cg.numRegParams; i++ {
-		cg.paramOffsets[i] = f.FrameSize + virtRegSpace + i*2
-	}
 
 	// Check if function makes calls - if so, need to save LINK
 	cg.hasCalls = cg.functionHasCalls(f)
 	linkSaveSpace := 0
 	if cg.hasCalls {
 		linkSaveSpace = 2
-		cg.linkOffset = f.FrameSize + virtRegSpace + paramSaveSpace
 	}
 
-	savedRegSize := 6 // always save R4, R5, R6 to simplify
-	cg.savedRegOffsets = map[int]int{
-		R4: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace,
-		R5: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 2,
-		R6: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 4,
+	// Calculate total frame size (should be even since all components are even or padded)
+	cg.totalFrameSize = localFrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + savedRegSize
+	cg.alignmentPadding = 0 // No longer needed since we pad locals to even
+
+	// Virtual regs start after (padded) locals
+	cg.nextVirtSlot = localFrameSize
+
+	for i := 0; i < cg.numRegParams; i++ {
+		cg.paramOffsets[i] = localFrameSize + virtRegSpace + i*2
 	}
-	cg.totalFrameSize = f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + savedRegSize
+
+	if cg.hasCalls {
+		cg.linkOffset = localFrameSize + virtRegSpace + paramSaveSpace
+	}
+
+	cg.savedRegOffsets = map[int]int{
+		R4: localFrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace,
+		R5: localFrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 2,
+		R6: localFrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 4,
+	}
 
 	cg.emit.Comment("Function: %s", f.Name)
 	cg.emit.Comment("Visibility: %s, Return: %s", f.Visibility, f.ReturnType)
@@ -501,13 +518,13 @@ func (cg *CodeGen) genPrologue() {
 
 		// Save register parameters (r1-r3) to stack so they survive function calls
 		for i := 0; i < cg.numRegParams; i++ {
-			cg.emit.Stw(R1+i, R7, cg.paramOffsets[i])
+			cg.emitStoreStack(R1+i, cg.paramOffsets[i])
 		}
 
 		// Save LINK if this function makes calls (LINK is SPR 0)
 		if cg.hasCalls {
 			cg.emit.Lsp(R3, R0) // Load LINK into R3 (R0 contains 0, so SPR[0] = LINK)
-			cg.emit.Stw(R3, R7, cg.linkOffset)
+			cg.emitStoreStack(R3, cg.linkOffset)
 		}
 	}
 }
@@ -662,9 +679,9 @@ func (cg *CodeGen) getVirtRegSlot(virt string) int {
 	if offset, ok := cg.virtRegSlots[virt]; ok {
 		return offset
 	}
-	// Allocate new slot
+	// Allocate new slot - use nextVirtSlot as base (which is padded to even)
 	n := cg.parseVirtRegNum(virt)
-	offset := cg.currFunc.FrameSize + n*2
+	offset := cg.nextVirtSlot + n*2
 	cg.virtRegSlots[virt] = offset
 	return offset
 }
@@ -760,12 +777,26 @@ func (cg *CodeGen) genLoad(instr *IRInstr) {
 
 	if base, offset, ok := cg.parseStackAddr(addr); ok {
 		// Stack-relative: [SP+n]
-		if instr.Op == OpLoadW {
-			cg.emit.Ldw(R4, base, offset)
+		if offset >= -64 && offset <= 63 {
+			if instr.Op == OpLoadW {
+				cg.emit.Ldw(R4, base, offset)
+			} else {
+				cg.emit.Ldb(R4, base, offset)
+				if instr.Op == OpLoadB {
+					cg.emit.Sxt(R4)
+				}
+			}
 		} else {
-			cg.emit.Ldb(R4, base, offset)
-			if instr.Op == OpLoadB {
-				cg.emit.Sxt(R4)
+			// Large offset: compute address in R4 first
+			cg.emit.Ldi(R4, offset)
+			cg.emit.Add(R4, base, R4)
+			if instr.Op == OpLoadW {
+				cg.emit.Ldw(R4, R4, 0)
+			} else {
+				cg.emit.Ldb(R4, R4, 0)
+				if instr.Op == OpLoadB {
+					cg.emit.Sxt(R4)
+				}
 			}
 		}
 	} else if reg, offset, ok := cg.parseRegAddr(addr); ok {
@@ -804,10 +835,21 @@ func (cg *CodeGen) genStore(instr *IRInstr) {
 
 	if base, offset, ok := cg.parseStackAddr(addr); ok {
 		// Stack-relative
-		if instr.Op == OpStoreW {
-			cg.emit.Stw(R4, base, offset)
+		if offset >= -64 && offset <= 63 {
+			if instr.Op == OpStoreW {
+				cg.emit.Stw(R4, base, offset)
+			} else {
+				cg.emit.Stb(R4, base, offset)
+			}
 		} else {
-			cg.emit.Stb(R4, base, offset)
+			// Large offset: compute address in R5
+			cg.emit.Ldi(R5, offset)
+			cg.emit.Add(R5, base, R5)
+			if instr.Op == OpStoreW {
+				cg.emit.Stw(R4, R5, 0)
+			} else {
+				cg.emit.Stb(R4, R5, 0)
+			}
 		}
 	} else if reg, offset, ok := cg.parseRegAddr(addr); ok {
 		// Register indirect - load address into R5
@@ -848,7 +890,7 @@ func (cg *CodeGen) genParam(instr *IRInstr) {
 		// Parameter is on stack (passed by caller)
 		// Stack args are at [SP + totalFrameSize + 2*(paramIndex-3) + 2]
 		offset := cg.totalFrameSize + 2*(paramIndex-3) + 2
-		cg.emit.Ldw(R4, R7, offset)
+		cg.emitLoadStack(R4, offset)
 	}
 	cg.storeVirtReg(R4, instr.Dest)
 }
@@ -866,7 +908,7 @@ func (cg *CodeGen) genSetParam(instr *IRInstr) {
 	} else {
 		// Write to stack location (caller's stack area)
 		offset := cg.totalFrameSize + 2*(paramIndex-3) + 2
-		cg.emit.Stw(R4, R7, offset)
+		cg.emitStoreStack(R4, offset)
 	}
 }
 
@@ -1134,6 +1176,7 @@ func (cg *CodeGen) parseStackAddr(addr string) (base int, offset int, ok bool) {
 	}
 	inner := addr[4 : len(addr)-1]
 	offset = cg.parseValue(inner)
+	// Alignment padding is at the END of frame, so offsets don't need adjustment
 	return R7, offset, true
 }
 

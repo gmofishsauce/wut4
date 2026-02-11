@@ -108,6 +108,32 @@ func (e *Emitter) Stb(src, base int, offset int) {
 	e.Instr3("stb", RegName(src), RegName(base), offset)
 }
 
+// LdwLarge emits load word with potentially large offset
+// Uses scratch register (r3) if offset exceeds 7-bit signed range (-64 to +63)
+func (e *Emitter) LdwLarge(dest, base int, offset int, scratch int) {
+	if offset >= -64 && offset <= 63 {
+		e.Ldw(dest, base, offset)
+	} else {
+		// Compute address in scratch, then load
+		e.Ldi(scratch, offset)
+		e.Add(scratch, base, scratch)
+		e.Ldw(dest, scratch, 0)
+	}
+}
+
+// StwLarge emits store word with potentially large offset
+// Uses scratch register if offset exceeds 7-bit signed range (-64 to +63)
+func (e *Emitter) StwLarge(src, base int, offset int, scratch int) {
+	if offset >= -64 && offset <= 63 {
+		e.Stw(src, base, offset)
+	} else {
+		// Compute address in scratch, then store
+		e.Ldi(scratch, offset)
+		e.Add(scratch, base, scratch)
+		e.Stw(src, scratch, 0)
+	}
+}
+
 // Adi emits add immediate
 func (e *Emitter) Adi(dest, src int, imm int) {
 	e.Instr3("adi", RegName(dest), RegName(src), imm)

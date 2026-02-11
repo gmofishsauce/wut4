@@ -325,10 +325,13 @@ func (g *IRGen) genFunc(f *FuncDef) {
 	}
 
 	// Add locals to IR (convert negative offsets to positive)
+	// Negative offsets are relative to original SP (before frame allocation)
+	// After allocating frameSize bytes, new SP = original SP - frameSize
+	// To access a local at negative offset from new SP: frameSize + offset
 	for _, l := range f.Locals {
 		offset := l.Offset
 		if offset < 0 {
-			offset = -offset - 2 // Convert -2 -> 0, -4 -> 2, etc.
+			offset = f.FrameSize + offset // Convert -6 with frameSize 12 -> 6
 		}
 		g.currentFn.Locals = append(g.currentFn.Locals, &IRLocal{
 			Name:   l.Name,
@@ -568,12 +571,17 @@ func (g *IRGen) genIdentLoad(name string) string {
 				g.emit("PARAM", t, fmt.Sprintf("%d", idx))
 			} else {
 				// Locals have negative offsets from SP in parser output
-				// Convert to positive offset for IR
+				// Convert to positive offset for IR: frameSize + negativeOffset
 				offset := v.Offset
 				if offset < 0 {
-					offset = -offset - 2 // Convert -2 -> 0, -4 -> 2, etc.
+					offset = g.currentAst.FrameSize + offset
 				}
-				g.emit("LOAD.W", t, fmt.Sprintf("[SP+%d]", offset))
+				// Use LOAD.BU for byte variables
+				if g.isByteType(v.Type) {
+					g.emit("LOAD.BU", t, fmt.Sprintf("[SP+%d]", offset))
+				} else {
+					g.emit("LOAD.W", t, fmt.Sprintf("[SP+%d]", offset))
+				}
 			}
 			return t
 		}
@@ -756,7 +764,7 @@ func (g *IRGen) genAddrOf(expr Expr) string {
 					// Local variable: compute SP + offset
 					offset := v.Offset
 					if offset < 0 {
-						offset = -offset - 2
+						offset = g.currentAst.FrameSize + offset
 					}
 					g.emit("ADD.W", t, "SP", fmt.Sprintf("%d", offset))
 					return t
@@ -842,6 +850,17 @@ func (g *IRGen) genAssign(e *AssignExpr) string {
 	return rhs
 }
 
+// isByteType returns true if the type is a byte (uint8) type
+func (g *IRGen) isByteType(t *Type) bool {
+	return t != nil && t.Kind == TypeBase && t.BaseType == BaseUint8
+}
+
+// isBytePointer returns true if the type is a pointer to a byte
+func (g *IRGen) isBytePointer(t *Type) bool {
+	return t != nil && t.Kind == TypePointer && t.Pointee != nil &&
+		t.Pointee.Kind == TypeBase && t.Pointee.BaseType == BaseUint8
+}
+
 func (g *IRGen) genStore(lhs Expr, value string) {
 	switch e := lhs.(type) {
 	case *IdentExpr:
@@ -855,12 +874,17 @@ func (g *IRGen) genStore(lhs Expr, value string) {
 					return
 				}
 				// Locals have negative offsets from SP in parser output
-				// Convert to positive offset for IR
+				// Convert to positive offset for IR: frameSize + negativeOffset
 				offset := v.Offset
 				if offset < 0 {
-					offset = -offset - 2 // Convert -2 -> 0, -4 -> 2, etc.
+					offset = g.currentAst.FrameSize + offset
 				}
-				g.emit("STORE.W", "", fmt.Sprintf("[SP+%d]", offset), value)
+				// Check if storing to a byte variable
+				if g.isByteType(v.Type) {
+					g.emit("STORE.B", "", fmt.Sprintf("[SP+%d]", offset), value)
+				} else {
+					g.emit("STORE.W", "", fmt.Sprintf("[SP+%d]", offset), value)
+				}
 				return
 			}
 		}
@@ -870,16 +894,34 @@ func (g *IRGen) genStore(lhs Expr, value string) {
 	case *UnaryExpr:
 		if e.Op == OpDeref {
 			ptr := g.genExpr(e.Operand)
-			g.emit("STORE.W", "", fmt.Sprintf("[%s]", ptr), value)
+			// Check if dereferencing a byte pointer
+			ptrType := e.Operand.GetType()
+			if g.isBytePointer(ptrType) {
+				g.emit("STORE.B", "", fmt.Sprintf("[%s]", ptr), value)
+			} else {
+				g.emit("STORE.W", "", fmt.Sprintf("[%s]", ptr), value)
+			}
 		}
 
 	case *IndexExpr:
 		addr := g.genAddrOf(lhs)
-		g.emit("STORE.W", "", fmt.Sprintf("[%s]", addr), value)
+		// Check if the element type is a byte
+		lhsType := lhs.GetType()
+		if g.isByteType(lhsType) {
+			g.emit("STORE.B", "", fmt.Sprintf("[%s]", addr), value)
+		} else {
+			g.emit("STORE.W", "", fmt.Sprintf("[%s]", addr), value)
+		}
 
 	case *FieldExpr:
 		addr := g.genAddrOf(lhs)
-		g.emit("STORE.W", "", fmt.Sprintf("[%s]", addr), value)
+		// Check if the field type is a byte
+		lhsType := lhs.GetType()
+		if g.isByteType(lhsType) {
+			g.emit("STORE.B", "", fmt.Sprintf("[%s]", addr), value)
+		} else {
+			g.emit("STORE.W", "", fmt.Sprintf("[%s]", addr), value)
+		}
 	}
 }
 

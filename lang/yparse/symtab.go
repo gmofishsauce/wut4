@@ -363,6 +363,14 @@ func (fs *FuncScope) Finalize() {
 	} else {
 		fs.Func.FrameSize = 0
 	}
+
+	// Ensure frame size is even for word alignment
+	// The padding is conceptually at the bottom of the frame (most negative address)
+	// Offsets are NOT adjusted - the conversion formula (frameSize + negativeOffset)
+	// automatically gives correct positive offsets
+	if fs.Func.FrameSize%2 != 0 {
+		fs.Func.FrameSize++
+	}
 }
 
 // LookupLocal looks up a name in the function scope (params then locals)

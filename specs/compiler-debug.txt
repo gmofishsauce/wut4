@@ -1,0 +1,1090 @@
+                                                                                                                     
+▗ ▗   ▖ ▖  Claude Code v2.1.29                                                                                       
+           Opus 4.5 · Claude Pro                                                                                     
+  ▘▘ ▝▝    ~/go/src/github.com/gmofishsauce/wut4/lang                                                                
+                                                                                                                     
+✻ Conversation compacted (ctrl+o for history)                                                                        
+                                                                                                                     
+  ⎿  Read wut4.out (12 lines)                                                                                        
+  ⎿  Referenced file fib-combined.asm                                                                                
+  ⎿  Referenced file ygen/codegen.go                                                                                 
+  ⎿  Read hello.asm (149 lines)                                                                                      
+  ⎿  Read ygen/wut4.out (12 lines)                                                                                   
+  ⎿  You're out of extra usage · resets 12pm (America/Los_Angeles)                                                   
+                                                                                                                     
+✻ Baked for 10m 32s                                                                                                  
+                                                                                                                     
+❯ I think I have more extra usage now. Can you check and continue if possible?                                       
+                                                                                                                     
+⏺ I'll continue debugging the memory alignment fault. Let me examine the assembly around the crash location          
+  (PC=0x0368) in the Utoa function.                                                                                  
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ I can see the issue. Looking at lines 411-415:                                                                     
+  - r4 = load from offset 62 (value 0, the null terminator)                                                          
+  - r5 = load computed address from offset 68 (buf + i)                                                              
+  - STW r4 at address in r5                                                                                          
+                                                                                                                     
+  The problem is that the code is using stw (store word) to store a single byte (the null terminator buf[i] = 0).    
+  Since buf is a @byte pointer, buf[i] should use stb (store byte), not stw. The computed address buf + i can be odd,
+   which causes the alignment fault.                                                                                 
+                                                                                                                     
+  Let me check the YAPL source and the code generator to see where this bug comes from.                              
+                                                                                                                     
+⏺ Read 2 files (ctrl+o to expand)                                                                                    
+                                                                                                                     
+⏺ The YAPL code at line 52 is @(buf + i) = 0; which should be a byte store since buf is @byte. But the compiler is   
+  generating stw instead of stb. Let me find the code that handles pointer dereference stores.                       
+                                                                                                                     
+⏺ Searched for 1 pattern, read 1 file (ctrl+o to expand)                                                             
+                                                                                                                     
+⏺ The genStore function correctly handles both OpStoreW and OpStoreB. The issue must be earlier in the pipeline - the
+   IR is being generated with OpStoreW when it should be OpStoreB for byte pointer dereferences. Let me check the    
+  semantic analyzer.                                                                                                 
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ I see the problem - all stores are using STORE.W regardless of type. Let me examine the IR generation code for     
+  assignment expressions.                                                                                            
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ Found it. On line 873, when handling pointer dereference assignment (*UnaryExpr with OpDeref), it always emits     
+  STORE.W without checking if the pointer is a byte pointer. Let me look at how to determine the type of the         
+  dereference target.                                                                                                
+                                                                                                                     
+⏺ Searched for 3 patterns (ctrl+o to expand)                                                                         
+                                                                                                                     
+⏺ I can see there's already code that handles byte loads (lines 717-718). Let me see how it handles the load case and
+   apply the same logic to stores.                                                                                   
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ I see the pattern. Loads check if the pointer's pointee is BaseUint8 and use LOAD.BU instead of LOAD.W. Now let me 
+  look at the store code to apply the same fix.                                                                      
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ I found the bug. In genStore(), the cases at lines 871-874, 876-878, and 880-882 all use STORE.W without checking  
+  if the target is a byte type. I need to fix these to check the type and emit STORE.B for byte types.               
+                                                                                                                     
+  Let me also check if there's a helper function for checking byte types.                                            
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ Now I'll fix the genStore function to check the type and emit STORE.B for byte types.                              
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ Update(ysem/ir.go)                                                                                                 
+  ⎿  Added 38 lines, removed 4 lines                                                                                 
+      842    return rhs                                                                                              
+      843  }                                                                                                         
+      844                                                                                                            
+      845 +// isByteType returns true if the type is a byte (uint8) type                                             
+      846 +func (g *IRGen) isByteType(t *Type) bool {                                                                
+      847 +  return t != nil && t.Kind == TypeBase && t.BaseType == BaseUint8                                        
+      848 +}                                                                                                         
+      849 +                                                                                                          
+      850 +// isBytePointer returns true if the type is a pointer to a byte                                          
+      851 +func (g *IRGen) isBytePointer(t *Type) bool {                                                             
+      852 +  return t != nil && t.Kind == TypePointer && t.Pointee != nil &&                                         
+      853 +    t.Pointee.Kind == TypeBase && t.Pointee.BaseType == BaseUint8                                         
+      854 +}                                                                                                         
+      855 +                                                                                                          
+      856  func (g *IRGen) genStore(lhs Expr, value string) {                                                        
+      857    switch e := lhs.(type) {                                                                                
+      858    case *IdentExpr:                                                                                        
+     ...                                                                                                             
+      871          if offset < 0 {                                                                                   
+      872            offset = -offset - 2 // Convert -2 -> 0, -4 -> 2, etc.                                          
+      873          }                                                                                                 
+      863 -        g.emit("STORE.W", "", fmt.Sprintf("[SP+%d]", offset), value)                                      
+      874 +        // Check if storing to a byte variable                                                            
+      875 +        if g.isByteType(v.Type) {                                                                         
+      876 +          g.emit("STORE.B", "", fmt.Sprintf("[SP+%d]", offset), value)                                    
+      877 +        } else {                                                                                          
+      878 +          g.emit("STORE.W", "", fmt.Sprintf("[SP+%d]", offset), value)                                    
+      879 +        }                                                                                                 
+      880          return                                                                                            
+      881        }                                                                                                   
+      882      }                                                                                                     
+     ...                                                                                                             
+      886    case *UnaryExpr:                                                                                        
+      887      if e.Op == OpDeref {                                                                                  
+      888        ptr := g.genExpr(e.Operand)                                                                         
+      873 -      g.emit("STORE.W", "", fmt.Sprintf("[%s]", ptr), value)                                              
+      889 +      // Check if dereferencing a byte pointer                                                            
+      890 +      ptrType := e.Operand.GetType()                                                                      
+      891 +      if g.isBytePointer(ptrType) {                                                                       
+      892 +        g.emit("STORE.B", "", fmt.Sprintf("[%s]", ptr), value)                                            
+      893 +      } else {                                                                                            
+      894 +        g.emit("STORE.W", "", fmt.Sprintf("[%s]", ptr), value)                                            
+      895 +      }                                                                                                   
+      896      }                                                                                                     
+      897                                                                                                            
+      898    case *IndexExpr:                                                                                        
+      899      addr := g.genAddrOf(lhs)                                                                              
+      878 -    g.emit("STORE.W", "", fmt.Sprintf("[%s]", addr), value)                                               
+      900 +    // Check if the element type is a byte                                                                
+      901 +    lhsType := lhs.GetType()                                                                              
+      902 +    if g.isByteType(lhsType) {                                                                            
+      903 +      g.emit("STORE.B", "", fmt.Sprintf("[%s]", addr), value)                                             
+      904 +    } else {                                                                                              
+      905 +      g.emit("STORE.W", "", fmt.Sprintf("[%s]", addr), value)                                             
+      906 +    }                                                                                                     
+      907                                                                                                            
+      908    case *FieldExpr:                                                                                        
+      909      addr := g.genAddrOf(lhs)                                                                              
+      882 -    g.emit("STORE.W", "", fmt.Sprintf("[%s]", addr), value)                                               
+      910 +    // Check if the field type is a byte                                                                  
+      911 +    lhsType := lhs.GetType()                                                                              
+      912 +    if g.isByteType(lhsType) {                                                                            
+      913 +      g.emit("STORE.B", "", fmt.Sprintf("[%s]", addr), value)                                             
+      914 +    } else {                                                                                              
+      915 +      g.emit("STORE.W", "", fmt.Sprintf("[%s]", addr), value)                                             
+      916 +    }                                                                                                     
+      917    }                                                                                                       
+      918  }                                                                                                         
+      919                                                                                                            
+                                                                                                                     
+⏺ Now let me check if OpStoreB is defined in the code generator.                                                     
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ The code generator already handles OpStoreB. Let me rebuild the compiler and test.                                 
+                                                                                                                     
+⏺ Bash(go build -o ysem/yapl-sem ./ysem && echo "ysem built successfully")                                           
+  ⎿  Error: Exit code 1                                                                                              
+     go: cannot find main module, but found .git/config in /Users/jeff/go/src/github.com/gmofishsauce/wut4           
+        to create a module there, run:                                                                               
+        cd .. && go mod init                                                                                         
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/ysem && go build -o yapl-sem . && echo "ysem built    
+      successfully")                                                                                                 
+  ⎿  ysem built successfully                                                                                         
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/ygen && go build -o yapl-gen . && echo "ygen built    
+      successfully")                                                                                                 
+  ⎿  ygen built successfully                                                                                         
+                                                                                                                     
+⏺ Now let me recompile the Fibonacci program and test.                                                               
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang && cat bootstrap.yapl itoa.yapl fib.yapl >            
+      fib-combined.yapl && ./ylex/yapl-lex < fib-combined.yapl > fi…)                                                
+  ⎿  Error: Exit code 127                                                                                            
+     /bin/bash: ./ylex/yapl-lex: No such file or directory                                                           
+                                                                                                                     
+⏺ Searched for 1 pattern, read 1 file (ctrl+o to expand)                                                             
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/yparse && go build -o yparse . && echo "yparse built  
+      successfully")                                                                                                 
+  ⎿  yparse built successfully                                                                                       
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang && cat bootstrap.yapl itoa.yapl fib.yapl >            
+      fib-combined.yapl && ./ylex/ylex < fib-combined.yapl > fib-co…)                                                
+  ⎿  Compilation successful                                                                                          
+                                                                                                                     
+⏺ Bash(wut4asm fib-combined.asm && wut4emu wut4.out 2>&1 | head -50)                                                 
+  ⎿  Error: Exit code 127                                                                                            
+     /bin/bash: wut4asm: command not found                                                                           
+                                                                                                                     
+⏺ Searched for 3 patterns, read 4 files (ctrl+o to expand)                                                           
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/asm && go build -o wut4asm . && echo "Assembler built")    
+  ⎿  Assembler built                                                                                                 
+  ⎿  Shell cwd was reset to /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang                                     
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/emul && go build -o wut4emu . && echo "Emulator built")    
+  ⎿  Emulator built                                                                                                  
+  ⎿  Shell cwd was reset to /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang                                     
+                                                                                                                     
+⏺ Bash(../asm/wut4asm fib-combined.asm && ../emul/wut4emu wut4.out 2>&1 | head -50)                                  
+  ⎿  Assembly successful: fib-combined.asm -> wut4.out                                                               
+     Code: 1554 bytes, Data: 0 bytes                                                                                 
+     … +54 lines (ctrl+o to expand)                                                                                  
+                                                                                                                     
+⏺ Still getting an alignment fault but at a different location (PC=0x008A = 138 decimal). Let me examine the assembly
+   at that location.                                                                                                 
+                                                                                                                     
+⏺ Bash(../asm/wut4asm -l fib-combined.asm 2>&1 | head -200 | tail -100)                                              
+  ⎿  flag provided but not defined: -l                                                                               
+     Usage of ../asm/wut4asm:                                                                                        
+       -d       disassemble mode                                                                                     
+     … +2 lines (ctrl+o to expand)                                                                                   
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ I found the bug. Looking at line 65:                                                                               
+  ; Params: 2, Frame: 77 bytes (locals=5, virtregs=62, params=4, saved=6)                                            
+                                                                                                                     
+  The frame size is 77 bytes, which is odd! When the stack pointer (starting at 0x1000) is decremented by 77, it     
+  becomes 0x0FAB (odd), causing alignment faults on word stores.                                                     
+                                                                                                                     
+  Frame sizes must be even for word-aligned access. Let me find and fix the frame size calculation.                  
+                                                                                                                     
+⏺ Searched for 1 pattern, read 1 file (ctrl+o to expand)                                                             
+                                                                                                                     
+⏺ Update(ygen/codegen.go)                                                                                            
+  ⎿  Added 4 lines                                                                                                   
+      430      R6: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 4,                                  
+      431    }                                                                                                       
+      432    cg.totalFrameSize = f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + savedRegSize          
+      433 +  // Ensure frame size is even for word alignment                                                         
+      434 +  if cg.totalFrameSize%2 != 0 {                                                                           
+      435 +    cg.totalFrameSize++                                                                                   
+      436 +  }                                                                                                       
+      437                                                                                                            
+      438    cg.emit.Comment("Function: %s", f.Name)                                                                 
+      439    cg.emit.Comment("Visibility: %s, Return: %s", f.Visibility, f.ReturnType)                               
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/ygen && go build -o yapl-gen . && echo "ygen built    
+      successfully")                                                                                                 
+  ⎿  ygen built successfully                                                                                         
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang && ./ygen/yapl-gen < fib-combined.ir >                
+      fib-combined.asm && ../asm/wut4asm fib-combined.asm && ../emul/wu…)                                            
+  ⎿  Assembly successful: fib-combined.asm -> wut4.out                                                               
+     Code: 1554 bytes, Data: 0 bytes                                                                                 
+     … +54 lines (ctrl+o to expand)                                                                                  
+                                                                                                                     
+⏺ Still getting an alignment fault. Let me check the generated assembly to see if the frame alignment fix was        
+  applied.                                                                                                           
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ The frame size is now 78 (even), but line 68 shows stw r4, r7, -7 which uses an odd offset. The problem is that the
+   saved register offset is calculated before the alignment padding is added.                                        
+                                                                                                                     
+  Let me look at how the prologue is generated.                                                                      
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ I see the problem. The savedRegOffsets are calculated at lines 427-431 before the alignment padding is added at    
+  line 435. So when we add 1 byte of padding, all the offset calculations become wrong.                              
+                                                                                                                     
+  Let me fix this by calculating the offsets after the alignment adjustment.                                         
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ The issue is that we're adding padding to totalFrameSize but not adjusting the savedRegOffsets accordingly. When we
+   add 1 byte of padding, the pre-save offset calculation becomes wrong.                                             
+                                                                                                                     
+  Let me fix this by calculating the alignment padding first and then using it to adjust all offsets.                
+                                                                                                                     
+⏺ Update(ygen/codegen.go)                                                                                            
+  ⎿  Added 27 lines, removed 8 lines                                                                                 
+      424    }                                                                                                       
+      425                                                                                                            
+      426    savedRegSize := 6 // always save R4, R5, R6 to simplify                                                 
+      427 -  cg.savedRegOffsets = map[int]int{                                                                       
+      428 -    R4: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace,                                      
+      429 -    R5: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 2,                                  
+      430 -    R6: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 4,                                  
+      427 +                                                                                                          
+      428 +  // Calculate total frame size first, then add alignment padding                                         
+      429 +  rawFrameSize := f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + savedRegSize              
+      430 +  alignmentPadding := 0                                                                                   
+      431 +  if rawFrameSize%2 != 0 {                                                                                
+      432 +    alignmentPadding = 1                                                                                  
+      433    }                                                                                                       
+      432 -  cg.totalFrameSize = f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + savedRegSize          
+      433 -  // Ensure frame size is even for word alignment                                                         
+      434 -  if cg.totalFrameSize%2 != 0 {                                                                           
+      435 -    cg.totalFrameSize++                                                                                   
+      434 +  cg.totalFrameSize = rawFrameSize + alignmentPadding                                                     
+      435 +                                                                                                          
+      436 +  // All offsets are calculated with alignment padding at the beginning of the frame                      
+      437 +  // This shifts all content up by the padding amount                                                     
+      438 +  baseOffset := alignmentPadding                                                                          
+      439 +  cg.nextVirtSlot = baseOffset + f.FrameSize // virtual regs start after locals (and padding)             
+      440 +                                                                                                          
+      441 +  // Update parameter offsets with alignment                                                              
+      442 +  for i := 0; i < cg.numRegParams; i++ {                                                                  
+      443 +    cg.paramOffsets[i] = baseOffset + f.FrameSize + virtRegSpace + i*2                                    
+      444    }                                                                                                       
+      445                                                                                                            
+      446 +  // Update link offset with alignment                                                                    
+      447 +  if cg.hasCalls {                                                                                        
+      448 +    cg.linkOffset = baseOffset + f.FrameSize + virtRegSpace + paramSaveSpace                              
+      449 +  }                                                                                                       
+      450 +                                                                                                          
+      451 +  cg.savedRegOffsets = map[int]int{                                                                       
+      452 +    R4: baseOffset + f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace,                         
+      453 +    R5: baseOffset + f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 2,                     
+      454 +    R6: baseOffset + f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 4,                     
+      455 +  }                                                                                                       
+      456 +                                                                                                          
+      457    cg.emit.Comment("Function: %s", f.Name)                                                                 
+      458    cg.emit.Comment("Visibility: %s, Return: %s", f.Visibility, f.ReturnType)                               
+      459    cg.emit.Comment("Params: %d, Frame: %d bytes (locals=%d, virtregs=%d, params=%d, saved=%d)",            
+                                                                                                                     
+⏺ Wait, I need to also remove the earlier assignments since I'm moving them. Let me check what we have now.          
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ I have duplicate assignments now. Let me clean this up by removing the earlier ones and keeping the corrected ones.
+                                                                                                                     
+⏺ Update(ygen/codegen.go)                                                                                            
+  ⎿  Added 8 lines, removed 13 lines                                                                                 
+      398    }                                                                                                       
+      399                                                                                                            
+      400    // Calculate frame layout:                                                                              
+      401 -  // [SP+0 ... SP+frameSize-1] = locals from IR                                                           
+      402 -  // [SP+frameSize ... SP+frameSize+virtRegSpace-1] = virtual register spill slots                        
+      403 -  // [SP+frameSize+virtRegSpace ... SP+frameSize+virtRegSpace+paramSaveSpace-1] = saved register pa       
+          -rams                                                                                                      
+      404 -  // [SP+frameSize+virtRegSpace+paramSaveSpace ... ] = saved callee-saved registers                       
+      401 +  // [SP+0 ... SP+padding-1] = alignment padding (if needed)                                              
+      402 +  // [SP+padding ... SP+padding+frameSize-1] = locals from IR                                             
+      403 +  // [SP+padding+frameSize ... SP+padding+frameSize+virtRegSpace-1] = virtual register spill slots        
+      404 +  // [SP+padding+frameSize+virtRegSpace ... SP+padding+frameSize+virtRegSpace+paramSaveSpace-1] = s       
+          +aved register params                                                                                      
+      405 +  // [SP+padding+frameSize+virtRegSpace+paramSaveSpace ... ] = saved callee-saved registers               
+      406 +                                                                                                          
+      407    virtRegSpace := (maxVirtReg + 1) * 2 // each virtual reg gets 2 bytes                                   
+      406 -  cg.nextVirtSlot = f.FrameSize        // virtual regs start after locals                                 
+      408 +  savedRegSize := 6                    // always save R4, R5, R6 to simplify                              
+      409                                                                                                            
+      410    // Save register parameters (r1-r3) to stack so they survive function calls                             
+      411    cg.numRegParams = len(f.Params)                                                                         
+     ...                                                                                                             
+      413      cg.numRegParams = 3                                                                                   
+      414    }                                                                                                       
+      415    paramSaveSpace := cg.numRegParams * 2                                                                   
+      414 -  for i := 0; i < cg.numRegParams; i++ {                                                                  
+      415 -    cg.paramOffsets[i] = f.FrameSize + virtRegSpace + i*2                                                 
+      416 -  }                                                                                                       
+      416                                                                                                            
+      417    // Check if function makes calls - if so, need to save LINK                                             
+      418    cg.hasCalls = cg.functionHasCalls(f)                                                                    
+      419    linkSaveSpace := 0                                                                                      
+      420    if cg.hasCalls {                                                                                        
+      421      linkSaveSpace = 2                                                                                     
+      423 -    cg.linkOffset = f.FrameSize + virtRegSpace + paramSaveSpace                                           
+      422    }                                                                                                       
+      423                                                                                                            
+      426 -  savedRegSize := 6 // always save R4, R5, R6 to simplify                                                 
+      427 -                                                                                                          
+      424    // Calculate total frame size first, then add alignment padding                                         
+      425    rawFrameSize := f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + savedRegSize              
+      426    alignmentPadding := 0                                                                                   
+     ...                                                                                                             
+      432    // All offsets are calculated with alignment padding at the beginning of the frame                      
+      433    // This shifts all content up by the padding amount                                                     
+      434    baseOffset := alignmentPadding                                                                          
+      435 +                                                                                                          
+      436    cg.nextVirtSlot = baseOffset + f.FrameSize // virtual regs start after locals (and padding)             
+      437                                                                                                            
+      441 -  // Update parameter offsets with alignment                                                              
+      438    for i := 0; i < cg.numRegParams; i++ {                                                                  
+      439      cg.paramOffsets[i] = baseOffset + f.FrameSize + virtRegSpace + i*2                                    
+      440    }                                                                                                       
+      441                                                                                                            
+      446 -  // Update link offset with alignment                                                                    
+      442    if cg.hasCalls {                                                                                        
+      443      cg.linkOffset = baseOffset + f.FrameSize + virtRegSpace + paramSaveSpace                              
+      444    }                                                                                                       
+                                                                                                                     
+⏺ Now I need to ensure that local variable accesses also account for the alignment padding. Let me check where       
+  stack-relative accesses are generated.                                                                             
+                                                                                                                     
+⏺ Searched for 1 pattern, read 1 file (ctrl+o to expand)                                                             
+                                                                                                                     
+⏺ I need to store the alignment padding as a field and add it to stack addresses. Let me add a field to CodeGen and  
+  update the parsing.                                                                                                
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ Update(ygen/codegen.go)                                                                                            
+  ⎿  Added 3 lines                                                                                                   
+      31    // Total frame size including saved registers and virtual register spill slots                           
+      32    totalFrameSize int                                                                                       
+      33                                                                                                             
+      34 +  // Alignment padding at the start of the frame (0 or 1)                                                  
+      35 +  alignmentPadding int                                                                                     
+      36 +                                                                                                           
+      37    // Virtual register to stack offset mapping                                                              
+      38    virtRegSlots map[string]int                                                                              
+      39    nextVirtSlot int                                                                                         
+                                                                                                                     
+⏺ Searched for 1 pattern, read 1 file (ctrl+o to expand)                                                             
+                                                                                                                     
+⏺ Update(ygen/codegen.go)                                                                                            
+  ⎿  Added 4 lines, removed 4 lines                                                                                  
+      426                                                                                                            
+      427    // Calculate total frame size first, then add alignment padding                                         
+      428    rawFrameSize := f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + savedRegSize              
+      429 -  alignmentPadding := 0                                                                                   
+      429 +  cg.alignmentPadding = 0                                                                                 
+      430    if rawFrameSize%2 != 0 {                                                                                
+      431 -    alignmentPadding = 1                                                                                  
+      431 +    cg.alignmentPadding = 1                                                                               
+      432    }                                                                                                       
+      433 -  cg.totalFrameSize = rawFrameSize + alignmentPadding                                                     
+      433 +  cg.totalFrameSize = rawFrameSize + cg.alignmentPadding                                                  
+      434                                                                                                            
+      435    // All offsets are calculated with alignment padding at the beginning of the frame                      
+      436    // This shifts all content up by the padding amount                                                     
+      437 -  baseOffset := alignmentPadding                                                                          
+      437 +  baseOffset := cg.alignmentPadding                                                                       
+      438                                                                                                            
+      439    cg.nextVirtSlot = baseOffset + f.FrameSize // virtual regs start after locals (and padding)             
+      440                                                                                                            
+                                                                                                                     
+⏺ Now update parseStackAddr to add the alignment padding.                                                            
+                                                                                                                     
+⏺ Update(ygen/codegen.go)                                                                                            
+  ⎿  Added 2 lines                                                                                                   
+      1178    }                                                                                                      
+      1179    inner := addr[4 : len(addr)-1]                                                                         
+      1180    offset = cg.parseValue(inner)                                                                          
+      1181 +  // Add alignment padding to account for padding at start of frame                                      
+      1182 +  offset += cg.alignmentPadding                                                                          
+      1183    return R7, offset, true                                                                                
+      1184  }                                                                                                        
+      1185                                                                                                           
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/ygen && go build -o yapl-gen . && echo "ygen built    
+      successfully")                                                                                                 
+  ⎿  ygen built successfully                                                                                         
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang && ./ygen/yapl-gen < fib-combined.ir >                
+      fib-combined.asm && ../asm/wut4asm fib-combined.asm && ../emul/wu…)                                            
+  ⎿  Assembly successful: fib-combined.asm -> wut4.out                                                               
+     Code: 1554 bytes, Data: 0 bytes                                                                                 
+     … +54 lines (ctrl+o to expand)                                                                                  
+                                                                                                                     
+⏺ Still getting alignment faults. Let me check the generated assembly to see what's happening.                       
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ I see the problem now. Lines 84-86 show:                                                                           
+  stw r4, r7, 5   ; odd offset!                                                                                      
+  ldw r4, r7, 5                                                                                                      
+  stw r4, r7, 1   ; odd offset!                                                                                      
+                                                                                                                     
+  The offsets 1, 5, 7, 9 are all odd because they're for byte-sized local variables. But the code is using STW/LDW   
+  (word operations) instead of STB/LDB.                                                                              
+                                                                                                                     
+  The issue is that the semantic analyzer (ysem) is generating STORE.W for byte-sized local variables instead of     
+  STORE.B. Let me check and fix that.                                                                                
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ I see STORE.B is being generated correctly for some byte stores. Let me check how the code generator handles byte  
+  stores to stack addresses.                                                                                         
+                                                                                                                     
+⏺ Searched for 1 pattern, read 1 file (ctrl+o to expand)                                                             
+                                                                                                                     
+⏺ I found a problem! Looking at the IR:                                                                              
+  STORE.B [SP+3], t13    ; Store byte correctly                                                                      
+  ...                                                                                                                
+  t21 = LOAD.W [SP+3]    ; But load it back as WORD!                                                                 
+                                                                                                                     
+  The IR generates LOAD.W when loading from the byte variable temp, but it should be LOAD.BU. Let me fix this in the 
+  semantic analyzer.                                                                                                 
+                                                                                                                     
+⏺ Searched for 1 pattern, read 1 file (ctrl+o to expand)                                                             
+                                                                                                                     
+⏺ Update(ysem/ir.go)                                                                                                 
+  ⎿  Added 6 lines, removed 1 line                                                                                   
+      573          if offset < 0 {                                                                                   
+      574            offset = -offset - 2 // Convert -2 -> 0, -4 -> 2, etc.                                          
+      575          }                                                                                                 
+      576 -        g.emit("LOAD.W", t, fmt.Sprintf("[SP+%d]", offset))                                               
+      576 +        // Use LOAD.BU for byte variables                                                                 
+      577 +        if g.isByteType(v.Type) {                                                                         
+      578 +          g.emit("LOAD.BU", t, fmt.Sprintf("[SP+%d]", offset))                                            
+      579 +        } else {                                                                                          
+      580 +          g.emit("LOAD.W", t, fmt.Sprintf("[SP+%d]", offset))                                             
+      581 +        }                                                                                                 
+      582        }                                                                                                   
+      583        return t                                                                                            
+      584      }                                                                                                     
+                                                                                                                     
+⏺ Now let me also check if the store to byte local variables is handled correctly.                                   
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ The store is already handled. Let me rebuild and test.                                                             
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/ysem && go build -o yapl-sem . && echo "ysem built    
+      successfully")                                                                                                 
+  ⎿  ysem built successfully                                                                                         
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang && ./ysem/yapl-sem < fib-combined.parse >             
+      fib-combined.ir && ./ygen/yapl-gen < fib-combined.ir > fib-com…)                                               
+  ⎿  Assembly successful: fib-combined.asm -> wut4.out                                                               
+     Code: 1554 bytes, Data: 0 bytes                                                                                 
+     … +54 lines (ctrl+o to expand)                                                                                  
+                                                                                                                     
+⏺ Still the same crash. Let me verify the IR was regenerated correctly.                                              
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ The IR looks correct now with LOAD.BU [SP+3]. Let me check the generated assembly.                                 
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ I see the problem now. By adding alignment padding to all offsets, I'm converting even offsets (like 0, 2) to odd  
+  offsets (1, 3). This breaks word alignment.                                                                        
+                                                                                                                     
+  The correct fix is to add alignment padding at the END of the frame (after saved registers), not at the beginning. 
+  This way, all the existing offsets remain valid and SP stays even-aligned.                                         
+                                                                                                                     
+⏺ Update(ygen/codegen.go)                                                                                            
+  ⎿  Added 1 line, removed 2 lines                                                                                   
+      1178    }                                                                                                      
+      1179    inner := addr[4 : len(addr)-1]                                                                         
+      1180    offset = cg.parseValue(inner)                                                                          
+      1181 -  // Add alignment padding to account for padding at start of frame                                      
+      1182 -  offset += cg.alignmentPadding                                                                          
+      1181 +  // Alignment padding is at the END of frame, so offsets don't need adjustment                          
+      1182    return R7, offset, true                                                                                
+      1183  }                                                                                                        
+      1184                                                                                                           
+                                                                                                                     
+⏺ Update(ygen/codegen.go)                                                                                            
+  ⎿  Added 12 lines, removed 16 lines                                                                                
+      401    }                                                                                                       
+      402                                                                                                            
+      403    // Calculate frame layout:                                                                              
+      404 -  // [SP+0 ... SP+padding-1] = alignment padding (if needed)                                              
+      405 -  // [SP+padding ... SP+padding+frameSize-1] = locals from IR                                             
+      406 -  // [SP+padding+frameSize ... SP+padding+frameSize+virtRegSpace-1] = virtual register spill slots        
+      407 -  // [SP+padding+frameSize+virtRegSpace ... SP+padding+frameSize+virtRegSpace+paramSaveSpace-1] = s       
+          -aved register params                                                                                      
+      408 -  // [SP+padding+frameSize+virtRegSpace+paramSaveSpace ... ] = saved callee-saved registers               
+      404 +  // [SP+0 ... SP+frameSize-1] = locals from IR                                                           
+      405 +  // [SP+frameSize ... SP+frameSize+virtRegSpace-1] = virtual register spill slots                        
+      406 +  // [SP+frameSize+virtRegSpace ... SP+frameSize+virtRegSpace+paramSaveSpace-1] = saved register pa       
+          +rams                                                                                                      
+      407 +  // [SP+frameSize+virtRegSpace+paramSaveSpace ... ] = saved callee-saved registers + alignment pad       
+          +ding                                                                                                      
+      408                                                                                                            
+      409    virtRegSpace := (maxVirtReg + 1) * 2 // each virtual reg gets 2 bytes                                   
+      410    savedRegSize := 6                    // always save R4, R5, R6 to simplify                              
+     ...                                                                                                             
+      423      linkSaveSpace = 2                                                                                     
+      424    }                                                                                                       
+      425                                                                                                            
+      427 -  // Calculate total frame size first, then add alignment padding                                         
+      426 +  // Calculate total frame size, then add alignment padding at the END                                    
+      427    rawFrameSize := f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + savedRegSize              
+      428    cg.alignmentPadding = 0                                                                                 
+      429    if rawFrameSize%2 != 0 {                                                                                
+     ...                                                                                                             
+      431    }                                                                                                       
+      432    cg.totalFrameSize = rawFrameSize + cg.alignmentPadding                                                  
+      433                                                                                                            
+      435 -  // All offsets are calculated with alignment padding at the beginning of the frame                      
+      436 -  // This shifts all content up by the padding amount                                                     
+      437 -  baseOffset := cg.alignmentPadding                                                                       
+      434 +  // Offsets are NOT adjusted for padding - padding is at the end of frame                                
+      435 +  cg.nextVirtSlot = f.FrameSize // virtual regs start after locals                                        
+      436                                                                                                            
+      439 -  cg.nextVirtSlot = baseOffset + f.FrameSize // virtual regs start after locals (and padding)             
+      440 -                                                                                                          
+      437    for i := 0; i < cg.numRegParams; i++ {                                                                  
+      442 -    cg.paramOffsets[i] = baseOffset + f.FrameSize + virtRegSpace + i*2                                    
+      438 +    cg.paramOffsets[i] = f.FrameSize + virtRegSpace + i*2                                                 
+      439    }                                                                                                       
+      440                                                                                                            
+      441    if cg.hasCalls {                                                                                        
+      446 -    cg.linkOffset = baseOffset + f.FrameSize + virtRegSpace + paramSaveSpace                              
+      442 +    cg.linkOffset = f.FrameSize + virtRegSpace + paramSaveSpace                                           
+      443    }                                                                                                       
+      444                                                                                                            
+      445    cg.savedRegOffsets = map[int]int{                                                                       
+      450 -    R4: baseOffset + f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace,                         
+      451 -    R5: baseOffset + f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 2,                     
+      452 -    R6: baseOffset + f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 4,                     
+      446 +    R4: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace,                                      
+      447 +    R5: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 2,                                  
+      448 +    R6: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 4,                                  
+      449    }                                                                                                       
+      450                                                                                                            
+      451    cg.emit.Comment("Function: %s", f.Name)                                                                 
+                                                                                                                     
+⏺ Wait, I see the real issue now. The frame size from the IR is 5 (odd), which means virtual registers start at      
+  offset 5 (odd). This causes word operations on virtual registers to use odd addresses.                             
+                                                                                                                     
+  The fix is to pad the frame size to be even so that virtual registers start at an even offset.                     
+                                                                                                                     
+⏺ Update(ygen/codegen.go)                                                                                            
+  ⎿  Added 7 lines, removed 1 line                                                                                   
+      401    }                                                                                                       
+      402                                                                                                            
+      403    // Calculate frame layout:                                                                              
+      404 -  // [SP+0 ... SP+frameSize-1] = locals from IR                                                           
+      404 +  // [SP+0 ... SP+frameSize-1] = locals from IR (padded to even)                                          
+      405    // [SP+frameSize ... SP+frameSize+virtRegSpace-1] = virtual register spill slots                        
+      406    // [SP+frameSize+virtRegSpace ... SP+frameSize+virtRegSpace+paramSaveSpace-1] = saved register pa       
+           rams                                                                                                      
+      407    // [SP+frameSize+virtRegSpace+paramSaveSpace ... ] = saved callee-saved registers + alignment pad       
+           ding                                                                                                      
+      408                                                                                                            
+      409 +  // Ensure frame size (locals area) is even so that virtual registers are word-aligned                   
+      410 +  localFrameSize := f.FrameSize                                                                           
+      411 +  if localFrameSize%2 != 0 {                                                                              
+      412 +    localFrameSize++                                                                                      
+      413 +  }                                                                                                       
+      414 +                                                                                                          
+      415    virtRegSpace := (maxVirtReg + 1) * 2 // each virtual reg gets 2 bytes                                   
+      416    savedRegSize := 6                    // always save R4, R5, R6 to simplify                              
+      417                                                                                                            
+                                                                                                                     
+⏺ Now I need to use localFrameSize instead of f.FrameSize for offset calculations.                                   
+                                                                                                                     
+⏺ Update(ygen/codegen.go)                                                                                            
+  ⎿  Added 10 lines, removed 14 lines                                                                                
+      429      linkSaveSpace = 2                                                                                     
+      430    }                                                                                                       
+      431                                                                                                            
+      432 -  // Calculate total frame size, then add alignment padding at the END                                    
+      433 -  rawFrameSize := f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + savedRegSize              
+      434 -  cg.alignmentPadding = 0                                                                                 
+      435 -  if rawFrameSize%2 != 0 {                                                                                
+      436 -    cg.alignmentPadding = 1                                                                               
+      437 -  }                                                                                                       
+      438 -  cg.totalFrameSize = rawFrameSize + cg.alignmentPadding                                                  
+      432 +  // Calculate total frame size (should be even since all components are even or padded)                  
+      433 +  cg.totalFrameSize = localFrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + savedRegSize       
+      434 +  cg.alignmentPadding = 0 // No longer needed since we pad locals to even                                 
+      435                                                                                                            
+      440 -  // Offsets are NOT adjusted for padding - padding is at the end of frame                                
+      441 -  cg.nextVirtSlot = f.FrameSize // virtual regs start after locals                                        
+      436 +  // Virtual regs start after (padded) locals                                                             
+      437 +  cg.nextVirtSlot = localFrameSize                                                                        
+      438                                                                                                            
+      439    for i := 0; i < cg.numRegParams; i++ {                                                                  
+      444 -    cg.paramOffsets[i] = f.FrameSize + virtRegSpace + i*2                                                 
+      440 +    cg.paramOffsets[i] = localFrameSize + virtRegSpace + i*2                                              
+      441    }                                                                                                       
+      442                                                                                                            
+      443    if cg.hasCalls {                                                                                        
+      448 -    cg.linkOffset = f.FrameSize + virtRegSpace + paramSaveSpace                                           
+      444 +    cg.linkOffset = localFrameSize + virtRegSpace + paramSaveSpace                                        
+      445    }                                                                                                       
+      446                                                                                                            
+      447    cg.savedRegOffsets = map[int]int{                                                                       
+      452 -    R4: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace,                                      
+      453 -    R5: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 2,                                  
+      454 -    R6: f.FrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 4,                                  
+      448 +    R4: localFrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace,                                   
+      449 +    R5: localFrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 2,                               
+      450 +    R6: localFrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 4,                               
+      451    }                                                                                                       
+      452                                                                                                            
+      453    cg.emit.Comment("Function: %s", f.Name)                                                                 
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/ygen && go build -o yapl-gen . && echo "ygen built    
+      successfully")                                                                                                 
+  ⎿  ygen built successfully                                                                                         
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang && ./ygen/yapl-gen < fib-combined.ir >                
+      fib-combined.asm && ../asm/wut4asm fib-combined.asm && ../emul/wu…)                                            
+  ⎿  Assembly successful: fib-combined.asm -> wut4.out                                                               
+     Code: 1554 bytes, Data: 0 bytes                                                                                 
+     … +54 lines (ctrl+o to expand)                                                                                  
+                                                                                                                     
+⏺ Still crashing. Let me check the generated assembly.                                                               
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ Let me check if the padding is being applied correctly.                                                            
+                                                                                                                     
+⏺ Searched for 1 pattern, read 1 file (ctrl+o to expand)                                                             
+                                                                                                                     
+⏺ Found the bug! Line 684:                                                                                           
+  offset := cg.currFunc.FrameSize + n*2                                                                              
+                                                                                                                     
+  This uses the raw FrameSize (5) instead of the padded value (6). Let me fix this.                                  
+                                                                                                                     
+⏺ Update(ygen/codegen.go)                                                                                            
+  ⎿  Added 2 lines, removed 2 lines                                                                                  
+      679    if offset, ok := cg.virtRegSlots[virt]; ok {                                                            
+      680      return offset                                                                                         
+      681    }                                                                                                       
+      682 -  // Allocate new slot                                                                                    
+      682 +  // Allocate new slot - use nextVirtSlot as base (which is padded to even)                               
+      683    n := cg.parseVirtRegNum(virt)                                                                           
+      684 -  offset := cg.currFunc.FrameSize + n*2                                                                   
+      684 +  offset := cg.nextVirtSlot + n*2                                                                         
+      685    cg.virtRegSlots[virt] = offset                                                                          
+      686    return offset                                                                                           
+      687  }                                                                                                         
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/ygen && go build -o yapl-gen . && ./ygen/yapl-gen <   
+      fib-combined.ir > fib-combined.asm && ../asm/wut4asm…)                                                         
+  ⎿  Error: Exit code 1                                                                                              
+     /bin/bash: fib-combined.ir: No such file or directory                                                           
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/ygen && go build -o yapl-gen . && ./ygen/yapl-gen <   
+      fib-combined.ir > fib-combined.asm && ../asm/wut4asm…)                                                         
+  ⎿  Error: Exit code 1                                                                                              
+     /bin/bash: fib-combined.ir: No such file or directory                                                           
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/ygen && go build -o yapl-gen .)                       
+  ⎿  (No content)                                                                                                    
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang && ./ygen/yapl-gen < fib-combined.ir >                
+      fib-combined.asm && ../asm/wut4asm fib-combined.asm && ../emul/wu…)                                            
+  ⎿  Assembly successful: fib-combined.asm -> wut4.out                                                               
+     Code: 1566 bytes, Data: 0 bytes                                                                                 
+     … +73 lines (ctrl+o to expand)                                                                                  
+                                                                                                                     
+⏺ The program runs without crashing now! But it's printing all zeros instead of Fibonacci numbers. There's a logic   
+  bug. Let me check what the full output looks like.                                                                 
+                                                                                                                     
+⏺ Bash(../emul/wut4emu wut4.out 2>&1)                                                                                
+  ⎿  0                                                                                                               
+     0                                                                                                               
+     0                                                                                                               
+     … +29 lines (ctrl+o to expand)                                                                                  
+                                                                                                                     
+⏺ The program is printing "0" 25 times. It seems like the Fibonacci loop is running but Utoa or the number printing  
+  is broken. Let me check the YAPL source.                                                                           
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ The program logic looks correct. The issue might be with parameter passing or the Utoa function. Let me check the  
+  assembly for Utoa to see if parameters are being handled correctly.                                                
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ Let me trace through what's happening with the first Fibonacci number. I'll check the main function assembly.      
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ I see an issue. The code computes SP + 4 for the buffer address, but buf should be at SP + 0. Let me check how the 
+  ADDR instruction is handled.                                                                                       
+                                                                                                                     
+⏺ Searched for 4 patterns, read 1 file (ctrl+o to expand)                                                            
+                                                                                                                     
+⏺ I see the issue. Looking at the IR:                                                                                
+  LOCAL buf [6]UINT8 4                                                                                               
+  LOCAL n1 UINT16 6                                                                                                  
+                                                                                                                     
+  If buf is at offset 4 and is 6 bytes, it should end at offset 9. But n1 is at offset 6, which overlaps with buf!   
+  The parser/analyzer is computing offsets incorrectly for arrays.                                                   
+                                                                                                                     
+  Let me check the YAPL parser's local offset calculation.                                                           
+                                                                                                                     
+⏺ Searched for 6 patterns, read 2 files (ctrl+o to expand)                                                           
+                                                                                                                     
+⏺ Let me check how the IR generator converts the parser's negative offsets to positive offsets.                      
+                                                                                                                     
+⏺ Searched for 2 patterns, read 1 file (ctrl+o to expand)                                                            
+                                                                                                                     
+⏺ I found the bug! The offset conversion formula at line 331:                                                        
+  offset = -offset - 2 // Convert -2 -> 0, -4 -> 2, etc.                                                             
+                                                                                                                     
+  This formula only works for 2-byte aligned offsets. For arrays (like buf at offset -6 with frameSize 12), the      
+  correct conversion is:                                                                                             
+  offset = frameSize + offset                                                                                        
+                                                                                                                     
+  For buf at -6 with frameSize 12: 12 + (-6) = 6, which is correct (buf starts 6 bytes from the bottom of the frame).
+                                                                                                                     
+  Let me fix this.                                                                                                   
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ Update(ysem/ir.go)                                                                                                 
+  ⎿  Added 4 lines, removed 1 line                                                                                   
+      325    }                                                                                                       
+      326                                                                                                            
+      327    // Add locals to IR (convert negative offsets to positive)                                              
+      328 +  // Negative offsets are relative to original SP (before frame allocation)                               
+      329 +  // After allocating frameSize bytes, new SP = original SP - frameSize                                   
+      330 +  // To access a local at negative offset from new SP: frameSize + offset                                 
+      331    for _, l := range f.Locals {                                                                            
+      332      offset := l.Offset                                                                                    
+      333      if offset < 0 {                                                                                       
+      331 -      offset = -offset - 2 // Convert -2 -> 0, -4 -> 2, etc.                                              
+      334 +      offset = f.FrameSize + offset // Convert -6 with frameSize 12 -> 6                                  
+      335      }                                                                                                     
+      336      g.currentFn.Locals = append(g.currentFn.Locals, &IRLocal{                                             
+      337        Name:   l.Name,                                                                                     
+                                                                                                                     
+⏺ Now I need to fix the same issue in other places where this conversion is used.                                    
+                                                                                                                     
+⏺ Searched for 2 patterns, read 1 file (ctrl+o to expand)                                                            
+                                                                                                                     
+⏺ Update(ysem/ir.go)                                                                                                 
+  ⎿  Added 2 lines, removed 2 lines                                                                                  
+      571          g.emit("PARAM", t, fmt.Sprintf("%d", idx))                                                        
+      572        } else {                                                                                            
+      573          // Locals have negative offsets from SP in parser output                                          
+      574 -        // Convert to positive offset for IR                                                              
+      574 +        // Convert to positive offset for IR: frameSize + negativeOffset                                  
+      575          offset := v.Offset                                                                                
+      576          if offset < 0 {                                                                                   
+      577 -          offset = -offset - 2 // Convert -2 -> 0, -4 -> 2, etc.                                          
+      577 +          offset = g.currentAst.FrameSize + offset                                                        
+      578          }                                                                                                 
+      579          // Use LOAD.BU for byte variables                                                                 
+      580          if g.isByteType(v.Type) {                                                                         
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ Update(ysem/ir.go)                                                                                                 
+  ⎿  Added 1 line, removed 1 line                                                                                    
+      764            // Local variable: compute SP + offset                                                          
+      765            offset := v.Offset                                                                              
+      766            if offset < 0 {                                                                                 
+      767 -            offset = -offset - 2                                                                          
+      767 +            offset = g.currentAst.FrameSize + offset                                                      
+      768            }                                                                                               
+      769            g.emit("ADD.W", t, "SP", fmt.Sprintf("%d", offset))                                             
+      770            return t                                                                                        
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ Update(ysem/ir.go)                                                                                                 
+  ⎿  Added 2 lines, removed 2 lines                                                                                  
+      874            return                                                                                          
+      875          }                                                                                                 
+      876          // Locals have negative offsets from SP in parser output                                          
+      877 -        // Convert to positive offset for IR                                                              
+      877 +        // Convert to positive offset for IR: frameSize + negativeOffset                                  
+      878          offset := v.Offset                                                                                
+      879          if offset < 0 {                                                                                   
+      880 -          offset = -offset - 2 // Convert -2 -> 0, -4 -> 2, etc.                                          
+      880 +          offset = g.currentAst.FrameSize + offset                                                        
+      881          }                                                                                                 
+      882          // Check if storing to a byte variable                                                            
+      883          if g.isByteType(v.Type) {                                                                         
+                                                                                                                     
+⏺ Now let me rebuild and test.                                                                                       
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/ysem && go build -o yapl-sem . && echo "ysem built    
+      successfully")                                                                                                 
+  ⎿  ysem built successfully                                                                                         
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang && ./ysem/yapl-sem < fib-combined.parse >             
+      fib-combined.ir && ./ygen/yapl-gen < fib-combined.ir > fib-com…)                                               
+  ⎿  Assembly successful: fib-combined.asm -> wut4.out                                                               
+     Code: 1566 bytes, Data: 0 bytes                                                                                 
+     … +54 lines (ctrl+o to expand)                                                                                  
+                                                                                                                     
+⏺ Still crashing. Let me verify the IR offsets are now correct.                                                      
+                                                                                                                     
+⏺ Searched for 2 patterns (ctrl+o to expand)                                                                         
+                                                                                                                     
+⏺ Let me check the assembly for reverse to see the actual offsets being used.                                        
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ I see the problem now. The parser computes frameSize as 5 (odd), and the IR offsets are based on that. When the    
+  code generator pads to 6, the IR offsets become wrong.                                                             
+                                                                                                                     
+  The fix needs to happen at the parser level - ensure frameSize is always even. Let me check where frameSize is     
+  computed.                                                                                                          
+                                                                                                                     
+⏺ Searched for 1 pattern, read 1 file (ctrl+o to expand)                                                             
+                                                                                                                     
+⏺ I need to fix this at the parser level. The simplest fix is to:                                                    
+  1. Round frameSize up to even in Finalize                                                                          
+  2. Adjust all local offsets by the padding amount                                                                  
+                                                                                                                     
+⏺ Update(yparse/symtab.go)                                                                                           
+  ⎿  Added 12 lines                                                                                                  
+      363    } else {                                                                                                
+      364      fs.Func.FrameSize = 0                                                                                 
+      365    }                                                                                                       
+      366 +                                                                                                          
+      367 +  // Ensure frame size is even for word alignment                                                         
+      368 +  // If we add padding, adjust all local offsets accordingly                                              
+      369 +  if fs.Func.FrameSize%2 != 0 {                                                                           
+      370 +    padding := 1                                                                                          
+      371 +    fs.Func.FrameSize++                                                                                   
+      372 +    // Adjust all local offsets by the padding amount                                                     
+      373 +    // Offsets are negative (e.g., -2), adding padding makes them more negative (e.g., -3)                
+      374 +    for _, local := range fs.Func.Locals {                                                                
+      375 +      local.Offset -= padding                                                                             
+      376 +    }                                                                                                     
+      377 +  }                                                                                                       
+      378  }                                                                                                         
+      379                                                                                                            
+      380  // LookupLocal looks up a name in the function scope (params then locals)                                 
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/yparse && go build -o yparse . && echo "yparse built  
+      successfully")                                                                                                 
+  ⎿  yparse built successfully                                                                                       
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang && cat bootstrap.yapl itoa.yapl fib.yapl >            
+      fib-combined.yapl && ./ylex/ylex < fib-combined.yapl > fib-co…)                                                
+  ⎿  Assembly successful: fib-combined.asm -> wut4.out                                                               
+     Code: 1566 bytes, Data: 0 bytes                                                                                 
+     … +54 lines (ctrl+o to expand)                                                                                  
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ I made an error! I shouldn't adjust the offsets - only the frame size needs to be padded. The conversion formula   
+  will automatically produce correct positive offsets.                                                               
+                                                                                                                     
+⏺ Update(yparse/symtab.go)                                                                                           
+  ⎿  Added 3 lines, removed 7 lines                                                                                  
+      365    }                                                                                                       
+      366                                                                                                            
+      367    // Ensure frame size is even for word alignment                                                         
+      368 -  // If we add padding, adjust all local offsets accordingly                                              
+      368 +  // The padding is conceptually at the bottom of the frame (most negative address)                       
+      369 +  // Offsets are NOT adjusted - the conversion formula (frameSize + negativeOffset)                       
+      370 +  // automatically gives correct positive offsets                                                         
+      371    if fs.Func.FrameSize%2 != 0 {                                                                           
+      370 -    padding := 1                                                                                          
+      372      fs.Func.FrameSize++                                                                                   
+      372 -    // Adjust all local offsets by the padding amount                                                     
+      373 -    // Offsets are negative (e.g., -2), adding padding makes them more negative (e.g., -3)                
+      374 -    for _, local := range fs.Func.Locals {                                                                
+      375 -      local.Offset -= padding                                                                             
+      376 -    }                                                                                                     
+      373    }                                                                                                       
+      374  }                                                                                                         
+      375                                                                                                            
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/yparse && go build -o yparse . && cat bootstrap.yapl  
+      itoa.yapl fib.yapl > fib-combined.yapl && ./ylex/yl…)                                                          
+  ⎿  Error: Exit code 1                                                                                              
+     cat: bootstrap.yapl: No such file or directory                                                                  
+     cat: itoa.yapl: No such file or directory                                                                       
+     cat: fib.yapl: No such file or directory                                                                        
+                                                                                                                     
+⏺ Bash(./yparse/yparse -help 2>&1 || echo "Rebuilding..."; cd yparse && go build -o yparse . && cd .. && cat         
+      bootstrap.yapl itoa.yapl fib.yapl > fib-combined.yapl && .…)                                                   
+  ⎿  Running in the background (↓ to manage)                                                                         
+                                                                                                                     
+⏺ Task Output b1795cc                                                                                                
+  ⎿  (No content)                                                                                                    
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang/yparse && go build -o yparse . && echo "Done")        
+  ⎿  Done                                                                                                            
+                                                                                                                     
+⏺ Bash(cd /Users/jeff/go/src/github.com/gmofishsauce/wut4/lang && cat bootstrap.yapl itoa.yapl fib.yapl >            
+      fib-combined.yapl && ./ylex/ylex < fib-combined.yapl > fib-co…)                                                
+  ⎿  Parse done                                                                                                      
+                                                                                                                     
+⏺ Bash(./ysem/yapl-sem < fib-combined.parse > fib-combined.ir && ./ygen/yapl-gen < fib-combined.ir > fib-combined.asm
+       && ../asm/wut4asm fib-combined.asm && ../emul/wut…)                                                           
+  ⎿  Assembly successful: fib-combined.asm -> wut4.out                                                               
+     Code: 1566 bytes, Data: 0 bytes                                                                                 
+     … +73 lines (ctrl+o to expand)                                                                                  
+                                                                                                                     
+⏺ No more crashes! But still printing zeros. Let me verify the offsets are correct now.                              
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ The offsets look correct now. The zero output issue is a logic bug. Let me trace through the main function's first 
+  Utoa call.                                                                                                         
+                                                                                                                     
+⏺ Searched for 2 patterns (ctrl+o to expand)                                                                         
+                                                                                                                     
+⏺ Let me check how PARAM is handled in the code generator.                                                           
+                                                                                                                     
+⏺ Searched for 1 pattern, read 1 file (ctrl+o to expand)                                                             
+                                                                                                                     
+⏺ I see an issue. The IR says STORE.W [SP+2] for local i, but the assembly shows stw r4, r7, 4. The offsets are being
+   shifted by 2. Let me check the code generator.                                                                    
+                                                                                                                     
+⏺ Read 1 file (ctrl+o to expand)                                                                                     
+                                                                                                                     
+⏺ Looking more carefully at the assembly, I see:                                                                     
+  1. Lines 24-26 store 0 to virtReg at offset 4, then copy to local i at offset 2                                    
+                                                                                                                     
+  The offsets look correct now. Let me trace the parameter access. The assembly shows accessing PARAM 0 (n) at offset
+   76.                                                                                                               
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ Let me check how the EQ.W comparison is generated to make sure it produces the correct result.                     
+                                                                                                                     
+⏺ Searched for 3 patterns, read 1 file (ctrl+o to expand)                                                            
+                                                                                                                     
+⏺ The loop count is correct (25 prints). The issue is that Utoa always returns "0". Let me trace through what happens
+   in the main loop.                                                                                                 
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ Let me check the Utoa prologue more carefully to verify parameter handling.                                        
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ Let me check how Utoa handles the return value. The function should return buf which is then passed to Putstr.     
+                                                                                                                     
+⏺ Searched for 8 patterns, read 2 files (ctrl+o to expand)                                                           
+                                                                                                                     
+⏺ Let me check the main function's prologue to understand the stack setup.                                           
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ Let me check a simple hypothesis - maybe the constant 1 isn't being generated correctly.                           
+                                                                                                                     
+⏺ Searched for 1 pattern (ctrl+o to expand)                                                                          
+                                                                                                                     
+⏺ Let me create a minimal test program to isolate the issue.                                                         
+                                                                                                                     
+⏺ Write(test-simple.yapl)                                                                                            
+  ⎿  Wrote 84 lines to test-simple.yapl                                                                              
+       1 // Simple test program                                                                                      
+       2 #asm(".bootstrap");                                                                                         
+       3                                                                                                             
+       4 func void main() {                                                                                          
+       5     var byte buf[6];                                                                                        
+       6                                                                                                             
+       7     // Test with constant 5                                                                                 
+       8     Utoa(5, &buf[0]);                                                                                       
+       9     Putstr(&buf[0]);                                                                                        
+      10     Putc(byte('\n'));                                                                                       
+     … +74 lines (ctrl+o to expand)                                                                                  
+                                                                                                                     
+⏺ Bash(./ylex/ylex < test-simple.yapl > test-simple.lex && ./yparse/yparse < test-simple.lex > test-simple.parse &&  
+      ./ysem/yapl-sem < test-simple.parse > test-simple.i…)                                                          
+  ⎿  Error: Exit code 1                                                                                              
+     stdin:8: error: argument 1 type mismatch in call to Utoa                                                        
+     1 error(s)                                                                                                      
+                                                                                                                     
+⏺ Update(test-simple.yapl)                                                                                           
+  ⎿  Added 4 lines, removed 2 lines                                                                                  
+       3                                                                                                             
+       4  func void main() {                                                                                         
+       5      var byte buf[6];                                                                                       
+       6 +    var uint16 n;                                                                                          
+       7                                                                                                             
+       7 -    // Test with constant 5                                                                                
+       8 -    Utoa(5, &buf[0]);                                                                                      
+       8 +    // Test with value 5                                                                                   
+       9 +    n = 5;                                                                                                 
+      10 +    Utoa(n, &buf[0]);                                                                                      
+      11      Putstr(&buf[0]);                                                                                       
+      12      Putc(byte('\n'));                                                                                      
+      13  }                                                                                                          
+                                                                                                                     
+⏺ Bash(./ylex/ylex < test-simple.yapl > test-simple.lex && ./yparse/yparse < test-simple.lex > test-simple.parse &&  
+      ./ysem/yapl-sem < test-simple.parse > test-simple.i…)                                                          
+  ⎿  Assembly successful: test-simple.asm -> wut4.out                                                                
+     Code: 1288 bytes, Data: 0 bytes                                                                                 
+     … +45 lines (ctrl+o to expand)                                                                                  
+                                                                                                                     
+⏺ Still prints 0. Let me check the assembly for this simple test.                                                    
+                                                                                                                     
+⏺ Searched for 3 patterns (ctrl+o to expand)                                                                         
+                                                                                                                     
+⏺ The comparison logic looks correct. Let me check the division routine.                                             
+                                                                                                                     
+⏺ Searching for 6 patterns, reading 1 file… (ctrl+o to expand)                                                       
+                                                                                                                     
+✳ Befuddling… (23m 55s · ↓ 14.5k tokens · thinking)                                                                  
+                                                                                                                     
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯                                                                                                                    
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ accept edits on · 1 bash · ↓ to view · esc to interrupt · ctrl+t to hide tasks           Now using extra usage  
+                                                                                                Context left until   
+                                                                                                auto-compact: 7%     
+

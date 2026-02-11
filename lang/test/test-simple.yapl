@@ -1,0 +1,96 @@
+// Simple test program
+#asm(".bootstrap");
+
+func void main() {
+    var byte buf[6];
+    var uint16 n;
+
+    // Test 1: Print constant string
+    buf[0] = '5';
+    buf[1] = 0;
+    Putstr(&buf[0]);
+    Putc(byte('\n'));
+
+    // Test 2: Simple param test - just add '0' to n and print
+    n = 5;
+    TestPrint(n, &buf[0]);
+    Putstr(&buf[0]);
+    Putc(byte('\n'));
+
+    // Test 3: Test with Utoa
+    n = 5;
+    Utoa(n, &buf[0]);
+    Putstr(&buf[0]);
+    Putc(byte('\n'));
+}
+
+func void TestPrint(uint16 n, @byte buf) {
+    // Just store n + '0' and null terminator
+    @buf = byte(n + '0');
+    @(buf + 1) = 0;
+}
+
+func @byte Utoa(uint16 n, @byte buf) {
+    var uint16 i;
+    var uint16 digit;
+
+    i = 0;
+
+    // Handle zero specially
+    if (n == 0) {
+        @buf = 'Z';
+        @(buf + 1) = 0;
+        return buf;
+    }
+
+    // Test: simple while loop that runs once
+    while (n != 0) {
+        @(buf + i) = byte(n + '0');
+        i = i + 1;
+        n = 0;  // Force exit after one iteration
+    }
+    @(buf + i) = 0;
+    return buf;
+}
+
+func void reverse(@byte str, uint16 len) {
+    var uint16 start;
+    var uint16 end;
+    var byte temp;
+
+    start = 0;
+    if (len == 0) {
+        return;
+    }
+    end = len - 1;
+
+    while (start < end) {
+        temp = @(str + start);
+        @(str + start) = @(str + end);
+        @(str + end) = temp;
+        start = start + 1;
+        end = end - 1;
+    }
+}
+
+func void Putc(byte b) {
+    #asm("ldi r2 96");
+    #asm("ssp r1 r2");
+}
+
+func byte isOverflow() {
+    #asm("ldi r2 98");
+    #asm("lsp r1 r2");
+    #asm("ldi r2 1");
+    #asm("and r1 r1 r2");
+}
+
+func void Putstr(@byte bp) {
+    while (@bp != 0) {
+        Putc(@bp);
+        if (isOverflow()) {
+            continue;
+        }
+        bp = bp + 1;
+    }
+}
