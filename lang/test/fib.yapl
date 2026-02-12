@@ -19,7 +19,8 @@ func void main() {
     Putc(byte('\n'));
 
     // Generate and print remaining Fibonacci numbers
-    while (n1 + n2 <= MAX_FIB) {
+    // Use subtraction to avoid uint16 overflow in the addition
+    while (n1 <= MAX_FIB - n2) {
         next = n1 + n2;
         Utoa(next, &buf[0]);
         Putstr(&buf[0]);

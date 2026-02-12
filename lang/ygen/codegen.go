@@ -163,12 +163,12 @@ func (cg *CodeGen) genRuntimeLibrary() {
 	if needShru {
 		cg.emit.Label("__shru16")
 		cg.emit.Comment("Shift R1 right by R2 bits (logical)")
-		cg.emit.Tst(R2, R2)
+		cg.emit.Tst(R2, R0)
 		cg.emit.Brz("L_shru_done")
 		cg.emit.Label("L_shru_loop")
 		cg.emit.Srl(R1)
 		cg.emit.Adi(R2, R2, -1)
-		cg.emit.Tst(R2, R2)
+		cg.emit.Tst(R2, R0)
 		cg.emit.Brnz("L_shru_loop")
 		cg.emit.Label("L_shru_done")
 		cg.emit.Ret()
@@ -178,12 +178,12 @@ func (cg *CodeGen) genRuntimeLibrary() {
 	if needShrs {
 		cg.emit.Label("__shrs16")
 		cg.emit.Comment("Shift R1 right by R2 bits (arithmetic)")
-		cg.emit.Tst(R2, R2)
+		cg.emit.Tst(R2, R0)
 		cg.emit.Brz("L_shrs_done")
 		cg.emit.Label("L_shrs_loop")
 		cg.emit.Sra(R1)
 		cg.emit.Adi(R2, R2, -1)
-		cg.emit.Tst(R2, R2)
+		cg.emit.Tst(R2, R0)
 		cg.emit.Brnz("L_shrs_loop")
 		cg.emit.Label("L_shrs_done")
 		cg.emit.Ret()
@@ -193,12 +193,12 @@ func (cg *CodeGen) genRuntimeLibrary() {
 	if needShlu {
 		cg.emit.Label("__shlu16")
 		cg.emit.Comment("Shift R1 left by R2 bits")
-		cg.emit.Tst(R2, R2)
+		cg.emit.Tst(R2, R0)
 		cg.emit.Brz("L_shlu_done")
 		cg.emit.Label("L_shlu_loop")
 		cg.emit.Sll(R1)
 		cg.emit.Adi(R2, R2, -1)
-		cg.emit.Tst(R2, R2)
+		cg.emit.Tst(R2, R0)
 		cg.emit.Brnz("L_shlu_loop")
 		cg.emit.Label("L_shlu_done")
 		cg.emit.Ret()
@@ -211,13 +211,13 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Mv(R3, R1)     // R3 = multiplicand
 		cg.emit.Ldi(R1, 0)     // R1 = result (accumulator)
 		cg.emit.Label("L_mul_loop")
-		cg.emit.Tst(R2, R2)
+		cg.emit.Tst(R2, R0)
 		cg.emit.Brz("L_mul_done")
 		// Check if low bit of R2 is set
 		cg.emit.Mv(R4, R2)
 		cg.emit.Ldi(R5, 1)
 		cg.emit.And(R4, R4, R5)
-		cg.emit.Tst(R4, R4)
+		cg.emit.Tst(R4, R0)
 		cg.emit.Brz("L_mul_skip")
 		cg.emit.Add(R1, R1, R3) // result += multiplicand
 		cg.emit.Label("L_mul_skip")
@@ -240,7 +240,7 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Sll(R4)         // remainder <<= 1
 		// Get high bit of dividend into low bit of remainder
 		// Test if R1 is negative (high bit set) and add 1 to remainder if so
-		cg.emit.Tst(R1, R1)
+		cg.emit.Tst(R1, R0)
 		cg.emit.Brslt("L_divu_setbit")
 		cg.emit.Br("L_divu_nobit")
 		cg.emit.Label("L_divu_setbit")
@@ -255,7 +255,7 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Adi(R3, R3, 1)  // quotient |= 1
 		cg.emit.Label("L_divu_next")
 		cg.emit.Adi(R5, R5, -1)
-		cg.emit.Tst(R5, R5)
+		cg.emit.Tst(R5, R0)
 		cg.emit.Brnz("L_divu_loop")
 		cg.emit.Mv(R1, R3)      // return quotient
 		cg.emit.Ret()
@@ -267,12 +267,12 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Comment("Signed divide R1 / R2 -> R1")
 		// Handle signs, call unsigned, fix sign
 		cg.emit.Ldi(R3, 0)      // R3 = sign flag
-		cg.emit.Tst(R1, R1)
+		cg.emit.Tst(R1, R0)
 		cg.emit.Brsge("L_divs_pos1")
 		cg.emit.Sub(R1, R0, R1) // negate R1
 		cg.emit.Adi(R3, R3, 1)
 		cg.emit.Label("L_divs_pos1")
-		cg.emit.Tst(R2, R2)
+		cg.emit.Tst(R2, R0)
 		cg.emit.Brsge("L_divs_pos2")
 		cg.emit.Sub(R2, R0, R2) // negate R2
 		cg.emit.Adi(R3, R3, 1)
@@ -284,7 +284,7 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Adi(R7, R7, 2)
 		cg.emit.Ldi(R4, 1)
 		cg.emit.And(R3, R3, R4)
-		cg.emit.Tst(R3, R3)
+		cg.emit.Tst(R3, R0)
 		cg.emit.Brz("L_divs_done")
 		cg.emit.Sub(R1, R0, R1) // negate result
 		cg.emit.Label("L_divs_done")
@@ -299,7 +299,7 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Ldi(R5, 16)     // R5 = bit counter
 		cg.emit.Label("L_modu_loop")
 		cg.emit.Sll(R4)
-		cg.emit.Tst(R1, R1)
+		cg.emit.Tst(R1, R0)
 		cg.emit.Brslt("L_modu_setbit")
 		cg.emit.Br("L_modu_nobit")
 		cg.emit.Label("L_modu_setbit")
@@ -311,7 +311,7 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Sub(R4, R4, R2)
 		cg.emit.Label("L_modu_next")
 		cg.emit.Adi(R5, R5, -1)
-		cg.emit.Tst(R5, R5)
+		cg.emit.Tst(R5, R0)
 		cg.emit.Brnz("L_modu_loop")
 		cg.emit.Mv(R1, R4)      // return remainder
 		cg.emit.Ret()
@@ -322,12 +322,12 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Label("__mods16")
 		cg.emit.Comment("Signed modulo R1 %% R2 -> R1")
 		cg.emit.Ldi(R3, 0)      // R3 = sign of dividend
-		cg.emit.Tst(R1, R1)
+		cg.emit.Tst(R1, R0)
 		cg.emit.Brsge("L_mods_pos1")
 		cg.emit.Sub(R1, R0, R1)
 		cg.emit.Ldi(R3, 1)
 		cg.emit.Label("L_mods_pos1")
-		cg.emit.Tst(R2, R2)
+		cg.emit.Tst(R2, R0)
 		cg.emit.Brsge("L_mods_pos2")
 		cg.emit.Sub(R2, R0, R2)
 		cg.emit.Label("L_mods_pos2")
@@ -336,7 +336,7 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Jal("__modu16")
 		cg.emit.Ldw(R3, R7, 0)
 		cg.emit.Adi(R7, R7, 2)
-		cg.emit.Tst(R3, R3)
+		cg.emit.Tst(R3, R0)
 		cg.emit.Brz("L_mods_done")
 		cg.emit.Sub(R1, R0, R1) // result has sign of dividend
 		cg.emit.Label("L_mods_done")

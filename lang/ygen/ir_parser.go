@@ -223,6 +223,11 @@ func (p *IRParser) parseFunction(fields []string) (*IRFunction, error) {
 	}
 
 	// Read function metadata and instructions
+	// inBody tracks whether we've finished parsing header fields and entered
+	// the instruction body. This is needed because "RETURN" appears both as
+	// a header field (e.g., "RETURN VOID") and as a body instruction
+	// (e.g., "RETURN" or "RETURN t10").
+	inBody := false
 	for p.nextLine() {
 		if p.line == "" {
 			continue
@@ -233,6 +238,16 @@ func (p *IRParser) parseFunction(fields []string) (*IRFunction, error) {
 
 		ff := p.tokenize(p.line)
 		if len(ff) == 0 {
+			continue
+		}
+
+		// Once in body mode, all lines are instructions
+		if inBody {
+			instr := p.parseInstruction(ff)
+			if instr != nil {
+				instr.LineNum = p.lineNum
+				f.Instrs = append(f.Instrs, instr)
+			}
 			continue
 		}
 
@@ -269,8 +284,9 @@ func (p *IRParser) parseFunction(fields []string) (*IRFunction, error) {
 			if len(ff) >= 2 {
 				f.FrameSize = parseInt(ff[1])
 			}
+			inBody = true
 		default:
-			// Parse instruction
+			// Parse instruction (shouldn't normally reach here before FRAMESIZE)
 			instr := p.parseInstruction(ff)
 			if instr != nil {
 				instr.LineNum = p.lineNum

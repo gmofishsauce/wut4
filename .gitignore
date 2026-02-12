@@ -9,6 +9,9 @@
 *.dylib
 *.swp
 *.prof
+*.lexout
+*.parseout
+*.ir
 foo
 out.bin
 wut4.out
