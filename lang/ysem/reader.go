@@ -805,6 +805,8 @@ func (r *ASTReader) readExprFromLine(line string, depth int, stmtLine int) (Expr
 					break
 				}
 			}
+		} else {
+			r.unreadLine() // No ARGS section - put line back for caller
 		}
 		return &CallExpr{baseExpr: baseExpr{Line: stmtLine}, Func: funcName, Args: args}, nil
 

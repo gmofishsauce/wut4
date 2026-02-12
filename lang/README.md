@@ -122,22 +122,27 @@ func void Putstr(@byte bp) {
 | R6 | Callee-saved |
 | R7 | Stack pointer (grows downward) |
 
-**LINK register** (SPR 0) holds return address from `jal`. Callee must save it if making further calls.
+**LINK register** (SPR 0) holds return address from `jal`. LINK is callee-saved:
+every function unconditionally saves and restores it in its prologue/epilogue.
+This eliminates a class of bugs where an unguarded LINK is clobbered by a nested
+call. A future optimization could skip the save/restore for proven leaf functions.
 
 ### Calling Convention
 - Args 0-2 in R1-R3; args 3+ pushed on stack right-to-left
 - Return value in R1
 - SP is fixed during function execution (no dynamic alloc)
-- Callee saves/restores R4-R6 if used
+- Callee saves/restores R4-R6 and LINK
 
 ### Stack Frame Layout
 ```
 [higher addresses]
   arg N (if N > 3)     [SP + FRAMESIZE + ...]
-  return address       [SP + FRAMESIZE]
-  saved R6 (if used)
-  saved R5 (if used)
-  saved R4 (if used)
+  saved LINK           [SP + FRAMESIZE - 2]  (always present)
+  saved R6
+  saved R5
+  saved R4
+  saved register params (R1-R3, as needed)
+  virtual register spill slots
   local variables
 [SP points here - lower addresses]
 ```
@@ -221,7 +226,7 @@ Implementation limits: 16 params, 32 locals, 256-byte frame, 32 struct fields, 1
 - Maps virtual registers (t0-tN) to physical registers (R1-R6)
 - Generates WUT-4 assembly with prologue/epilogue
 - Emits bootstrap code (_start: sets SP, calls main, halts)
-- Handles LINK register save/restore for non-leaf functions
+- Handles LINK register save/restore unconditionally (callee-save)
 
 ## Test Programs
 
@@ -233,6 +238,8 @@ Implementation limits: 16 params, 32 locals, 256-byte frame, 32 struct fields, 1
 | `test/utoa.yapl` | Integer-to-ASCII conversion helper |
 | `test/fib-combined.yapl` | Combined fib + helpers in single file |
 | `test/test-simple.yapl` | Parameter passing, pointers, function returns |
+
+Plus unit tests for ylex and yparse.
 
 ## Running Programs
 

@@ -1,0 +1,124 @@
+// test-frame.yapl - Test stack frame layout with mixed byte/word types
+//
+// Calls a function with 15 parameters (8 uint16, 7 byte, alternating)
+// and 18 local variables of alternating types. Parameters are assigned
+// to locals with unique arithmetic (defeating CSE), then all locals
+// are printed. Since all 18 locals are live simultaneously and only
+// R4-R6 are callee-saved, most must spill to the stack frame. This
+// tests that byte and word slots are allocated at correct offsets.
+//
+// Expected output:
+// 0101
+// 22
+// 0303
+// 44
+// 0505
+// 66
+// 0707
+// 88
+// 0909
+// AA
+// 0B0B
+// CC
+// 0D0D
+// EE
+// 0F0F
+// 0A0A
+// 32
+// 0202
+
+#asm(".bootstrap");
+
+func void Putc(byte b) {
+    #asm("ldi r2 96");
+    #asm("ssp r1 r2");
+}
+
+func void Putnl() {
+    Putc(byte('\n'));
+}
+
+func void PutHexNib(uint16 val) {
+    if (val < 10) {
+        Putc(byte(val + '0'));
+    } else {
+        Putc(byte(val - 10 + 'A'));
+    }
+}
+
+func void PutHexByte(uint16 val) {
+    PutHexNib((val >> 4) & 0x0F);
+    PutHexNib(val & 0x0F);
+}
+
+func void PutHexWord(uint16 val) {
+    PutHexByte(val >> 8);
+    PutHexByte(val & 0xFF);
+}
+
+func void BigFunc(uint16 p1, byte p2, uint16 p3, byte p4, uint16 p5, byte p6, uint16 p7, byte p8, uint16 p9, byte p10, uint16 p11, byte p12, uint16 p13, byte p14, uint16 p15) {
+    var uint16 w1;
+    var byte b2;
+    var uint16 w3;
+    var byte b4;
+    var uint16 w5;
+    var byte b6;
+    var uint16 w7;
+    var byte b8;
+    var uint16 w9;
+    var byte b10;
+    var uint16 w11;
+    var byte b12;
+    var uint16 w13;
+    var byte b14;
+    var uint16 w15;
+    var uint16 w16;
+    var byte b17;
+    var uint16 w18;
+
+    // Assign params to locals with unique arithmetic
+    w1 = p1 + 1;
+    b2 = byte(uint16(p2) + 2);
+    w3 = p3 + 3;
+    b4 = byte(uint16(p4) + 4);
+    w5 = p5 + 5;
+    b6 = byte(uint16(p6) + 6);
+    w7 = p7 + 7;
+    b8 = byte(uint16(p8) + 8);
+    w9 = p9 + 9;
+    b10 = byte(uint16(p10) + 10);
+    w11 = p11 + 11;
+    b12 = byte(uint16(p12) + 12);
+    w13 = p13 + 13;
+    b14 = byte(uint16(p14) + 14);
+    w15 = p15 + 15;
+
+    // Derived values mixing multiple locals
+    w16 = w1 + w9;
+    b17 = byte(uint16(b4) + uint16(b14));
+    w18 = w5 - w3;
+
+    // Print all locals - all must survive to here
+    PutHexWord(w1); Putnl();
+    PutHexByte(uint16(b2)); Putnl();
+    PutHexWord(w3); Putnl();
+    PutHexByte(uint16(b4)); Putnl();
+    PutHexWord(w5); Putnl();
+    PutHexByte(uint16(b6)); Putnl();
+    PutHexWord(w7); Putnl();
+    PutHexByte(uint16(b8)); Putnl();
+    PutHexWord(w9); Putnl();
+    PutHexByte(uint16(b10)); Putnl();
+    PutHexWord(w11); Putnl();
+    PutHexByte(uint16(b12)); Putnl();
+    PutHexWord(w13); Putnl();
+    PutHexByte(uint16(b14)); Putnl();
+    PutHexWord(w15); Putnl();
+    PutHexWord(w16); Putnl();
+    PutHexByte(uint16(b17)); Putnl();
+    PutHexWord(w18); Putnl();
+}
+
+func void main() {
+    BigFunc(uint16(0x0100), byte(0x20), uint16(0x0300), byte(0x40), uint16(0x0500), byte(0x60), uint16(0x0700), byte(0x80), uint16(0x0900), byte(0xA0), uint16(0x0B00), byte(0xC0), uint16(0x0D00), byte(0xE0), uint16(0x0F00));
+}

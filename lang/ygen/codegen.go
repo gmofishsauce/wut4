@@ -41,6 +41,9 @@ type CodeGen struct {
 	// Pending arguments for function calls
 	pendingArgs map[int]string
 
+	// Temporary SP adjustment (nonzero while pushing call args)
+	spAdjust int
+
 	// Whether this is a bootstrap program (no .code/.data directives)
 	isBootstrap bool
 }
@@ -422,15 +425,16 @@ func (cg *CodeGen) genFunction(f *IRFunction) {
 	}
 	paramSaveSpace := cg.numRegParams * 2
 
-	// Check if function makes calls - if so, need to save LINK
+	// Check if function makes calls (for informational/optimization purposes)
 	cg.hasCalls = cg.functionHasCalls(f)
-	linkSaveSpace := 0
-	if cg.hasCalls {
-		linkSaveSpace = 2
-	}
+
+	// LINK is always saved (callee-save) at the top of the frame.
+	// This prevents bugs from an unguarded LINK register.
+	linkSaveSpace := 2
 
 	// Calculate total frame size (should be even since all components are even or padded)
-	cg.totalFrameSize = localFrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + savedRegSize
+	// Layout from SP upward: [locals][virtregs][param saves][saved R4,R5,R6][saved LINK]
+	cg.totalFrameSize = localFrameSize + virtRegSpace + paramSaveSpace + savedRegSize + linkSaveSpace
 	cg.alignmentPadding = 0 // No longer needed since we pad locals to even
 
 	// Virtual regs start after (padded) locals
@@ -440,15 +444,14 @@ func (cg *CodeGen) genFunction(f *IRFunction) {
 		cg.paramOffsets[i] = localFrameSize + virtRegSpace + i*2
 	}
 
-	if cg.hasCalls {
-		cg.linkOffset = localFrameSize + virtRegSpace + paramSaveSpace
+	cg.savedRegOffsets = map[int]int{
+		R4: localFrameSize + virtRegSpace + paramSaveSpace,
+		R5: localFrameSize + virtRegSpace + paramSaveSpace + 2,
+		R6: localFrameSize + virtRegSpace + paramSaveSpace + 4,
 	}
 
-	cg.savedRegOffsets = map[int]int{
-		R4: localFrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace,
-		R5: localFrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 2,
-		R6: localFrameSize + virtRegSpace + paramSaveSpace + linkSaveSpace + 4,
-	}
+	// LINK is always at the very top of the frame, just below the caller's stack args
+	cg.linkOffset = localFrameSize + virtRegSpace + paramSaveSpace + savedRegSize
 
 	cg.emit.Comment("Function: %s", f.Name)
 	cg.emit.Comment("Visibility: %s, Return: %s", f.Visibility, f.ReturnType)
@@ -505,25 +508,47 @@ func (cg *CodeGen) genPrologue() {
 			cg.emit.Ldi(R4, cg.totalFrameSize)
 			cg.emit.Sub(R7, R7, R4)
 
+			// Helper: store src to [SP+offset] using R4 as scratch.
+			// R4 is safe because it was pre-saved above.
+			// IMPORTANT: must NOT use emitStoreStack here because it
+			// uses R3 as scratch, which would clobber param register R3.
+			storeR4Scratch := func(src int, offset int) {
+				if offset >= -64 && offset <= 63 {
+					cg.emit.Stw(src, R7, offset)
+				} else {
+					cg.emit.Ldi(R4, offset)
+					cg.emit.Add(R4, R7, R4)
+					cg.emit.Stw(src, R4, 0)
+				}
+			}
+
 			// Save R5 and R6 (R4 is already saved)
-			cg.emitStoreStack(R5, cg.savedRegOffsets[R5])
-			cg.emitStoreStack(R6, cg.savedRegOffsets[R6])
+			storeR4Scratch(R5, cg.savedRegOffsets[R5])
+			storeR4Scratch(R6, cg.savedRegOffsets[R6])
+
+			// Save register parameters (r1-r3) to stack
+			for i := 0; i < cg.numRegParams; i++ {
+				storeR4Scratch(R1+i, cg.paramOffsets[i])
+			}
+
+			// Always save LINK (callee-save). R1 is already saved above
+			// (or not a param register, so free to use as scratch).
+			cg.emit.Lsp(R1, R0) // Load LINK into R1
+			storeR4Scratch(R1, cg.linkOffset)
 		} else {
 			// Small frame: simple case
 			cg.emit.Adi(R7, R7, -cg.totalFrameSize)
 			cg.emit.Stw(R4, R7, cg.savedRegOffsets[R4])
 			cg.emit.Stw(R5, R7, cg.savedRegOffsets[R5])
 			cg.emit.Stw(R6, R7, cg.savedRegOffsets[R6])
-		}
 
-		// Save register parameters (r1-r3) to stack so they survive function calls
-		for i := 0; i < cg.numRegParams; i++ {
-			cg.emitStoreStack(R1+i, cg.paramOffsets[i])
-		}
+			// Save register parameters (r1-r3) to stack
+			for i := 0; i < cg.numRegParams; i++ {
+				cg.emitStoreStack(R1+i, cg.paramOffsets[i])
+			}
 
-		// Save LINK if this function makes calls (LINK is SPR 0)
-		if cg.hasCalls {
-			cg.emit.Lsp(R3, R0) // Load LINK into R3 (R0 contains 0, so SPR[0] = LINK)
+			// Always save LINK (callee-save)
+			cg.emit.Lsp(R3, R0) // Load LINK into R3
 			cg.emitStoreStack(R3, cg.linkOffset)
 		}
 	}
@@ -533,17 +558,15 @@ func (cg *CodeGen) genEpilogue() {
 	if cg.totalFrameSize > 0 {
 		if cg.totalFrameSize > 63 {
 			// Large frame epilogue:
-			// 1. Restore LINK if needed
+			// 1. Always restore LINK (callee-save)
 			// 2. Restore R5 and R6 using R4 as scratch
 			// 3. Load R4's saved value into R2 (temporary - R1 has return value)
 			// 4. Deallocate frame using R4 as scratch
 			// 5. Move R2 to R4
 
-			// Restore LINK first if this function made calls
-			if cg.hasCalls {
-				cg.emitLoadStack(R3, cg.linkOffset)
-				cg.emit.Ssp(R3, R0) // Store R3 into SPR[0] = LINK
-			}
+			// Always restore LINK (callee-save)
+			cg.emitLoadStack(R3, cg.linkOffset)
+			cg.emit.Ssp(R3, R0) // Store R3 into SPR[0] = LINK
 
 			// Restore R5 (use R4 as scratch for address if needed)
 			cg.emitLoadStack(R5, cg.savedRegOffsets[R5])
@@ -569,11 +592,10 @@ func (cg *CodeGen) genEpilogue() {
 			cg.emit.Mv(R4, R2)
 		} else {
 			// Small frame: simple case
-			// Restore LINK first if this function made calls
-			if cg.hasCalls {
-				cg.emit.Ldw(R3, R7, cg.linkOffset)
-				cg.emit.Ssp(R3, R0) // Store R3 into SPR[0] = LINK
-			}
+			// Always restore LINK (callee-save)
+			cg.emit.Ldw(R3, R7, cg.linkOffset)
+			cg.emit.Ssp(R3, R0) // Store R3 into SPR[0] = LINK
+
 			cg.emit.Ldw(R4, R7, cg.savedRegOffsets[R4])
 			cg.emit.Ldw(R5, R7, cg.savedRegOffsets[R5])
 			cg.emit.Ldw(R6, R7, cg.savedRegOffsets[R6])
@@ -706,8 +728,10 @@ func (cg *CodeGen) storeVirtReg(phys int, virt string) {
 	cg.emitStoreStack(phys, offset)
 }
 
-// emitLoadStack loads from [SP+offset] into dest, handling large offsets
+// emitLoadStack loads from [SP+offset] into dest, handling large offsets.
+// Compensates for any temporary SP adjustment (e.g., during call arg pushing).
 func (cg *CodeGen) emitLoadStack(dest int, offset int) {
+	offset += cg.spAdjust
 	if offset >= -64 && offset <= 63 {
 		cg.emit.Ldw(dest, R7, offset)
 	} else {
@@ -719,9 +743,11 @@ func (cg *CodeGen) emitLoadStack(dest int, offset int) {
 	}
 }
 
-// emitStoreStack stores src to [SP+offset], handling large offsets
+// emitStoreStack stores src to [SP+offset], handling large offsets.
+// Compensates for any temporary SP adjustment (e.g., during call arg pushing).
 // Uses R3 as scratch register for large offsets (caller must ensure R3 is available)
 func (cg *CodeGen) emitStoreStack(src int, offset int) {
+	offset += cg.spAdjust
 	if offset >= -64 && offset <= 63 {
 		cg.emit.Stw(src, R7, offset)
 	} else {
@@ -888,8 +914,9 @@ func (cg *CodeGen) genParam(instr *IRInstr) {
 		cg.emitLoadStack(R4, offset)
 	} else {
 		// Parameter is on stack (passed by caller)
-		// Stack args are at [SP + totalFrameSize + 2*(paramIndex-3) + 2]
-		offset := cg.totalFrameSize + 2*(paramIndex-3) + 2
+		// Stack args are at [SP + totalFrameSize + 2*(paramIndex-3)]
+		// (JAL saves return address to LINK register, not on stack)
+		offset := cg.totalFrameSize + 2*(paramIndex-3)
 		cg.emitLoadStack(R4, offset)
 	}
 	cg.storeVirtReg(R4, instr.Dest)
@@ -907,7 +934,7 @@ func (cg *CodeGen) genSetParam(instr *IRInstr) {
 		cg.emitStoreStack(R4, offset)
 	} else {
 		// Write to stack location (caller's stack area)
-		offset := cg.totalFrameSize + 2*(paramIndex-3) + 2
+		offset := cg.totalFrameSize + 2*(paramIndex-3)
 		cg.emitStoreStack(R4, offset)
 	}
 }
@@ -1121,6 +1148,7 @@ func (cg *CodeGen) genCall(instr *IRInstr) {
 			if argVirt, ok := cg.pendingArgs[i]; ok {
 				cg.loadOperand(argVirt, R4)
 				cg.emit.Adi(R7, R7, -2)
+				cg.spAdjust += 2
 				cg.emit.Stw(R4, R7, 0)
 			}
 		}
@@ -1141,6 +1169,7 @@ func (cg *CodeGen) genCall(instr *IRInstr) {
 	// Clean up stack arguments
 	if stackArgCount > 0 {
 		cg.emit.Adi(R7, R7, stackArgCount*2)
+		cg.spAdjust -= stackArgCount * 2
 	}
 
 	// Store result if needed
