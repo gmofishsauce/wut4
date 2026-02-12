@@ -1,6 +1,6 @@
 // Test 04: Arrays
 
-const SIZE = 16;
+const uint16 SIZE = 16;
 
 var int16 g_arr[SIZE];
 var uint8 g_buf[64];

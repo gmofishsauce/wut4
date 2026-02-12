@@ -1,6 +1,6 @@
 // Test 01: Simple expressions and operators
-const MAX = 100;
-const MIN = 0;
+const uint16 MAX = 100;
+const uint16 MIN = 0;
 
 var int16 g_value;
 

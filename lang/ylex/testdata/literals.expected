@@ -1,51 +1,58 @@
 #file literals.yapl
 #line 2
 1, KEY, const
-2, ID, DEC
-3, PUNCT, =
-4, LIT, 0x00FF
-5, PUNCT, ;
+2, KEY, uint16
+3, ID, DEC
+4, PUNCT, =
+5, LIT, 0x00FF
+6, PUNCT, ;
 #line 3
-6, KEY, const
-7, ID, HEX
-8, PUNCT, =
-9, LIT, 0x00FF
-10, PUNCT, ;
+7, KEY, const
+8, KEY, uint16
+9, ID, HEX
+10, PUNCT, =
+11, LIT, 0x00FF
+12, PUNCT, ;
 #line 4
-11, KEY, const
-12, ID, BIN
-13, PUNCT, =
-14, LIT, 0x00FF
-15, PUNCT, ;
+13, KEY, const
+14, KEY, uint16
+15, ID, BIN
+16, PUNCT, =
+17, LIT, 0x00FF
+18, PUNCT, ;
 #line 5
-16, KEY, const
-17, ID, OCT
-18, PUNCT, =
-19, LIT, 0x00FF
-20, PUNCT, ;
+19, KEY, const
+20, KEY, uint16
+21, ID, OCT
+22, PUNCT, =
+23, LIT, 0x00FF
+24, PUNCT, ;
 #line 6
-21, KEY, const
-22, ID, CHAR
-23, PUNCT, =
-24, LIT, 0x0041
-25, PUNCT, ;
-#line 7
-26, KEY, const
-27, ID, NEWLINE
+25, KEY, const
+26, KEY, uint16
+27, ID, CHAR
 28, PUNCT, =
-29, LIT, 0x000A
+29, LIT, 0x0041
 30, PUNCT, ;
-#line 8
+#line 7
 31, KEY, const
-32, ID, HEXESC
-33, PUNCT, =
-34, LIT, 0x0041
-35, PUNCT, ;
-#line 9
-36, KEY, var
-37, KEY, byte
-38, ID, str
-39, PUNCT, [
-40, LIT, 0x0010
-41, PUNCT, ]
+32, KEY, uint16
+33, ID, NEWLINE
+34, PUNCT, =
+35, LIT, 0x000A
+36, PUNCT, ;
+#line 8
+37, KEY, const
+38, KEY, uint16
+39, ID, HEXESC
+40, PUNCT, =
+41, LIT, 0x0041
 42, PUNCT, ;
+#line 9
+43, KEY, var
+44, KEY, byte
+45, ID, str
+46, PUNCT, [
+47, LIT, 0x0010
+48, PUNCT, ]
+49, PUNCT, ;
