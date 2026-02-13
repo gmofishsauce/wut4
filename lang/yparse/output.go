@@ -354,7 +354,7 @@ func (ow *OutputWriter) writeExpr(expr Expr) {
 		ow.indent++
 		ow.writeExpr(e.Func)
 		if len(e.Args) > 0 {
-			ow.write("ARGS")
+			ow.write("ARGS %d", len(e.Args))
 			ow.indent++
 			for _, arg := range e.Args {
 				ow.writeExpr(arg)

@@ -779,30 +779,19 @@ func (r *ASTReader) readExprFromLine(line string, depth int, stmtLine int) (Expr
 			funcName = id.Name
 		}
 		args := make([]Expr, 0)
-		// Read ARGS
+		// Read ARGS N (where N is the argument count)
 		r.nextLine()
 		argsLine := strings.TrimSpace(r.line)
-		if argsLine == "ARGS" {
-			// Read arguments until we hit something that's not an expression
-			for {
-				r.nextLine()
-				argLine := strings.TrimSpace(r.line)
-				// Check if this looks like an expression
-				argParts := strings.Fields(argLine)
-				if len(argParts) == 0 {
-					r.unreadLine() // Put back empty line for caller to handle
-					break
-				}
-				if argParts[0] == "LIT" || argParts[0] == "ID" || argParts[0] == "BINARY" ||
-					argParts[0] == "UNARY" || argParts[0] == "CALL" || argParts[0] == "INDEX" ||
-					argParts[0] == "FIELD" || argParts[0] == "STRLIT" || argParts[0] == "CAST" {
-					arg, _ := r.readExprFromLine(argLine, depth+1, stmtLine)
-					if arg != nil {
-						args = append(args, arg)
-					}
-				} else {
-					r.unreadLine() // Put back non-expression line for caller to handle
-					break
+		argsParts := strings.Fields(argsLine)
+		if len(argsParts) >= 1 && argsParts[0] == "ARGS" {
+			argCount := 0
+			if len(argsParts) >= 2 {
+				argCount, _ = strconv.Atoi(argsParts[1])
+			}
+			for i := 0; i < argCount; i++ {
+				arg, _ := r.readExpr(depth+1, stmtLine)
+				if arg != nil {
+					args = append(args, arg)
 				}
 			}
 		} else {

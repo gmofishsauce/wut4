@@ -175,6 +175,10 @@ func (a *Analyzer) typeCheckStmt(stmt Stmt) {
 	case *ReturnStmt:
 		if s.Value != nil {
 			a.typeCheckExpr(s.Value)
+			// Try to adapt literal to match return type
+			if lit, ok := s.Value.(*LiteralExpr); ok && a.currentFn != nil && a.currentFn.ReturnType.IsIntegral() {
+				a.adaptLiteralToType(lit, a.currentFn.ReturnType)
+			}
 			// Check return type matches
 			retType := s.Value.GetType()
 			if retType != nil && a.currentFn != nil {
@@ -375,6 +379,12 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 		for i, arg := range e.Args {
 			argType := a.typeCheckExpr(arg)
 			if i < len(fn.Params) && argType != nil {
+				// Try to adapt literal to match parameter type
+				if argLit, ok := arg.(*LiteralExpr); ok && fn.Params[i].Type.IsIntegral() {
+					if a.adaptLiteralToType(argLit, fn.Params[i].Type) {
+						argType = fn.Params[i].Type
+					}
+				}
 				if !a.typesCompatible(fn.Params[i].Type, argType) {
 					a.errorAt(a.prog.SourceFile, e.GetLine(), "argument %d type mismatch in call to %s", i+1, e.Func)
 				}
