@@ -3,7 +3,7 @@
 
 for i in t*.w4a; do
     rm -f wut4.out
-    ../asm/asm $i
+    ../yasm/yasm $i
     if [ ! -r wut4.out ]; then
         echo test $i failed.
 	exit 2

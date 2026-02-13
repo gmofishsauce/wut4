@@ -4,7 +4,7 @@ This document is designed to efficiently rebuild Claude's context for working on
 
 ## Quick Orientation
 
-**YAPL** (Yet Another Programming Language) is a C-like systems language targeting the **WUT-4**, a 16-bit RISC processor (real hardware, not just emulated). The compiler is written in Go, organized as 4 separate pass programs driven by the `ya` driver. The long-term goal is self-hosting: YAPL compiling itself on WUT-4's 64KB address space.
+**YAPL** (Yet Another Programming Language) is a C-like systems language targeting the **WUT-4**, a 16-bit RISC processor that exists only in emulation. The compiler is written in Go, organized as 4 separate pass programs driven by the `ya` driver. The long-term goal is self-hosting: YAPL compiling itself on WUT-4's 64KB address space.
 
 **Repository root:** `github.com/gmofishsauce/wut4`
 
@@ -20,7 +20,7 @@ This document is designed to efficiently rebuild Claude's context for working on
 | `lang/test/` | Test programs (.yapl files) |
 | `lang/yapl_grammar.ebnf` | Authoritative YAPL grammar |
 | `lang/IR_FORMAT.md` | IR specification (Pass 3 output format) |
-| `asm/` | WUT-4 assembler (separate from lang/) |
+| `yasm/` | WUT-4 assembler (separate from lang/) |
 | `emul/` | WUT-4 emulator |
 | `specs/wut4arch.pdf` | WUT-4 architecture specification |
 | `specs/wut4asm.pdf` | WUT-4 assembly language specification |
@@ -31,13 +31,13 @@ This document is designed to efficiently rebuild Claude's context for working on
 1. **Do NOT rename binaries** without asking the user first, even if names seem generic or conflicting.
 2. **Use the `ya` driver** to compile, not ad-hoc pipelines. Use `ya -k` to preserve intermediate files.
 3. **`YAPL` environment variable** can point at the compiler tree root to use local builds instead of installed ones.
-4. **Binaries are installed to `~/go/bin/`**: `ya`, `ylex`, `yparse`, `ysem`, `ygen`, `asm`.
+4. **Binaries are installed to `~/go/bin/`**: `ya`, `ylex`, `yparse`, `ysem`, `ygen`, `yasm`.
 5. **Build with:** `cd lang && ./build` (runs `go install` for each pass).
 
 ## Compiler Pipeline
 
 ```
-source.yapl --> ylex --> yparse --> ysem --> ygen --> asm --> wut4.out
+source.yapl --> ylex --> yparse --> ysem --> ygen --> yasm --> wut4.out
               tokens   AST+syms   IR(3addr)  .asm     binary
 ```
 
@@ -67,6 +67,7 @@ YAPL resembles C with deliberate simplifications for a small compiler.
 - **`func` keyword** for functions: `func int16 add(int16 a, int16 b) { ... }`
 - **No type promotion** - must use explicit casts: `int16(x)`
 - **Visibility by case** - uppercase initial = public/global, lowercase = static/private
+- **Single global namespace** - all top-level symbols (functions, variables, constants, struct tags) share one namespace, so struct tags can be used directly as type names
 - **No preprocessor** - `#if`/`#else`/`#endif` handled by lexer; constant expressions folded at lex time
 - **`#asm("...")`** for inline assembly (raw string, no escapes)
 - **Declarations before statements** in function bodies
@@ -260,7 +261,7 @@ emul -trace trace.log wut4.out
 emul -max-cycles 10000 wut4.out
 
 # Disassemble a binary
-asm -d wut4.out
+yasm -d wut4.out
 ```
 
 ## Known Architectural Decisions

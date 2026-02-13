@@ -10,13 +10,13 @@
 //   -v         Verbose output
 //
 // The compiler pipeline:
-//   source.yapl → ylex → yparse → ysem → ygen → asm → binary
+//   source.yapl → ylex → yparse → ysem → ygen → yasm → binary
 //
 // Binary location:
 //   If YAPL environment variable is set, binaries are found at:
 //     $YAPL/ylex/ylex, $YAPL/yparse/yparse, $YAPL/ysem/ysem, $YAPL/ygen/ygen
 //   Otherwise, binaries are found via PATH:
-//     ylex, yparse, ysem, ygen, asm
+//     ylex, yparse, ysem, ygen, yasm
 
 package main
 
@@ -93,7 +93,7 @@ func compile(sourceFile string) error {
 	// Only need assembler if we're going to use it
 	var asmPath string
 	if !*asmOnly && !*compileOnly {
-		asmPath, err = findBinary("asm", "asm")
+		asmPath, err = findBinary("yasm", "yasm")
 		if err != nil {
 			return err
 		}

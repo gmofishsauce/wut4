@@ -15,7 +15,7 @@
 foo
 out.bin
 wut4.out
-asm/asm
+yasm/yasm
 emul/emul
 lang/ylex/ylex
 lang/yparse/yparse
@@ -63,7 +63,7 @@ _Test*
 # log files
 Nano.log
 
-# executables. asm/asm is not a binary executable and must be committed.
+# executables. yasm/yasm is not a binary executable and must be committed.
 sim/sim
 dis/dis
 itf/itf

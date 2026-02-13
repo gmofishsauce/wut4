@@ -8,34 +8,34 @@ A complete assembler and disassembler for the WUT-4 16-bit RISC architecture.
 go build
 ```
 
-This creates the `asm` binary in the current directory.
+This creates the `yasm` binary in the current directory.
 
 ## Usage
 
 ### Assembler
 
 ```bash
-./asm <input.asm> [output.bin]
+./yasm <input.asm> [output.bin]
 ```
 
 Assembles a WUT-4 assembly source file into a binary executable. If no output file is specified, the default is `out.bin`.
 
 Example:
 ```bash
-./asm test.asm test.bin
+./yasm test.asm test.bin
 ```
 
 ### Disassembler
 
 ```bash
-./asm -d <binary-file>
+./yasm -d <binary-file>
 ```
 
 Disassembles a WUT-4 binary file and prints the assembly code to stdout.
 
 Example:
 ```bash
-./asm -d test.bin
+./yasm -d test.bin
 ```
 
 ## Assembly Language Syntax

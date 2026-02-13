@@ -9,9 +9,9 @@ echo ""
 
 # Build the assembler if needed
 echo "Building assembler..."
-cd ../asm
-go build -o asm .
-if [ ! -f asm ]; then
+cd ../yasm
+go build -o yasm .
+if [ ! -f yasm ]; then
     echo "ERROR: Failed to build assembler"
     exit 1
 fi
@@ -26,7 +26,7 @@ assemble_test() {
     local asm_file=$1
     local out_file="${asm_file%.w4a}.out"
     echo "  Assembling $(basename $asm_file)..."
-    ../asm/asm "$asm_file" "$out_file"
+    ../yasm/yasm "$asm_file" "$out_file"
     if [ $? -ne 0 ]; then
         echo "  ERROR: Failed to assemble $asm_file"
         return 1

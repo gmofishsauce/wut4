@@ -4,7 +4,7 @@ The content of this repo is [licensed](./LICENSE).
 
 
 #
-## [asm](./asm) - wut4 assembler
+## [yasm](./yasm) - wut4 assembler
 
 Assembler written in Go by Claude Code.
 
