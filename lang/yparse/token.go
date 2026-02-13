@@ -45,12 +45,13 @@ func (t Token) IsPunct(p string) bool {
 
 // TokenReader reads tokens from the lexer output
 type TokenReader struct {
-	scanner  *bufio.Scanner
-	filename string
-	line     int
-	current  Token
-	peeked   bool
-	eof      bool
+	scanner     *bufio.Scanner
+	filename    string
+	line        int
+	current     Token
+	peeked      bool
+	eof         bool
+	IsBootstrap bool // set by #bootstrap meta-line
 }
 
 // NewTokenReader creates a new token reader from an io.Reader
@@ -70,7 +71,7 @@ func (tr *TokenReader) readNextToken() Token {
 		text := strings.TrimSpace(tr.scanner.Text())
 
 		// Skip empty lines and comments
-		if text == "" || strings.HasPrefix(text, "#") && !strings.HasPrefix(text, "#file") && !strings.HasPrefix(text, "#line") {
+		if text == "" || strings.HasPrefix(text, "#") && !strings.HasPrefix(text, "#file") && !strings.HasPrefix(text, "#line") && text != "#bootstrap" {
 			continue
 		}
 
@@ -86,6 +87,12 @@ func (tr *TokenReader) readNextToken() Token {
 			if n, err := strconv.Atoi(lineStr); err == nil {
 				tr.line = n
 			}
+			continue
+		}
+
+		// Handle #bootstrap directive
+		if text == "#bootstrap" {
+			tr.IsBootstrap = true
 			continue
 		}
 

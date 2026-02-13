@@ -11,12 +11,13 @@ import (
 
 // IR represents the intermediate representation
 type IR struct {
-	SourceFile string
-	AsmDecls   []string // File-level inline assembly
-	Structs    []*IRStruct
-	Constants  []*IRConst
-	Globals    []*IRData
-	Functions  []*IRFunc
+	SourceFile  string
+	IsBootstrap bool     // set by #pragma bootstrap
+	AsmDecls    []string // File-level inline assembly
+	Structs     []*IRStruct
+	Constants   []*IRConst
+	Globals     []*IRData
+	Functions   []*IRFunc
 }
 
 // IRStruct represents a struct in the IR
@@ -148,6 +149,9 @@ func (g *IRGen) emitJumpNZ(cond, target string) {
 
 // Generate produces the IR
 func (g *IRGen) Generate() *IR {
+	// Copy bootstrap flag
+	g.ir.IsBootstrap = g.prog.IsBootstrap
+
 	// Copy file-level inline assembly
 	g.ir.AsmDecls = append(g.ir.AsmDecls, g.prog.AsmDecls...)
 
@@ -974,6 +978,11 @@ func (ir *IR) Write(w *bufio.Writer) {
 	fmt.Fprintf(w, "#ir 1\n")
 	fmt.Fprintf(w, "#source %s\n", ir.SourceFile)
 	fmt.Fprintln(w)
+
+	if ir.IsBootstrap {
+		fmt.Fprintln(w, "BOOTSTRAP")
+		fmt.Fprintln(w)
+	}
 
 	// Write file-level inline assembly
 	for _, asm := range ir.AsmDecls {

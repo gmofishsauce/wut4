@@ -42,6 +42,8 @@ func (p *Parser) Parse() (*Program, *SymbolTable, []string) {
 		}
 	}
 
+	prog.IsBootstrap = p.tokens.IsBootstrap
+
 	return prog, p.symtab, p.errors
 }
 

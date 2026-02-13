@@ -1,5 +1,5 @@
 // hello, world.
-#asm(".bootstrap");
+#pragma bootstrap
 
 const byte hello[] = "hello, world.\n";
 

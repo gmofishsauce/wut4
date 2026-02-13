@@ -11,7 +11,8 @@ type SourceLoc struct {
 
 // Program is the root of the AST
 type Program struct {
-	Decls []Decl
+	Decls       []Decl
+	IsBootstrap bool // set by #pragma bootstrap
 }
 
 // Decl is the interface for all declarations

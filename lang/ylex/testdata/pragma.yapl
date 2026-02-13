@@ -1,0 +1,10 @@
+// Test #pragma directive
+#pragma bootstrap
+#pragma message hello from pragma
+var uint16 x;
+#if 0
+#pragma message this should not appear
+#pragma bootstrap
+#endif
+#pragma message second message
+var uint16 y;

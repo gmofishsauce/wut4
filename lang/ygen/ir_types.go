@@ -5,8 +5,9 @@ package main
 
 // IRProgram represents the complete parsed IR
 type IRProgram struct {
-	SourceFile string
-	AsmDecls   []string // File-level inline assembly
+	SourceFile  string
+	IsBootstrap bool     // set by #pragma bootstrap
+	AsmDecls    []string // File-level inline assembly
 	Structs    []*IRStruct
 	Constants  []*IRConst
 	Globals    []*IRData

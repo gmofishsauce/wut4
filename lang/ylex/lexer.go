@@ -353,6 +353,16 @@ func (l *Lexer) scanString() string {
 	return result.String()
 }
 
+// scanToEndOfLine reads and returns the rest of the current line
+// (up to but not including the newline or EOF). Trims leading/trailing whitespace.
+func (l *Lexer) scanToEndOfLine() string {
+	start := l.pos
+	for l.pos < len(l.input) && l.input[l.pos] != '\n' {
+		l.pos++
+	}
+	return strings.TrimSpace(string(l.input[start:l.pos]))
+}
+
 // scanRawString scans a string literal without processing escapes
 // Used for #asm directive where escapes are not allowed
 func (l *Lexer) scanRawString() string {
@@ -448,6 +458,34 @@ func (l *Lexer) handleDirective() {
 			return
 		}
 		l.advance() // consume ')'
+
+	case "pragma":
+		// #pragma <name> [rest of line]
+		// Handled entirely in the lexer; no tokens emitted.
+		if !isLetter(l.peek()) {
+			l.error("expected pragma name after #pragma")
+			return
+		}
+		pragmaName := l.scanIdentifier()
+		switch pragmaName {
+		case "message":
+			// #pragma message <text> - print rest of line to stderr
+			// Skip whitespace before the message text (but not newlines)
+			for l.pos < len(l.input) && (l.input[l.pos] == ' ' || l.input[l.pos] == '\t') {
+				l.pos++
+			}
+			msg := l.scanToEndOfLine()
+			if !l.skipping {
+				fmt.Fprintf(os.Stderr, "%s:%d: #pragma message: %s\n", l.filename, l.line, msg)
+			}
+		case "bootstrap":
+			// #pragma bootstrap - emit #bootstrap meta-line for downstream passes
+			if !l.skipping {
+				fmt.Fprintln(l.output, "#bootstrap")
+			}
+		default:
+			l.error(fmt.Sprintf("unknown pragma: %s", pragmaName))
+		}
 
 	default:
 		l.error(fmt.Sprintf("unknown directive #%s", name))

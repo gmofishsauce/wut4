@@ -83,6 +83,12 @@ func (r *ASTReader) Read() (*Program, error) {
 			continue
 		}
 
+		// Parse bootstrap directive
+		if line == "BOOTSTRAP" {
+			prog.IsBootstrap = true
+			continue
+		}
+
 		// Parse struct
 		if strings.HasPrefix(line, "STRUCT ") {
 			s, err := r.readStruct()

@@ -228,7 +228,9 @@ func runStage(path string, args []string, stdin io.Reader) ([]byte, error) {
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	// Forward stderr to terminal (for #pragma message etc.)
+	// while also capturing it for error reporting
+	cmd.Stderr = io.MultiWriter(&stderr, os.Stderr)
 
 	if err := cmd.Run(); err != nil {
 		if stderr.Len() > 0 {

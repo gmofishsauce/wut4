@@ -63,20 +63,11 @@ func (cg *CodeGen) Generate() {
 	cg.emit.Comment("Source: %s", cg.prog.SourceFile)
 	cg.emit.BlankLine()
 
-	// Check if this is a bootstrap program
-	cg.isBootstrap = false
-	for _, asm := range cg.prog.AsmDecls {
-		if strings.Contains(asm, ".bootstrap") {
-			cg.isBootstrap = true
-			break
-		}
-	}
+	// Check if this is a bootstrap program (set by #pragma bootstrap)
+	cg.isBootstrap = cg.prog.IsBootstrap
 
-	// Emit file-level inline assembly (but filter out .bootstrap which is just a signal)
+	// Emit file-level inline assembly
 	for _, asm := range cg.prog.AsmDecls {
-		if strings.Contains(asm, ".bootstrap") {
-			continue // .bootstrap is not a real assembler directive
-		}
 		// Emit without indentation since these are usually directives
 		fmt.Fprintln(cg.emit.out, asm)
 	}

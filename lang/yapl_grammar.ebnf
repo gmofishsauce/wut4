@@ -50,7 +50,8 @@ Declaration     = ConstDecl
                 | VarDecl
                 | FuncDecl
                 | StructDecl
-                | AsmDecl .
+                | AsmDecl
+                | PragmaDecl .
 
 
 (* ============================================================ *)
@@ -163,6 +164,11 @@ StructMember    = TypeSpecifier identifier ";"
 
 (* Inline assembly - passes through to generated assembly unchanged *)
 AsmDecl         = "#asm" "(" raw_string ")" ";" .
+
+(* Pragma directives - handled by the lexer, no tokens emitted *)
+(* #pragma bootstrap    : marks program as bootstrap (Princeton mode startup) *)
+(* #pragma message <text> : prints text to stderr at compile time *)
+PragmaDecl      = "#pragma" identifier { any_char } newline .
 
 
 (* ============================================================ *)
@@ -290,7 +296,7 @@ PrimaryExpr     = identifier
  *   block32  block64  block128
  *
  * Lexer directives (contain #, handled by lexer, not parser):
- *   #if      #else    #endif     #file     #line
+ *   #if      #else    #endif     #file     #line    #pragma
  *
  * Inline assembly directive (passed through to generated code):
  *   #asm

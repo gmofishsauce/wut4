@@ -7,12 +7,13 @@ import "fmt"
 
 // Program represents the entire parsed program
 type Program struct {
-	SourceFile string
-	Structs    []*StructDef
-	Constants  []*ConstDef
-	Globals    []*VarDef
-	Functions  []*FuncDef
-	AsmDecls   []string // File-level inline assembly declarations
+	SourceFile  string
+	IsBootstrap bool // set by #pragma bootstrap
+	Structs     []*StructDef
+	Constants   []*ConstDef
+	Globals     []*VarDef
+	Functions   []*FuncDef
+	AsmDecls    []string // File-level inline assembly declarations
 }
 
 // StructDef represents a struct definition

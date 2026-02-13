@@ -70,6 +70,7 @@ YAPL resembles C with deliberate simplifications for a small compiler.
 - **Single global namespace** - all top-level symbols (functions, variables, constants, struct tags) share one namespace, so struct tags can be used directly as type names
 - **No preprocessor** - `#if`/`#else`/`#endif` handled by lexer; constant expressions folded at lex time
 - **`#asm("...")`** for inline assembly (raw string, no escapes)
+- **`#pragma`** directives handled by lexer: `#pragma bootstrap` for standalone programs (replaces `#asm(".bootstrap")` which no longer triggers bootstrap mode), `#pragma message <text>` prints to stderr at compile time
 - **Declarations before statements** in function bodies
 - **Labels only at function level**, not inside blocks
 - **No `for`-init declarations** - declare loop vars before the `for`
@@ -205,7 +206,7 @@ Implementation limits: 16 params, 32 locals, 256-byte frame, 32 struct fields, 1
 ### Pass 1 (ylex) - Lexer + Constant Evaluator
 - Tokenizes source into `token#, CATEGORY, value` lines (CATEGORY: KEY, ID, PUNCT, LIT)
 - Evaluates constant expressions in `const` initializers, array dimensions, and `#if` conditions
-- Handles `#if`/`#else`/`#endif`, `#file`, `#line` directives
+- Handles `#if`/`#else`/`#endif`, `#file`, `#line`, `#pragma` directives
 - Numeric literals output as hex; strings as quoted
 - Example: `const uint16 SIZE = 64;` -> token stream with `LIT, 0x0040`
 

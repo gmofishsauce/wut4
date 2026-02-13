@@ -27,7 +27,7 @@
 // 32
 // 0202
 
-#asm(".bootstrap");
+#pragma bootstrap
 
 func void Putc(byte b) {
     #asm("ldi r2 96");

@@ -40,6 +40,11 @@ func (ow *OutputWriter) WriteProgram(prog *Program, symtab *SymbolTable, filenam
 	ow.write("#file %s", filename)
 	ow.write("")
 
+	if prog.IsBootstrap {
+		ow.write("BOOTSTRAP")
+		ow.write("")
+	}
+
 	// Write file-level inline assembly first
 	ow.writeAsmDecls(prog)
 

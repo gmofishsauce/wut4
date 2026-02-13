@@ -1,5 +1,5 @@
 // Simple test program
-#asm(".bootstrap");
+#pragma bootstrap
 
 func void main() {
     var byte buf[6];

@@ -50,6 +50,8 @@ func (p *IRParser) Parse() (*IRProgram, error) {
 		}
 
 		switch fields[0] {
+		case "BOOTSTRAP":
+			p.prog.IsBootstrap = true
 		case "ASM":
 			// File-level inline assembly
 			if len(fields) >= 2 {

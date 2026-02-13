@@ -6,7 +6,7 @@
 //
 // The bootstrap is required because there is no operating system or
 // loader to establish MMU registers and other machine state. The
-// .bootstrap directive causes the assembler to emit startup code that:
+// #pragma bootstrap directive causes the compiler to emit startup code that:
 //   1. Initializes the stack pointer (R7) to 0x1000
 //   2. Calls main()
 //   3. Halts the processor when main() returns
@@ -15,4 +15,4 @@
 //   cat bootstrap.yapl itoa.yapl fib.yapl > program.yapl
 //   ya program.yapl
 
-#asm(".bootstrap");
+#pragma bootstrap

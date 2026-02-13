@@ -1,0 +1,12 @@
+#file pragma.yapl
+#bootstrap
+#line 4
+1, KEY, var
+2, KEY, uint16
+3, ID, x
+4, PUNCT, ;
+#line 10
+5, KEY, var
+6, KEY, uint16
+7, ID, y
+8, PUNCT, ;

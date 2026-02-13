@@ -1,5 +1,5 @@
 // wc.yapl - word count for WUT-4
-#asm(".bootstrap");
+#pragma bootstrap
 //
 // Reads text from standard input and prints line, word,
 // and character counts. Words are delimited by spaces,
