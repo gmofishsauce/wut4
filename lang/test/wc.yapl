@@ -1,0 +1,121 @@
+// wc.yapl - word count for WUT-4
+#asm(".bootstrap");
+//
+// Reads text from standard input and prints line, word,
+// and character counts. Words are delimited by spaces,
+// tabs, newlines, and carriage returns.
+//
+// Usage: ya wc.yapl && echo "hello world" | emul wut4.out
+//
+// Console input is non-blocking (SPR 97). We poll the
+// receive status register (SPR 99, bit 15 = data ready)
+// with a 65536-iteration timeout to detect EOF.
+
+// Check receive status. Returns negative when data available
+// (bit 15 of SPR 99 maps to sign bit of int16).
+func int16 rxStatus() {
+    #asm("ldi r2 99");
+    #asm("lsp r1 r2");
+}
+
+// Read one raw byte from console (SPR 97).
+func int16 readByte() {
+    #asm("ldi r2 97");
+    #asm("lsp r1 r2");
+}
+
+// Read one character. Returns -1 on EOF.
+// Polls receive status with a 65536-iteration timeout.
+func int16 Getc() {
+    var uint16 count;
+    count = 0;
+    while (rxStatus() >= 0) {
+        count = count + 1;
+        if (count == 0) {
+            return 0 - 1;
+        }
+    }
+    return readByte();
+}
+
+// Write one byte to console (SPR 96).
+func byte Putc(byte b) {
+    #asm("ldi r2 96");
+    #asm("ssp r1 r2");
+}
+
+// Check TX overflow (bit 0 of SPR 98).
+func byte isOverflow() {
+    #asm("ldi r2 98");
+    #asm("lsp r1 r2");
+    #asm("ldi r2 1");
+    #asm("and r1, r1, r2");
+}
+
+// Emit one byte with overflow retry.
+func void Emit(byte b) {
+    Putc(b);
+    while (isOverflow() != 0) {
+        Putc(b);
+    }
+}
+
+// Print uint16 as decimal (recursive).
+func void Putnum(uint16 n) {
+    if (n >= 10) {
+        Putnum(n / 10);
+    }
+    Emit(byte(n % 10 + 48));
+}
+
+// Return 1 if ch is whitespace.
+func byte isSpace(int16 ch) {
+    if (ch == 32) { return byte(1); }
+    if (ch == 10) { return byte(1); }
+    if (ch == 13) { return byte(1); }
+    if (ch == 9) { return byte(1); }
+    return byte(0);
+}
+
+func void main() {
+    var int16 ch;
+    var uint16 chars;
+    var uint16 words;
+    var uint16 lines;
+    var byte inword;
+    var byte sp;
+
+    chars = 0;
+    words = 0;
+    lines = 0;
+    inword = 0;
+
+    ch = Getc();
+    while (ch != 0 - 1) {
+        chars = chars + 1;
+        if (ch == 10) {
+            lines = lines + 1;
+        }
+        sp = isSpace(ch);
+        if (sp != 0) {
+            if (inword != 0) {
+                words = words + 1;
+                inword = 0;
+            }
+        } else {
+            inword = 1;
+        }
+        ch = Getc();
+    }
+
+    if (inword != 0) {
+        words = words + 1;
+    }
+
+    Putnum(lines);
+    Emit(byte(32));
+    Putnum(words);
+    Emit(byte(32));
+    Putnum(chars);
+    Emit(byte(10));
+}
