@@ -49,8 +49,7 @@ var singleCharOps = map[byte]bool{
 
 // Lexer state
 type Lexer struct {
-	input        []byte
-	pos          int
+	reader       *bufio.Reader
 	line         int
 	lastEmitLine int
 	tokenNum     int
@@ -63,10 +62,9 @@ type Lexer struct {
 	skipping bool   // currently skipping code due to #if false
 }
 
-func NewLexer(input []byte, filename string, output *bufio.Writer) *Lexer {
+func NewLexer(reader io.Reader, filename string, output *bufio.Writer) *Lexer {
 	return &Lexer{
-		input:        input,
-		pos:          0,
+		reader:       bufio.NewReader(reader),
 		line:         1,
 		lastEmitLine: 0,
 		tokenNum:     0,
@@ -79,25 +77,26 @@ func NewLexer(input []byte, filename string, output *bufio.Writer) *Lexer {
 }
 
 func (l *Lexer) peek() byte {
-	if l.pos >= len(l.input) {
+	buf, err := l.reader.Peek(1)
+	if err != nil {
 		return 0
 	}
-	return l.input[l.pos]
+	return buf[0]
 }
 
 func (l *Lexer) peekN(n int) byte {
-	if l.pos+n >= len(l.input) {
+	buf, err := l.reader.Peek(n + 1)
+	if err != nil || len(buf) <= n {
 		return 0
 	}
-	return l.input[l.pos+n]
+	return buf[n]
 }
 
 func (l *Lexer) advance() byte {
-	if l.pos >= len(l.input) {
+	ch, err := l.reader.ReadByte()
+	if err != nil {
 		return 0
 	}
-	ch := l.input[l.pos]
-	l.pos++
 	if ch == '\n' {
 		l.line++
 	}
@@ -105,7 +104,7 @@ func (l *Lexer) advance() byte {
 }
 
 func (l *Lexer) skipWhitespace() {
-	for l.pos < len(l.input) {
+	for l.peek() != 0 {
 		ch := l.peek()
 		if ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' {
 			l.advance()
@@ -173,11 +172,11 @@ func isOctalDigit(ch byte) bool {
 }
 
 func (l *Lexer) scanIdentifier() string {
-	start := l.pos
+	var b strings.Builder
 	for isLetter(l.peek()) || isDigit(l.peek()) {
-		l.advance()
+		b.WriteByte(l.advance())
 	}
-	return string(l.input[start:l.pos])
+	return b.String()
 }
 
 func (l *Lexer) scanNumber() int64 {
@@ -329,8 +328,9 @@ func (l *Lexer) scanString() string {
 			// Keep escape sequences as-is in the output
 			result.WriteByte(l.advance())
 			if l.peek() != 0 {
-				result.WriteByte(l.advance())
-				if l.input[l.pos-1] == 'x' {
+				esc := l.advance()
+				result.WriteByte(esc)
+				if esc == 'x' {
 					// Hex escape - copy two more chars
 					if l.peek() != 0 {
 						result.WriteByte(l.advance())
@@ -356,11 +356,11 @@ func (l *Lexer) scanString() string {
 // scanToEndOfLine reads and returns the rest of the current line
 // (up to but not including the newline or EOF). Trims leading/trailing whitespace.
 func (l *Lexer) scanToEndOfLine() string {
-	start := l.pos
-	for l.pos < len(l.input) && l.input[l.pos] != '\n' {
-		l.pos++
+	var b strings.Builder
+	for l.peek() != '\n' && l.peek() != 0 {
+		b.WriteByte(l.advance())
 	}
-	return strings.TrimSpace(string(l.input[start:l.pos]))
+	return strings.TrimSpace(b.String())
 }
 
 // scanRawString scans a string literal without processing escapes
@@ -471,8 +471,8 @@ func (l *Lexer) handleDirective() {
 		case "message":
 			// #pragma message <text> - print rest of line to stderr
 			// Skip whitespace before the message text (but not newlines)
-			for l.pos < len(l.input) && (l.input[l.pos] == ' ' || l.input[l.pos] == '\t') {
-				l.pos++
+			for l.peek() == ' ' || l.peek() == '\t' {
+				l.advance()
 			}
 			msg := l.scanToEndOfLine()
 			if !l.skipping {
@@ -694,9 +694,8 @@ func (l *Lexer) parseConstUnary() int64 {
 		return 0
 	}
 
-	// Check for sizeof
+	// Check for sizeof or other identifier
 	if isLetter(ch) {
-		start := l.pos
 		ident := l.scanIdentifier()
 		if ident == "sizeof" {
 			l.skipWhitespace()
@@ -717,11 +716,11 @@ func (l *Lexer) parseConstUnary() int64 {
 			l.advance()
 			return size
 		}
-		// Not sizeof, restore position and let parseConstPrimary handle it
-		l.pos = start
+		// Not sizeof, pass pre-read identifier to parseConstPrimary
+		return l.parseConstPrimaryWithIdent(ident)
 	}
 
-	return l.parseConstPrimary()
+	return l.parseConstPrimaryWithIdent("")
 }
 
 func (l *Lexer) sizeofType(typeName string) int64 {
@@ -746,8 +745,14 @@ func (l *Lexer) sizeofType(typeName string) int64 {
 	}
 }
 
-func (l *Lexer) parseConstPrimary() int64 {
+func (l *Lexer) parseConstPrimaryWithIdent(preIdent string) int64 {
 	l.skipWhitespace()
+
+	// If we already have a pre-read identifier, handle it directly
+	if preIdent != "" {
+		return l.resolveConstIdent(preIdent)
+	}
+
 	ch := l.peek()
 
 	if ch == '(' {
@@ -771,29 +776,34 @@ func (l *Lexer) parseConstPrimary() int64 {
 
 	if isLetter(ch) {
 		ident := l.scanIdentifier()
-		// Check if it's a type name for type cast
-		if keywords[ident] && l.isTypeName(ident) {
-			l.skipWhitespace()
-			if l.peek() == '(' {
-				l.advance()
-				val := l.parseConstExpr()
-				l.skipWhitespace()
-				if l.peek() != ')' {
-					l.error("expected ')' after type cast")
-				}
-				l.advance()
-				// Apply type cast (truncate to appropriate size)
-				return l.applyTypeCast(ident, val)
-			}
-		}
-		// Look up in constant table
-		if val, ok := l.constants[ident]; ok {
-			return val
-		}
-		l.error(fmt.Sprintf("undefined constant: %s", ident))
+		return l.resolveConstIdent(ident)
 	}
 
 	l.error(fmt.Sprintf("unexpected character in constant expression: %c", ch))
+	return 0
+}
+
+func (l *Lexer) resolveConstIdent(ident string) int64 {
+	// Check if it's a type name for type cast
+	if keywords[ident] && l.isTypeName(ident) {
+		l.skipWhitespace()
+		if l.peek() == '(' {
+			l.advance()
+			val := l.parseConstExpr()
+			l.skipWhitespace()
+			if l.peek() != ')' {
+				l.error("expected ')' after type cast")
+			}
+			l.advance()
+			// Apply type cast (truncate to appropriate size)
+			return l.applyTypeCast(ident, val)
+		}
+	}
+	// Look up in constant table
+	if val, ok := l.constants[ident]; ok {
+		return val
+	}
+	l.error(fmt.Sprintf("undefined constant: %s", ident))
 	return 0
 }
 
@@ -829,9 +839,9 @@ func (l *Lexer) Run() {
 	// Emit file directive
 	fmt.Fprintf(l.output, "#file %s\n", l.filename)
 
-	for l.pos < len(l.input) {
+	for l.peek() != 0 {
 		l.skipWhitespace()
-		if l.pos >= len(l.input) {
+		if l.peek() == 0 {
 			break
 		}
 
@@ -897,13 +907,12 @@ func (l *Lexer) Run() {
 			continue
 		}
 
-		// Multi-character operators
+		// Multi-character operators (all are exactly 2 chars)
 		found := false
 		for _, op := range multiCharOps {
-			if l.pos+len(op) <= len(l.input) && string(l.input[l.pos:l.pos+len(op)]) == op {
-				for range op {
-					l.advance()
-				}
+			if l.peek() == op[0] && l.peekN(1) == op[1] {
+				l.advance()
+				l.advance()
 				l.emitToken(PUNCT, op)
 				found = true
 				break
@@ -1208,13 +1217,6 @@ func (l *Lexer) handleStructDecl() {
 }
 
 func main() {
-	// Read all input from stdin
-	input, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error reading input: %v\n", err)
-		os.Exit(1)
-	}
-
 	// Get filename from command line argument, default to "stdin"
 	filename := "stdin"
 	if len(os.Args) > 1 {
@@ -1224,7 +1226,7 @@ func main() {
 	// Create buffered output
 	output := bufio.NewWriter(os.Stdout)
 
-	// Run lexer
-	lexer := NewLexer(input, filename, output)
+	// Run lexer - read from stdin via buffered reader
+	lexer := NewLexer(os.Stdin, filename, output)
 	lexer.Run()
 }
