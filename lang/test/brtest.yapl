@@ -1,0 +1,138 @@
+// brtest.yapl - Branch offset overflow test
+//
+// Tests that long conditional branches work correctly in large functions.
+// Before the jal-based long branch fix, this program would fail to assemble
+// with "branch offset out of range" errors.
+//
+// BigFunc has 6 parameters and 10 locals in an unbreakable dependency
+// chain. The "if (f != 0)" branch must skip ~600+ instruction words.
+//
+// Usage:
+//   ya -k test/brtest.yapl
+//   emul wut4.out
+
+#pragma bootstrap
+
+const byte msgOk[] = "OK: ";
+const byte msgSkp[] = "SKIP: ";
+const byte msgNl[] = "\n";
+
+func void Putc(byte b) {
+    #asm("ldi r2 96");
+    #asm("ssp r1 r2");
+}
+
+func byte isOverflow() {
+    #asm("ldi r2 98");
+    #asm("lsp r1 r2");
+    #asm("ldi r2 1");
+    #asm("and r1, r1, r2");
+}
+
+func void Emit(byte b) {
+    Putc(b);
+    while (isOverflow() != 0) {
+        Putc(b);
+    }
+}
+
+func void Putstr(@byte bp) {
+    while (@bp != 0) {
+        Emit(@bp);
+        bp = bp + 1;
+    }
+}
+
+func void PutHexNib(uint16 n) {
+    if (n < 10) {
+        Emit(byte(n + 48));
+    } else {
+        Emit(byte(n - 10 + 65));
+    }
+}
+
+func void PutHex(uint16 val) {
+    PutHexNib((val >> 12) & 15);
+    PutHexNib((val >> 8) & 15);
+    PutHexNib((val >> 4) & 15);
+    PutHexNib(val & 15);
+}
+
+func void main() {
+    var uint16 result;
+
+    result = BigFunc(1, 2, 3, 4, 5, 1);
+    Putstr(&msgOk);
+    PutHex(result);
+    Putstr(&msgNl);
+
+    result = BigFunc(1, 2, 3, 4, 5, 0);
+    Putstr(&msgSkp);
+    PutHex(result);
+    Putstr(&msgNl);
+}
+
+func uint16 BigFunc(uint16 a, uint16 b, uint16 c, uint16 d, uint16 e, uint16 f) {
+    var uint16 v0;
+    var uint16 v1;
+    var uint16 v2;
+    var uint16 v3;
+    var uint16 v4;
+    var uint16 v5;
+    var uint16 v6;
+    var uint16 v7;
+    var uint16 v8;
+    var uint16 v9;
+
+    if (f != 0) {
+        // Round 1: seed from parameters (10 ops)
+        v0 = a + b;
+        v1 = v0 + c;
+        v2 = v1 + d;
+        v3 = v2 + e;
+        v4 = v3 + f;
+        v5 = v4 + a;
+        v6 = v5 + b;
+        v7 = v6 + c;
+        v8 = v7 + d;
+        v9 = v8 + e;
+
+        // Round 2: chain through all variables (10 ops)
+        v0 = v9 + v0;
+        v1 = v0 + v1;
+        v2 = v1 + v2;
+        v3 = v2 + v3;
+        v4 = v3 + v4;
+        v5 = v4 + v5;
+        v6 = v5 + v6;
+        v7 = v6 + v7;
+        v8 = v7 + v8;
+        v9 = v8 + v9;
+
+        // Round 3: mix with parameters (10 ops)
+        v0 = v9 + a;
+        v1 = v0 + b;
+        v2 = v1 + c;
+        v3 = v2 + d;
+        v4 = v3 + e;
+        v5 = v4 + f;
+        v6 = v5 + a;
+        v7 = v6 + b;
+        v8 = v7 + c;
+        v9 = v8 + d;
+
+        // Reduce all 10 variables to one value (9 ops)
+        v0 = v0 + v1;
+        v0 = v0 + v2;
+        v0 = v0 + v3;
+        v0 = v0 + v4;
+        v0 = v0 + v5;
+        v0 = v0 + v6;
+        v0 = v0 + v7;
+        v0 = v0 + v8;
+        v0 = v0 + v9;
+
+        return v0;
+    }
+    return 0;
+}

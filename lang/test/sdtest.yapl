@@ -1,0 +1,310 @@
+// sdtest.yapl - SD card bootstrap test program
+//
+// Tests full SD card SPI protocol: init, read sectors, verify data.
+//
+// Usage:
+//   ya -k test/sdtest.yapl
+//   python3 -c "import sys; sys.stdout.buffer.write(bytes(range(256))*32)" > /tmp/sdtest.img
+//   emul -sd /tmp/sdtest.img wut4.out
+//
+// Expected output:
+//   SD init...OK
+//   Page 1: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F
+//   Page 2: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F
+//   DONE
+
+#pragma bootstrap
+
+// --- String constants ---
+
+const byte msgInit[] = "SD init...";
+const byte msgOk[] = "OK\n";
+const byte msgErr[] = "ERR ";
+const byte msgP1[] = "Page 1: ";
+const byte msgP2[] = "Page 2: ";
+const byte msgDone[] = "DONE\n";
+const byte msgRdErr[] = "Read ERR\n";
+
+// --- SPI Primitives ---
+
+func void SpiSend(byte tx) {
+    #asm("ldi r2 100");
+    #asm("ssp r1 r2");
+}
+
+func byte SpiRecv() {
+    #asm("ldi r2 100");
+    #asm("lsp r1 r2");
+}
+
+// SPI receive returning uint16 (avoids ldb sign-extension bug
+// where LOAD.BU uses ldb which sign-extends bytes > 0x7F)
+func uint16 SpiRx() {
+    #asm("ldi r2 100");
+    #asm("lsp r1 r2");
+}
+
+func void SpiSel(byte val) {
+    #asm("ldi r2 101");
+    #asm("ssp r1 r2");
+}
+
+func void MapPage(byte spr, uint16 val) {
+    #asm("ssp r2 r1");
+}
+
+// --- Memory access via inline asm ---
+
+func void StoreByte(uint16 addr, byte val) {
+    #asm("stb r2, r1, 0");
+}
+
+func byte LoadByte(uint16 addr) {
+    #asm("ldb r1, r1, 0");
+}
+
+// --- Console I/O ---
+
+func void Putc(byte b) {
+    #asm("ldi r2 96");
+    #asm("ssp r1 r2");
+}
+
+func byte isOverflow() {
+    #asm("ldi r2 98");
+    #asm("lsp r1 r2");
+    #asm("ldi r2 1");
+    #asm("and r1, r1, r2");
+}
+
+func void Emit(byte b) {
+    Putc(b);
+    while (isOverflow() != 0) {
+        Putc(b);
+    }
+}
+
+func void Putstr(@byte bp) {
+    while (@bp != 0) {
+        Emit(@bp);
+        bp = bp + 1;
+    }
+}
+
+func void PutHexNib(uint16 val) {
+    if (val < 10) {
+        Emit(byte(val + 48));
+    } else {
+        Emit(byte(val - 10 + 65));
+    }
+}
+
+func void PutHexByte(uint16 val) {
+    PutHexNib((val >> 4) & 0x0F);
+    PutHexNib(val & 0x0F);
+}
+
+// --- SD Protocol Helpers ---
+
+// Discard one SPI response byte (pump state machine)
+func void Pump() {
+    var byte d;
+    d = SpiRecv();
+}
+
+// Discard 5 SPI bytes (4 extra R7/R3 response bytes + 1 pump)
+func void Pump5() {
+    Pump();
+    Pump();
+    Pump();
+    Pump();
+    Pump();
+}
+
+// Poll SPI up to 32 times for non-0xFF response.
+// Returns uint16 to avoid ldb sign-extension on byte values > 0x7F.
+func uint16 WaitResp() {
+    var uint16 resp;
+    var uint16 i;
+    i = 0;
+    while (i < 32) {
+        resp = SpiRx();
+        if (resp != 0xFF) {
+            return resp;
+        }
+        i = i + 1;
+    }
+    return 0xFF;
+}
+
+// Send 6-byte SD command, return R1 response
+func byte SdCmd(byte cmd, uint16 argHi, uint16 argLo) {
+    var byte crc;
+    if (cmd == 0) {
+        crc = byte(0x95);
+    } else {
+        if (cmd == 8) {
+            crc = byte(0x87);
+        } else {
+            crc = byte(0xFF);
+        }
+    }
+    SpiSend(byte(uint16(cmd) | 0x40));
+    SpiSend(byte(argHi >> 8));
+    SpiSend(byte(argHi & 0xFF));
+    SpiSend(byte(argLo >> 8));
+    SpiSend(byte(argLo & 0xFF));
+    SpiSend(crc);
+    return byte(WaitResp());
+}
+
+// Init clocks + CMD0. Returns 0 or error code 1.
+func byte SdInit0() {
+    var uint16 i;
+    var byte r;
+
+    SpiSel(1);
+    i = 0;
+    while (i < 12) {
+        SpiSend(byte(0xFF));
+        i = i + 1;
+    }
+    SpiSel(0);
+
+    r = SdCmd(0, 0, 0);
+    if (r != 1) { return 1; }
+    Pump();
+    return 0;
+}
+
+// CMD8 + CMD58. Returns 0 or error code 2-3.
+func byte SdInit1() {
+    var byte r;
+
+    r = SdCmd(8, 0, uint16(0x01AA));
+    if (r != 1) { return 2; }
+    Pump5();
+
+    r = SdCmd(58, 0, 0);
+    if (r != 1) { return 3; }
+    Pump5();
+
+    return 0;
+}
+
+// CMD55 + ACMD41. Returns 0 or error code 4-5.
+func byte SdInit2() {
+    var byte r;
+
+    r = SdCmd(55, 0, 0);
+    if (r != 1) { return 4; }
+    Pump();
+
+    r = SdCmd(41, uint16(0x4000), 0);
+    if (r != 0) { return 5; }
+    Pump();
+
+    return 0;
+}
+
+// Full SD card init. Returns 0 on success, 1-5 error code.
+func byte SdInit() {
+    var byte r;
+    r = SdInit0();
+    if (r != 0) { return r; }
+    r = SdInit1();
+    if (r != 0) { return r; }
+    return SdInit2();
+}
+
+// Read one 512-byte sector from SD card into memory
+func byte SdReadSec(uint16 addr, uint16 dest) {
+    var byte r;
+    var uint16 i;
+    var uint16 tok;
+
+    r = SdCmd(17, 0, addr);
+    if (r != 0) { return r; }
+
+    tok = WaitResp();
+    if (tok != 0xFE) { return byte(0xFF); }
+
+    i = 0;
+    while (i < 512) {
+        r = SpiRecv();
+        StoreByte(dest + i, r);
+        i = i + 1;
+    }
+
+    Pump();
+    Pump();
+    return 0;
+}
+
+// Read 16 sectors into pages 1-2. Returns 0 or 1.
+func byte ReadSecs() {
+    var byte r;
+    var uint16 sdAddr;
+    var uint16 memAddr;
+    var uint16 i;
+
+    sdAddr = 0;
+    memAddr = uint16(0x1000);
+    i = 0;
+    while (i < 16) {
+        r = SdReadSec(sdAddr, memAddr);
+        if (r != 0) { return 1; }
+        sdAddr = sdAddr + 512;
+        memAddr = memAddr + 512;
+        i = i + 1;
+    }
+    return 0;
+}
+
+// Print 16 hex bytes from data address
+func void DumpHex(uint16 addr) {
+    var uint16 i;
+    i = 0;
+    while (i < 16) {
+        PutHexByte(uint16(LoadByte(addr + i)));
+        if (i < 15) {
+            Emit(32);
+        }
+        i = i + 1;
+    }
+    Emit(byte('\n'));
+}
+
+// --- Main ---
+
+func void main() {
+    var byte r;
+
+    Putstr(&msgInit);
+
+    r = SdInit();
+    if (r != 0) {
+        Putstr(&msgErr);
+        Emit(byte(uint16(r) + 48));
+        Emit(byte('\n'));
+        return;
+    }
+    Putstr(&msgOk);
+
+    MapPage(81, 1);
+    MapPage(82, 2);
+
+    r = ReadSecs();
+    if (r != 0) {
+        Putstr(&msgRdErr);
+        return;
+    }
+
+    Putstr(&msgP1);
+    DumpHex(uint16(0x1000));
+
+    Putstr(&msgP2);
+    DumpHex(uint16(0x2000));
+
+    Putstr(&msgDone);
+}
