@@ -663,7 +663,7 @@ func (cg *CodeGen) genInstruction(instr *IRInstr) {
 		cg.genCompare(instr)
 
 	case OpJump:
-		cg.emit.Br(cg.fixLabel(instr.Target))
+		cg.emit.Jmp(cg.fixLabel(instr.Target))
 
 	case OpJumpZ:
 		cg.genJumpZ(instr)
@@ -1103,21 +1103,25 @@ func (cg *CodeGen) genCompare(instr *IRInstr) {
 }
 
 func (cg *CodeGen) genJumpZ(instr *IRInstr) {
-	// JUMPZ cond, label
+	// JUMPZ cond, label — use inverted short branch + long jump
+	// to avoid branch offset overflow in large functions
 	cg.loadOperand(instr.Args[0], R4)
-	// Use adi r4, r4, 0 to test if r4 is zero (sets Z flag correctly)
-	// Note: tst r4, r4 computes r4-r4=0, which always sets Z=1!
 	cg.emit.Adi(R4, R4, 0)
-	cg.emit.Brz(cg.fixLabel(instr.Target))
+	skip := cg.emit.NewLabel("skip")
+	cg.emit.Brnz(skip)                          // inverted: skip if NOT zero
+	cg.emit.Jmp(cg.fixLabel(instr.Target))       // long jump to target
+	cg.emit.Label(skip)
 }
 
 func (cg *CodeGen) genJumpNZ(instr *IRInstr) {
-	// JUMPNZ cond, label
+	// JUMPNZ cond, label — use inverted short branch + long jump
+	// to avoid branch offset overflow in large functions
 	cg.loadOperand(instr.Args[0], R4)
-	// Use adi r4, r4, 0 to test if r4 is zero (sets Z flag correctly)
-	// Note: tst r4, r4 computes r4-r4=0, which always sets Z=1!
 	cg.emit.Adi(R4, R4, 0)
-	cg.emit.Brnz(cg.fixLabel(instr.Target))
+	skip := cg.emit.NewLabel("skip")
+	cg.emit.Brz(skip)                            // inverted: skip if zero
+	cg.emit.Jmp(cg.fixLabel(instr.Target))        // long jump to target
+	cg.emit.Label(skip)
 }
 
 func (cg *CodeGen) genArg(instr *IRInstr) {
@@ -1177,7 +1181,7 @@ func (cg *CodeGen) genReturn(instr *IRInstr) {
 	if len(instr.Args) > 0 && instr.Args[0] != "" {
 		cg.loadOperand(instr.Args[0], R1)
 	}
-	cg.emit.Br(fmt.Sprintf("L_%s_epilogue", cg.currFunc.Name))
+	cg.emit.Jmp(fmt.Sprintf("L_%s_epilogue", cg.currFunc.Name))
 }
 
 // Helper functions

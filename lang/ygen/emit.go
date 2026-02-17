@@ -209,6 +209,12 @@ func (e *Emitter) Br(label string) {
 	e.Instr1("br", label)
 }
 
+// Jmp emits an unconditional long jump (uses jal, full 16-bit range).
+// Clobbers LINK, but LINK is saved/restored in every function prologue/epilogue.
+func (e *Emitter) Jmp(label string) {
+	e.Instr1("jal", label)
+}
+
 // Brz emits branch if zero
 func (e *Emitter) Brz(label string) {
 	e.Instr1("brz", label)
