@@ -120,10 +120,11 @@ func (l *Lexer) skipWhitespace() {
 			for !(l.peek() == '*' && l.peekN(1) == '/') && l.peek() != 0 {
 				l.advance()
 			}
-			if l.peek() != 0 {
-				l.advance() // skip *
-				l.advance() // skip /
+			if l.peek() == 0 {
+				l.error("unterminated block comment")
 			}
+			l.advance() // skip *
+			l.advance() // skip /
 		} else {
 			break
 		}
@@ -175,6 +176,9 @@ func (l *Lexer) scanIdentifier() string {
 	var b strings.Builder
 	for isLetter(l.peek()) || isDigit(l.peek()) {
 		b.WriteByte(l.advance())
+	}
+	if b.Len() > 15 {
+		l.error(fmt.Sprintf("identifier %q exceeds maximum length of 15 characters", b.String()))
 	}
 	return b.String()
 }
@@ -661,11 +665,19 @@ func (l *Lexer) parseConstMult() int64 {
 		} else if ch == '<' && l.peekN(1) == '<' {
 			l.advance()
 			l.advance()
-			left = left << l.parseConstUnary()
+			count := l.parseConstUnary()
+			if count < 0 {
+				l.error("negative shift count in constant expression")
+			}
+			left = left << count
 		} else if ch == '>' && l.peekN(1) == '>' {
 			l.advance()
 			l.advance()
-			left = left >> l.parseConstUnary()
+			count := l.parseConstUnary()
+			if count < 0 {
+				l.error("negative shift count in constant expression")
+			}
+			left = left >> count
 		} else {
 			break
 		}
@@ -1113,10 +1125,11 @@ func (l *Lexer) handleVarDecl() {
 	}
 
 	// Expect ';'
-	if l.peek() == ';' {
-		l.advance()
-		l.emitToken(PUNCT, ";")
+	if l.peek() != ';' {
+		l.error("expected ';' after var declaration")
 	}
+	l.advance()
+	l.emitToken(PUNCT, ";")
 }
 
 // Handle struct declaration - fold array dimensions in members
