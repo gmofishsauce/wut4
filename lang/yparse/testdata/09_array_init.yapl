@@ -1,0 +1,10 @@
+// Test 09: Multi-element numeric array initializer
+// Regression: parseArrayInit only parsed the first element of a
+// {expr, expr, ...} list and then errored on the ',', leaving the
+// token stream out of sync and causing cascading parse errors.
+
+var int16 gArr[3] = {1, 2, 3};
+
+func void Dummy() {
+    return;
+}

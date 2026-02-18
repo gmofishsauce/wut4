@@ -1,0 +1,14 @@
+// Regression: parseAdditive | and ^ operator output
+//
+// The parseAdditive function uses a convoluted code path that produces
+// correct results "by accident" (yparse-review.md §2). This file is
+// used by TestAdditiveOpOutput, which checks that BINARY | and BINARY ^
+// nodes appear in the AST output so that a future cleanup of
+// parseAdditive cannot silently change its behavior.
+
+func int16 BitOps(int16 a, int16 b) {
+    var int16 x;
+    x = a | b;
+    x = a ^ b;
+    return x;
+}

@@ -94,6 +94,23 @@ func TestParserPositive(t *testing.T) {
 	}
 }
 
+// TestAdditiveOpOutput is a documentation-style regression test for the
+// parseAdditive bug (yparse-review.md §2). The function uses a convoluted
+// code path that produces correct results "by accident." This test verifies
+// that BINARY | and BINARY ^ nodes appear in the AST output so that any
+// future cleanup of parseAdditive cannot silently change its behavior.
+func TestAdditiveOpOutput(t *testing.T) {
+	stdout, stderr, err := runPipeline(t, "testdata/reg_additive_ops.yapl")
+	if err != nil {
+		t.Fatalf("pipeline failed: %v\nstderr: %s", err, stderr)
+	}
+	for _, want := range []string{"BINARY OR", "BINARY XOR"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("AST output missing %q\nstdout:\n%s", want, stdout)
+		}
+	}
+}
+
 func TestParserNegative(t *testing.T) {
 	entries, err := filepath.Glob("testdata/err_*.yapl")
 	if err != nil {
