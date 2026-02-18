@@ -9,8 +9,13 @@
 #
 cd "$(dirname "$0")"
 
-cd ylex && go install && \
-cd ../yparse && go install && \
-cd ../ysem && go install && \
+echo build ylex
+cd ylex && go build && go test && go install && \
+echo build yparse
+cd ../yparse && go build && go test && go install && \
+echo build ysem
+cd ../ysem && go build && go test && go install && \
+echo build ygen
 cd ../ygen && go install && \
+echo build ya
 cd ../ya && go install
