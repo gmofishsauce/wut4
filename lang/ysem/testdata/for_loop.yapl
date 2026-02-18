@@ -1,0 +1,13 @@
+// Regression test for C4: FOR stmt parsing.
+// With the bug, reader.go mistakes the INIT section header for a blank
+// expression, shifts the real init expression into Cond, and discards
+// the real Cond and Post entirely.  The IR must contain a signed
+// less-than comparison (loop condition) and an ADD (post increment).
+func int16 sumTo(int16 n) {
+    var int16 i;
+    var int16 s;
+    for (i = 0; i < n; i = i + 1) {
+        s = s + i;
+    }
+    return s;
+}

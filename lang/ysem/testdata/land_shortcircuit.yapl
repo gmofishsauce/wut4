@@ -1,0 +1,16 @@
+// Regression test for C6: && evaluates both operands unconditionally.
+// genBinary computes left and right before the switch, so the short-
+// circuit jump logic only governs the result register, not whether the
+// right-hand call occurs.  The IR must contain a JUMPZ between the two
+// calls so that alwaysone() is skipped when alwayszero() returns 0.
+func int16 alwayszero() {
+    return 0;
+}
+
+func int16 alwaysone() {
+    return 1;
+}
+
+func int16 andtest() {
+    return alwayszero() && alwaysone();
+}

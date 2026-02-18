@@ -1,0 +1,10 @@
+// Regression test for C5: GOTO label and line-number are swapped.
+// yparse emits "GOTO label linenum"; reader.go parses parts[1] as
+// linenum and parts[2] as label, so the JUMP target becomes the
+// stringified line number instead of the label name.
+func void gototest() {
+    goto done;
+    return;
+done:
+    return;
+}

@@ -1,0 +1,11 @@
+// Regression test for C2 (ARROW keyword unhandled) and C3 (FIELD reads
+// name from wrong line).  yparse emits "ARROW fieldname" for -> access;
+// reader.go has no ARROW case and falls through to nil, turning the
+// return expression into a void return and causing a type error.
+// Field y is at offset 2, so after the fix the IR must contain a
+// register-indirect load produced by the pointer dereference.
+struct point { int16 x; int16 y; };
+
+func int16 gety(@point p) {
+    return p->y;
+}
