@@ -1,0 +1,18 @@
+#ir 1
+#source gtu_compare.yapl
+
+FUNC test_gtu
+  VISIBILITY STATIC
+  RETURN UINT16
+  PARAMS 2
+    PARAM a UINT16 0
+    PARAM b UINT16 1
+  LOCALS 0
+  FRAMESIZE 0
+
+  t0 = PARAM 0
+  t1 = PARAM 1
+  t2 = GT.U t0, t1
+  RETURN t2
+
+ENDFUNC

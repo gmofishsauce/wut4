@@ -1,0 +1,146 @@
+#ir 1
+#source all_compares.yapl
+
+; Exercises all ten comparison operators so every genCompare case is covered.
+; The correct result for each is either 0 or 1; the important thing is that
+; the false-case path always stores 0 (not a stale register value).
+
+FUNC cmp_eq
+  VISIBILITY STATIC
+  RETURN INT16
+  PARAMS 2
+    PARAM a INT16 0
+    PARAM b INT16 1
+  LOCALS 0
+  FRAMESIZE 0
+  t0 = PARAM 0
+  t1 = PARAM 1
+  t2 = EQ.W t0, t1
+  RETURN t2
+ENDFUNC
+
+FUNC cmp_ne
+  VISIBILITY STATIC
+  RETURN INT16
+  PARAMS 2
+    PARAM a INT16 0
+    PARAM b INT16 1
+  LOCALS 0
+  FRAMESIZE 0
+  t0 = PARAM 0
+  t1 = PARAM 1
+  t2 = NE.W t0, t1
+  RETURN t2
+ENDFUNC
+
+FUNC cmp_lts
+  VISIBILITY STATIC
+  RETURN INT16
+  PARAMS 2
+    PARAM a INT16 0
+    PARAM b INT16 1
+  LOCALS 0
+  FRAMESIZE 0
+  t0 = PARAM 0
+  t1 = PARAM 1
+  t2 = LT.S t0, t1
+  RETURN t2
+ENDFUNC
+
+FUNC cmp_les
+  VISIBILITY STATIC
+  RETURN INT16
+  PARAMS 2
+    PARAM a INT16 0
+    PARAM b INT16 1
+  LOCALS 0
+  FRAMESIZE 0
+  t0 = PARAM 0
+  t1 = PARAM 1
+  t2 = LE.S t0, t1
+  RETURN t2
+ENDFUNC
+
+FUNC cmp_gts
+  VISIBILITY STATIC
+  RETURN INT16
+  PARAMS 2
+    PARAM a INT16 0
+    PARAM b INT16 1
+  LOCALS 0
+  FRAMESIZE 0
+  t0 = PARAM 0
+  t1 = PARAM 1
+  t2 = GT.S t0, t1
+  RETURN t2
+ENDFUNC
+
+FUNC cmp_ges
+  VISIBILITY STATIC
+  RETURN INT16
+  PARAMS 2
+    PARAM a INT16 0
+    PARAM b INT16 1
+  LOCALS 0
+  FRAMESIZE 0
+  t0 = PARAM 0
+  t1 = PARAM 1
+  t2 = GE.S t0, t1
+  RETURN t2
+ENDFUNC
+
+FUNC cmp_ltu
+  VISIBILITY STATIC
+  RETURN UINT16
+  PARAMS 2
+    PARAM a UINT16 0
+    PARAM b UINT16 1
+  LOCALS 0
+  FRAMESIZE 0
+  t0 = PARAM 0
+  t1 = PARAM 1
+  t2 = LT.U t0, t1
+  RETURN t2
+ENDFUNC
+
+FUNC cmp_leu
+  VISIBILITY STATIC
+  RETURN UINT16
+  PARAMS 2
+    PARAM a UINT16 0
+    PARAM b UINT16 1
+  LOCALS 0
+  FRAMESIZE 0
+  t0 = PARAM 0
+  t1 = PARAM 1
+  t2 = LE.U t0, t1
+  RETURN t2
+ENDFUNC
+
+FUNC cmp_gtu
+  VISIBILITY STATIC
+  RETURN UINT16
+  PARAMS 2
+    PARAM a UINT16 0
+    PARAM b UINT16 1
+  LOCALS 0
+  FRAMESIZE 0
+  t0 = PARAM 0
+  t1 = PARAM 1
+  t2 = GT.U t0, t1
+  RETURN t2
+ENDFUNC
+
+FUNC cmp_geu
+  VISIBILITY STATIC
+  RETURN UINT16
+  PARAMS 2
+    PARAM a UINT16 0
+    PARAM b UINT16 1
+  LOCALS 0
+  FRAMESIZE 0
+  t0 = PARAM 0
+  t1 = PARAM 1
+  t2 = GE.U t0, t1
+  RETURN t2
+ENDFUNC

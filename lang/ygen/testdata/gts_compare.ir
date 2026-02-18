@@ -1,0 +1,18 @@
+#ir 1
+#source gts_compare.yapl
+
+FUNC test_gt
+  VISIBILITY STATIC
+  RETURN INT16
+  PARAMS 2
+    PARAM a INT16 0
+    PARAM b INT16 1
+  LOCALS 0
+  FRAMESIZE 0
+
+  t0 = PARAM 0
+  t1 = PARAM 1
+  t2 = GT.S t0, t1
+  RETURN t2
+
+ENDFUNC

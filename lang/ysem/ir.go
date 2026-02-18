@@ -619,6 +619,36 @@ func (g *IRGen) paramIndex(name string) int {
 }
 
 func (g *IRGen) genBinary(e *BinaryExpr) string {
+	// Short-circuit operators must evaluate the right operand lazily.
+	switch e.Op {
+	case OpLAnd:
+		left := g.genExpr(e.Left)
+		t := g.newTemp()
+		endLabel := g.newLabel("land")
+		g.emit("CONST.W", t, "0x0000")
+		g.emitJumpZ(left, endLabel)
+		right := g.genExpr(e.Right)
+		g.emitJumpZ(right, endLabel)
+		g.emit("CONST.W", t, "0x0001")
+		g.emitLabel(endLabel)
+		return t
+
+	case OpLOr:
+		left := g.genExpr(e.Left)
+		t := g.newTemp()
+		trueLabel := g.newLabel("lor_t")
+		endLabel := g.newLabel("lor_e")
+		g.emitJumpNZ(left, trueLabel)
+		right := g.genExpr(e.Right)
+		g.emitJumpNZ(right, trueLabel)
+		g.emit("CONST.W", t, "0x0000")
+		g.emitJump(endLabel)
+		g.emitLabel(trueLabel)
+		g.emit("CONST.W", t, "0x0001")
+		g.emitLabel(endLabel)
+		return t
+	}
+
 	left := g.genExpr(e.Left)
 	right := g.genExpr(e.Right)
 	t := g.newTemp()
@@ -690,25 +720,6 @@ func (g *IRGen) genBinary(e *BinaryExpr) string {
 		} else {
 			g.emit("GE.U", t, left, right)
 		}
-	case OpLAnd:
-		// Short-circuit AND
-		endLabel := g.newLabel("land")
-		g.emit("CONST.W", t, "0x0000")
-		g.emitJumpZ(left, endLabel)
-		g.emitJumpZ(right, endLabel)
-		g.emit("CONST.W", t, "0x0001")
-		g.emitLabel(endLabel)
-	case OpLOr:
-		// Short-circuit OR
-		trueLabel := g.newLabel("lor_t")
-		endLabel := g.newLabel("lor_e")
-		g.emitJumpNZ(left, trueLabel)
-		g.emitJumpNZ(right, trueLabel)
-		g.emit("CONST.W", t, "0x0000")
-		g.emitJump(endLabel)
-		g.emitLabel(trueLabel)
-		g.emit("CONST.W", t, "0x0001")
-		g.emitLabel(endLabel)
 	}
 
 	return t

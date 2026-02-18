@@ -588,10 +588,10 @@ func (r *ASTReader) readStmt(line string, depth int) (Stmt, error) {
 		lineNum := 0
 		label := ""
 		if len(parts) > 1 {
-			lineNum, _ = strconv.Atoi(parts[1])
+			label = parts[1]
 		}
 		if len(parts) > 2 {
-			label = parts[2]
+			lineNum, _ = strconv.Atoi(parts[2])
 		}
 		return &GotoStmt{baseStmt: baseStmt{Line: lineNum}, Label: label}, nil
 
@@ -692,34 +692,48 @@ func (r *ASTReader) readWhile(lineNum int, depth int) (*WhileStmt, error) {
 
 func (r *ASTReader) readFor(lineNum int, depth int) (*ForStmt, error) {
 	stmt := &ForStmt{baseStmt: baseStmt{Line: lineNum}}
-
-	// Read init, cond, post (each on separate lines, may be EMPTY)
-	for i := 0; i < 3; i++ {
-		r.nextLine()
-		line := strings.TrimSpace(r.line)
-		if line != "EMPTY" {
-			expr, _ := r.readExprFromLine(line, depth+1, lineNum)
-			switch i {
-			case 0:
-				stmt.Init = expr
-			case 1:
-				stmt.Cond = expr
-			case 2:
-				stmt.Post = expr
-			}
-		}
-	}
-
-	// Read body
 	stmt.Body = make([]Stmt, 0)
+
+	// yparse emits INIT / COND / POST / DO section headers.
+	// After each header, the next line is either an expression or the next header.
 	for r.nextLine() {
 		line := strings.TrimSpace(r.line)
-		if line == "ENDFOR" {
-			break
-		}
-		s, _ := r.readStmt(line, depth+1)
-		if s != nil {
-			stmt.Body = append(stmt.Body, s)
+		switch line {
+		case "INIT", "COND", "POST":
+			// Peek at the expression line; unread if it is another section header.
+			if !r.nextLine() {
+				break
+			}
+			next := strings.TrimSpace(r.line)
+			nextParts := strings.Fields(next)
+			if len(nextParts) > 0 && next != "EMPTY" && isExprKeyword(nextParts[0]) {
+				expr, _ := r.readExprFromLine(next, depth+1, lineNum)
+				switch line {
+				case "INIT":
+					stmt.Init = expr
+				case "COND":
+					stmt.Cond = expr
+				case "POST":
+					stmt.Post = expr
+				}
+			} else {
+				r.unreadLine()
+			}
+		case "DO":
+			// Body statements follow until ENDFOR.
+			for r.nextLine() {
+				bodyLine := strings.TrimSpace(r.line)
+				if bodyLine == "ENDFOR" {
+					return stmt, nil
+				}
+				s, _ := r.readStmt(bodyLine, depth+1)
+				if s != nil {
+					stmt.Body = append(stmt.Body, s)
+				}
+			}
+			return stmt, nil
+		case "ENDFOR":
+			return stmt, nil
 		}
 	}
 
@@ -747,7 +761,7 @@ func (r *ASTReader) readExprFromLine(line string, depth int, stmtLine int) (Expr
 		}
 		return &LiteralExpr{baseExpr: baseExpr{Line: stmtLine}, IntVal: val}, nil
 
-	case "STRLIT":
+	case "STR":
 		// String literal - rest of line is the string
 		str := ""
 		if len(parts) > 1 {
@@ -811,16 +825,22 @@ func (r *ASTReader) readExprFromLine(line string, depth int, stmtLine int) (Expr
 		return &IndexExpr{baseExpr: baseExpr{Line: stmtLine}, Array: array, Index: index}, nil
 
 	case "FIELD":
-		isArrow := len(parts) > 1 && parts[1] == "ARROW"
-		obj, _ := r.readExpr(depth+1, stmtLine)
-		r.nextLine()
-		fieldLine := strings.TrimSpace(r.line)
-		fieldParts := strings.Fields(fieldLine)
+		// Format: "FIELD fieldname" followed by the object expression
 		fieldName := ""
-		if len(fieldParts) > 1 {
-			fieldName = fieldParts[1]
+		if len(parts) > 1 {
+			fieldName = parts[1]
 		}
-		return &FieldExpr{baseExpr: baseExpr{Line: stmtLine}, Object: obj, Field: fieldName, IsArrow: isArrow}, nil
+		obj, _ := r.readExpr(depth+1, stmtLine)
+		return &FieldExpr{baseExpr: baseExpr{Line: stmtLine}, Object: obj, Field: fieldName, IsArrow: false}, nil
+
+	case "ARROW":
+		// Format: "ARROW fieldname" followed by the object expression
+		fieldName := ""
+		if len(parts) > 1 {
+			fieldName = parts[1]
+		}
+		obj, _ := r.readExpr(depth+1, stmtLine)
+		return &FieldExpr{baseExpr: baseExpr{Line: stmtLine}, Object: obj, Field: fieldName, IsArrow: true}, nil
 
 	case "CAST":
 		targetType := parseType(parts[1])
@@ -838,7 +858,7 @@ func (r *ASTReader) readExprFromLine(line string, depth int, stmtLine int) (Expr
 // isExprKeyword returns true if the keyword starts an expression in the AST
 func isExprKeyword(keyword string) bool {
 	switch keyword {
-	case "LIT", "STRLIT", "ID", "BINARY", "UNARY", "ASSIGN", "CALL", "INDEX", "FIELD", "CAST", "SIZEOF":
+	case "LIT", "STR", "ID", "BINARY", "UNARY", "ASSIGN", "CALL", "INDEX", "FIELD", "ARROW", "CAST", "SIZEOF":
 		return true
 	}
 	return false

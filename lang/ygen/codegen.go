@@ -1077,17 +1077,24 @@ func (cg *CodeGen) genCompare(instr *IRInstr) {
 		cg.emit.Brslt(trueLabel)
 		cg.emit.Brz(trueLabel)
 	case OpGtS:
-		// a > b: true if NOT (a <= b), i.e., NOT (a < b OR a == b)
-		cg.emit.Brslt(doneLabel) // if a < b, false
-		cg.emit.Brz(doneLabel)   // if a == b, false
-		cg.emit.Br(trueLabel)    // otherwise true
+		// a > b: true if NOT (a <= b), i.e., NOT (a < b OR a == b).
+		// A falseLabel is needed so the false-condition branches land on the
+		// "ldi r6, 0" below rather than jumping past it to doneLabel.
+		falseLabel := cg.emit.NewLabel("cmp_f")
+		cg.emit.Brslt(falseLabel) // if a < b, false
+		cg.emit.Brz(falseLabel)   // if a == b, false
+		cg.emit.Br(trueLabel)     // otherwise true
+		cg.emit.Label(falseLabel) // falls through to ldi r6, 0
 	case OpLeU:
 		cg.emit.Brult(trueLabel)
 		cg.emit.Brz(trueLabel)
 	case OpGtU:
-		cg.emit.Brult(doneLabel) // if a < b, false
-		cg.emit.Brz(doneLabel)   // if a == b, false
-		cg.emit.Br(trueLabel)    // otherwise true
+		// Same false-path issue as OpGtS; same fix.
+		falseLabel := cg.emit.NewLabel("cmp_f")
+		cg.emit.Brult(falseLabel) // if a < b unsigned, false
+		cg.emit.Brz(falseLabel)   // if a == b, false
+		cg.emit.Br(trueLabel)     // otherwise true
+		cg.emit.Label(falseLabel) // falls through to ldi r6, 0
 	}
 
 	// Fall through: condition was false

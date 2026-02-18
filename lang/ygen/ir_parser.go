@@ -405,12 +405,6 @@ func (p *IRParser) parseSimpleInstr(fields []string) *IRInstr {
 }
 
 func parseInt(s string) int {
-	s = strings.TrimPrefix(s, "0x")
-	s = strings.TrimPrefix(s, "0X")
-	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
-		v, _ := strconv.ParseInt(s[2:], 16, 32)
-		return int(v)
-	}
 	v, _ := strconv.ParseInt(s, 0, 32)
 	return int(v)
 }
