@@ -58,7 +58,7 @@ func int16 TestFor(int16 n) {
     return sum;
 }
 
-func void TestBreakContinue() {
+func void TestBrkCont() {
     var int16 i;
 
     i = 0;
