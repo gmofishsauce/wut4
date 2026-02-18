@@ -503,12 +503,22 @@ func (p *Parser) parseArrayInit() Expr {
 		}
 
 		// { expr, expr, ... } - numeric initializer list
-		// For now, parse as a single expression (simplified)
-		expr := p.parseExpression()
-		if _, err := p.tokens.ExpectPunct("}"); err != nil {
-			p.error("expected '}' after initializer")
+		loc := p.currentLoc()
+		var elems []Expr
+		for {
+			elems = append(elems, p.parseExpression())
+			if !p.tokens.Peek().IsPunct(",") {
+				break
+			}
+			p.tokens.Next() // consume ','
 		}
-		return expr
+		if _, err := p.tokens.ExpectPunct("}"); err != nil {
+			p.error("expected '}' after initializer list")
+		}
+		return &ArrayInitExpr{
+			baseExpr: baseExpr{Loc: loc},
+			Elems:    elems,
+		}
 	}
 
 	p.error("expected array initializer")
@@ -1223,35 +1233,15 @@ func (p *Parser) parseAdditive() Expr {
 			op = OpAdd
 		case tok.IsPunct("-"):
 			op = OpSub
-		case tok.IsPunct("|") && !p.tokens.Peek().IsPunct("||"):
-			// Need to check it's not ||
+		case tok.IsPunct("|"):
 			op = OpOr
 		case tok.IsPunct("^"):
 			op = OpXor
 		default:
 			return expr
 		}
-
-		// Double-check for || (already consumed one |)
-		if op == OpOr {
-			p.tokens.Next()
-			if p.tokens.Peek().IsPunct("|") {
-				// It was ||, put back conceptually - but we can't
-				// This is a parsing issue; let's handle differently
-				// Actually, IsPunct("||") should match "||" as a single token
-				// So this case shouldn't happen
-			}
-		} else {
-			p.tokens.Next()
-		}
-
-		if op == OpOr {
-			// Already consumed
-		} else {
-			// Token already consumed above
-		}
-
 		loc := p.currentLoc()
+		p.tokens.Next()
 		right := p.parseMultiplicative()
 		expr = &BinaryExpr{
 			baseExpr: baseExpr{Loc: loc},

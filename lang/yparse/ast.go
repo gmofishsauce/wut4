@@ -463,3 +463,11 @@ type SizeofTypeExpr struct {
 }
 
 func (e *SizeofTypeExpr) exprNode() {}
+
+// ArrayInitExpr represents a numeric array initializer: { expr, expr, ... }
+type ArrayInitExpr struct {
+	baseExpr
+	Elems []Expr
+}
+
+func (e *ArrayInitExpr) exprNode() {}

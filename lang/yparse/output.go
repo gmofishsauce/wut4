@@ -128,23 +128,22 @@ func (ow *OutputWriter) writeGlobalVars(prog *Program, symtab *SymbolTable) {
 				continue
 			}
 			storage := sym.Storage.String()
-			// Get initializer string if present
-			initStr := ""
-			if vd.Init != nil {
-				if lit, ok := vd.Init.(*LiteralExpr); ok && lit.Kind == LitString {
-					initStr = lit.StrVal
-				}
-			}
 			if vd.ArrayLen > 0 || vd.ArrayLen == -1 {
 				// ArrayLen > 0 is explicit size, -1 is inferred
 				arrayLen := vd.ArrayLen
 				if arrayLen == -1 {
 					arrayLen = 0 // Will be inferred by semantic analyzer
 				}
-				if initStr != "" {
-					ow.write("VAR %s [%d]%s %s OFFSET %d INIT %s", storage, arrayLen, vd.VarType.String(), vd.Name, sym.Offset, initStr)
+				if lit, ok := vd.Init.(*LiteralExpr); ok && lit.Kind == LitString {
+					// String literal: encode inline on the VAR line
+					ow.write("VAR %s [%d]%s %s OFFSET %d INIT %s", storage, arrayLen, vd.VarType.String(), vd.Name, sym.Offset, lit.StrVal)
 				} else {
 					ow.write("VAR %s [%d]%s %s OFFSET %d", storage, arrayLen, vd.VarType.String(), vd.Name, sym.Offset)
+					if vd.Init != nil {
+						ow.indent++
+						ow.writeExpr(vd.Init)
+						ow.indent--
+					}
 				}
 			} else {
 				ow.write("VAR %s %s %s OFFSET %d", storage, vd.VarType.String(), vd.Name, sym.Offset)
@@ -397,5 +396,13 @@ func (ow *OutputWriter) writeExpr(expr Expr) {
 
 	case *SizeofTypeExpr:
 		ow.write("SIZEOF %s", e.TargetType.String())
+
+	case *ArrayInitExpr:
+		ow.write("ARRAYINIT")
+		ow.indent++
+		for _, elem := range e.Elems {
+			ow.writeExpr(elem)
+		}
+		ow.indent--
 	}
 }
