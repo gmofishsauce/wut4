@@ -1,0 +1,8 @@
+// Error: assigning uint16 to int16 without a cast.
+// YAPL has no implicit integer type conversion; ysem must reject this.
+func void test() {
+    var int16 x;
+    var uint16 y;
+    x = y;
+    return;
+}
