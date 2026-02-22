@@ -96,6 +96,7 @@ type IRGen struct {
 	locals     map[string]*VarDef // current function's locals and params
 	tempCount  int
 	labelCount int
+	strCount   int
 	loopLabels []string // stack of loop end labels for break
 	loopCont   []string // stack of loop continue labels
 }
@@ -119,6 +120,12 @@ func (g *IRGen) newTemp() string {
 func (g *IRGen) newLabel(prefix string) string {
 	l := fmt.Sprintf(".%s%d", prefix, g.labelCount)
 	g.labelCount++
+	return l
+}
+
+func (g *IRGen) newStringLabel() string {
+	l := fmt.Sprintf("__str%d", g.strCount)
+	g.strCount++
 	return l
 }
 
@@ -517,13 +524,8 @@ func (g *IRGen) genExpr(expr Expr) string {
 	switch e := expr.(type) {
 	case *LiteralExpr:
 		t := g.newTemp()
-		if e.IsStr {
-			// String literals would need special handling
-			// For now, emit address of string data
-			g.emit("ADDR", t, fmt.Sprintf("_str%d", g.tempCount))
-		} else {
-			g.emit("CONST.W", t, fmt.Sprintf("0x%04X", uint16(e.IntVal)))
-		}
+		// IsStr is a type error (use &"string" instead); only integer literals reach here
+		g.emit("CONST.W", t, fmt.Sprintf("0x%04X", uint16(e.IntVal)))
 		return t
 
 	case *IdentExpr:
@@ -771,6 +773,22 @@ func (g *IRGen) genAddrOf(expr Expr) string {
 	t := g.newTemp()
 
 	switch e := expr.(type) {
+	case *LiteralExpr:
+		if e.IsStr {
+			label := g.newStringLabel()
+			bytes := processStringLiteral(e.StrVal)
+			n := len(bytes)
+			ird := &IRData{
+				Name:       label,
+				Visibility: "STATIC",
+				Type:       fmt.Sprintf("BYTES %d", n),
+				Size:       n,
+				Init:       formatInitBytes(bytes),
+			}
+			g.ir.Globals = append(g.ir.Globals, ird)
+			g.emit("ADDR", t, label)
+		}
+
 	case *IdentExpr:
 		// Check if it's a local
 		if g.locals != nil {

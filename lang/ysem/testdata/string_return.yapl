@@ -3,5 +3,5 @@
 // With the bug the literal is silently dropped and the return becomes void,
 // causing a "non-void function must return a value" error.
 func @byte greeting() {
-    return "hello";
+    return &"hello";
 }

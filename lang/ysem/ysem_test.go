@@ -124,8 +124,8 @@ func TestForLoopIR(t *testing.T) {
 	}
 }
 
-// TestStringLiteralReturn verifies that ysem accepts a string literal as a
-// return value and emits an address-load instruction for it.
+// TestStringLiteralReturn verifies that ysem accepts &"string" as a @byte
+// return value and emits an ADDR instruction for the anonymous string global.
 //
 // Bug C1: yparse emits "STR ..." for string literals; reader.go looks for
 // "STRLIT".  The mismatch causes the literal to be silently dropped, turning

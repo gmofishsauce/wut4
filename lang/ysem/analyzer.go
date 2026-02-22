@@ -238,8 +238,10 @@ func (a *Analyzer) typeCheckExpr(expr Expr) *Type {
 	switch e := expr.(type) {
 	case *LiteralExpr:
 		if e.IsStr {
-			// String literal is pointer to byte
-			t := &Type{Kind: TypePointer, Pointee: Uint8Type}
+			// String literal is an anonymous byte array (null-terminated).
+			// Use &"string" to get a @byte pointer, consistent with named arrays.
+			bytes := processStringLiteral(e.StrVal)
+			t := &Type{Kind: TypeArray, ElemType: Uint8Type, ArrayLen: len(bytes)}
 			e.SetType(t)
 			return t
 		}

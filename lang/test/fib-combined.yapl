@@ -92,7 +92,7 @@ func void main() {
     // Print first Fibonacci number (1)
     Utoa(n2, &buf[0]);
     Putstr(&buf[0]);
-    Putc(byte('\n'));
+    Putstr(&"\r\n");
 
     // Generate and print remaining Fibonacci numbers
     // Use subtraction to avoid uint16 overflow in the addition
@@ -100,7 +100,7 @@ func void main() {
         next = n1 + n2;
         Utoa(next, &buf[0]);
         Putstr(&buf[0]);
-        Putc(byte('\n'));
+        Putstr(&"\r\n");
         n1 = n2;
         n2 = next;
     }
