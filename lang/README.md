@@ -20,7 +20,7 @@ This document is designed to efficiently rebuild Claude's context for working on
 | `lang/test/` | Test programs (.yapl files) |
 | `lang/yapl_grammar.ebnf` | Authoritative YAPL grammar |
 | `lang/IR_FORMAT.md` | IR specification (Pass 3 output format) |
-| `yasm/` | WUT-4 assembler (separate from lang/) |
+| `lang/yasm/` | WUT-4 assembler |
 | `emul/` | WUT-4 emulator |
 | `specs/wut4arch.pdf` | WUT-4 architecture specification |
 | `specs/wut4asm.pdf` | WUT-4 assembly language specification |

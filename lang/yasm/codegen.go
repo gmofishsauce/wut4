@@ -372,6 +372,11 @@ func (asm *Assembler) genLDI(stmt *Statement) error {
 		return err
 	}
 
+	/* In object mode pass 2, clear lastExternalRef before evaluating expr */
+	if asm.objectMode && asm.pass == 2 {
+		asm.lastExternalRef = ""
+	}
+
 	imm, err := asm.evaluateExpr(stmt.args[1], true)
 	if err != nil {
 		return err
@@ -392,6 +397,12 @@ func (asm *Assembler) genLDI(stmt *Statement) error {
 	upper := (uimm >> 6) & 0x3FF
 	lower := uimm & 0x3F
 	word1 := uint16(0xA000) | uint16((upper&0x3FF)<<3) | uint16(rT&0x7)
+
+	/* In object mode pass 2, record relocation for external symbol references */
+	if asm.objectMode && asm.pass == 2 && asm.lastExternalRef != "" {
+		asm.recordRelocation(false, R_LDI_CODE, uint16(asm.codePC), asm.lastExternalRef)
+	}
+
 	asm.emitWord(word1)
 	word2 := uint16(0x8000) | uint16((lower&0x7F)<<6) | uint16((rT&0x7)<<3) | uint16(rT&0x7)
 	asm.emitWord(word2)
@@ -520,6 +531,9 @@ func (asm *Assembler) genJAL(stmt *Statement) error {
 	/* Handle multiple forms of JAL */
 	if stmt.numArgs == 1 {
 		/* jal label -> jal link, label */
+		if asm.objectMode && asm.pass == 2 {
+			asm.lastExternalRef = ""
+		}
 		target, err := asm.evaluateExpr(stmt.args[0], true)
 		if err != nil {
 			return err
@@ -528,6 +542,9 @@ func (asm *Assembler) genJAL(stmt *Statement) error {
 		lower := target & 0x3F
 		/* LUI r0, upper; JAL r0, r0, lower */
 		word1 := uint16(0xA000) | uint16((upper&0x3FF)<<3)
+		if asm.objectMode && asm.pass == 2 && asm.lastExternalRef != "" {
+			asm.recordRelocation(false, R_JAL, uint16(asm.codePC), asm.lastExternalRef)
+		}
 		asm.emitWord(word1)
 		word2 := uint16(0xE000) | uint16((lower&0x3F)<<6)
 		asm.emitWord(word2)
@@ -537,6 +554,9 @@ func (asm *Assembler) genJAL(stmt *Statement) error {
 		if err != nil {
 			return err
 		}
+		if asm.objectMode && asm.pass == 2 {
+			asm.lastExternalRef = ""
+		}
 		target, err := asm.evaluateExpr(stmt.args[1], true)
 		if err != nil {
 			return err
@@ -545,6 +565,9 @@ func (asm *Assembler) genJAL(stmt *Statement) error {
 		lower := target & 0x3F
 		/* LUI rT, upper; JAL rT, rT, lower */
 		word1 := uint16(0xA000) | uint16((upper&0x3FF)<<3) | uint16(rT&0x7)
+		if asm.objectMode && asm.pass == 2 && asm.lastExternalRef != "" {
+			asm.recordRelocation(false, R_JAL, uint16(asm.codePC), asm.lastExternalRef)
+		}
 		asm.emitWord(word1)
 		word2 := uint16(0xE000) | uint16((lower&0x3F)<<6) | uint16((rT&0x7)<<3) | uint16(rT&0x7)
 		asm.emitWord(word2)

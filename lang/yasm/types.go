@@ -2,8 +2,38 @@ package main
 
 const (
 	MAGIC_NUMBER = 0xDDD1
+	MAGIC_WOF    = 0xDDD2
 	HEADER_SIZE  = 16
 )
+
+/* WOF section identifiers */
+const (
+	SEC_UNDEF    = 0
+	SEC_CODE_WOF = 1
+	SEC_DATA_WOF = 2
+)
+
+/* WOF symbol visibility */
+const (
+	VIS_LOCAL  = 0
+	VIS_GLOBAL = 1
+)
+
+/* Relocation types */
+const (
+	R_LDI_CODE    = 0x01 /* 2-word LUI+ADI referencing code-space address */
+	R_LDI_DATA    = 0x02 /* 2-word LUI+ADI referencing data-space address */
+	R_JAL         = 0x03 /* 2-word LUI+JAL referencing code-space address */
+	R_WORD16_CODE = 0x04 /* 16-bit word in data section, code-space address */
+	R_WORD16_DATA = 0x05 /* 16-bit word in data section, data-space address */
+)
+
+type Relocation struct {
+	inDataSeg bool   /* true = reference is in data section */
+	rtype     uint8
+	offset    uint16 /* byte offset within section */
+	symName   string /* resolved to index at write time */
+}
 
 /* Token types */
 const (
@@ -92,23 +122,26 @@ type Statement struct {
 }
 
 type Assembler struct {
-	symbols       []Symbol
-	numSymbols    int
-	codePC        int
-	dataPC        int
-	currentSeg    int
-	codeBuf       []byte
-	dataBuf       []byte
-	codeSize      int
-	dataSize      int
-	codeCap       int
-	dataCap       int
-	pass          int
-	errors        int
-	inputFile     string
-	outputFile    string
-	bootstrapMode bool
-	seenCode      bool
+	symbols        []Symbol
+	numSymbols     int
+	codePC         int
+	dataPC         int
+	currentSeg     int
+	codeBuf        []byte
+	dataBuf        []byte
+	codeSize       int
+	dataSize       int
+	codeCap        int
+	dataCap        int
+	pass           int
+	errors         int
+	inputFile      string
+	outputFile     string
+	bootstrapMode  bool
+	seenCode       bool
+	objectMode     bool
+	relocations    []Relocation
+	lastExternalRef string /* set by expr parser when external symbol used */
 }
 
 type Disassembler struct {

@@ -9,6 +9,7 @@ import (
 
 func main() {
 	disasm := flag.Bool("d", false, "disassemble mode")
+	objMode := flag.Bool("c", false, "produce relocatable object file (.wo)")
 	output := flag.String("o", "wut4.out", "output file")
 	flag.Parse()
 
@@ -46,7 +47,7 @@ func main() {
 			input = string(data)
 		}
 
-		err := assemble(inputName, input, *output)
+		err := assembleMode(inputName, input, *output, *objMode)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)

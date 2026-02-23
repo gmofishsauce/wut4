@@ -89,6 +89,40 @@ func (asm *Assembler) lookupSymbol(name string) *Symbol {
 	return nil
 }
 
+/* addExternalSymbol registers an undefined (external) symbol reference.
+   Safe to call multiple times for the same name. */
+func (asm *Assembler) addExternalSymbol(name string) {
+	/* Check if already known */
+	for i := 0; i < asm.numSymbols; i++ {
+		if asm.symbols[i].name == name {
+			return
+		}
+	}
+	/* Add with defined=false, segment=-1 */
+	if asm.numSymbols >= len(asm.symbols) {
+		newSymbols := make([]Symbol, len(asm.symbols)*2)
+		copy(newSymbols, asm.symbols)
+		asm.symbols = newSymbols
+	}
+	asm.symbols[asm.numSymbols] = Symbol{
+		name:    name,
+		value:   0,
+		defined: false,
+		segment: -1,
+	}
+	asm.numSymbols++
+}
+
+/* recordRelocation appends a relocation entry. */
+func (asm *Assembler) recordRelocation(inDataSeg bool, rtype uint8, offset uint16, symName string) {
+	asm.relocations = append(asm.relocations, Relocation{
+		inDataSeg: inDataSeg,
+		rtype:     rtype,
+		offset:    offset,
+		symName:   symName,
+	})
+}
+
 func (asm *Assembler) processDirective(stmt *Statement) error {
 	switch stmt.directive {
 	case DIR_ALIGN:
@@ -141,9 +175,24 @@ func (asm *Assembler) processDirective(stmt *Statement) error {
 
 	case DIR_WORDS:
 		for i := 0; i < stmt.numArgs; i++ {
+			if asm.objectMode && asm.pass == 2 {
+				asm.lastExternalRef = ""
+			}
 			val, err := asm.evaluateExpr(stmt.args[i], false)
 			if err != nil {
 				return err
+			}
+			if asm.objectMode && asm.pass == 2 && asm.lastExternalRef != "" {
+				inData := asm.currentSeg == SEG_DATA && !asm.bootstrapMode
+				rtype := uint8(R_WORD16_CODE)
+				if inData {
+					rtype = R_WORD16_DATA
+				}
+				offset := uint16(asm.codePC)
+				if inData {
+					offset = uint16(asm.dataPC)
+				}
+				asm.recordRelocation(inData, rtype, offset, asm.lastExternalRef)
 			}
 			asm.emitWord(uint16(val & 0xFFFF))
 		}
@@ -339,7 +388,12 @@ func (asm *Assembler) printCapitalSymbols() {
 }
 
 func assemble(inputName, input, outputFile string) error {
+	return assembleMode(inputName, input, outputFile, false)
+}
+
+func assembleMode(inputName, input, outputFile string, objectMode bool) error {
 	asm := newAssembler(inputName, outputFile)
+	asm.objectMode = objectMode
 
 	/* Pass 1: collect labels and allocate space */
 	if err := asm.pass1(input); err != nil {
@@ -352,8 +406,14 @@ func assemble(inputName, input, outputFile string) error {
 	}
 
 	/* Write output file */
-	if err := writeOutput(outputFile, asm.codeBuf[:asm.codeSize], asm.dataBuf[:asm.dataSize]); err != nil {
-		return err
+	var writeErr error
+	if objectMode {
+		writeErr = writeObjectFile(outputFile, asm)
+	} else {
+		writeErr = writeOutput(outputFile, asm.codeBuf[:asm.codeSize], asm.dataBuf[:asm.dataSize])
+	}
+	if writeErr != nil {
+		return writeErr
 	}
 
 	fmt.Printf("Assembly successful: %s -> %s\n", inputName, outputFile)

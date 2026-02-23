@@ -469,6 +469,63 @@ func TestAllInstructions(t *testing.T) {
 	}
 }
 
+// TestObjectMode tests that -c (object mode) produces a WOF file with
+// correct relocation entries for external symbol references.
+func TestObjectMode(t *testing.T) {
+	// caller.asm: calls Foo (defined in another file) via jal
+	callerSrc := ".code\nMain:\n    jal Foo\n    hlt\n"
+	// callee.asm: defines Foo
+	calleeSrc := ".code\nFoo:\n    ldi r1, 99\n    ret\n"
+
+	tests := []struct {
+		name       string
+		src        string
+		wantRelocs int
+		wantSyms   int // global symbols in WOF
+	}{
+		{"callee (no external refs)", calleeSrc, 0, 1},
+		{"caller (one external ref)", callerSrc, 1, 2}, // Main (defined) + Foo (undef)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			inputFile := tmpDir + "/test.asm"
+			outputFile := tmpDir + "/test.wo"
+
+			if err := os.WriteFile(inputFile, []byte(tt.src), 0644); err != nil {
+				t.Fatalf("write input: %v", err)
+			}
+
+			if err := assembleMode(inputFile, tt.src, outputFile, true); err != nil {
+				t.Fatalf("assembleMode: %v", err)
+			}
+
+			data, err := os.ReadFile(outputFile)
+			if err != nil {
+				t.Fatalf("read output: %v", err)
+			}
+
+			// Validate WOF magic
+			magic := uint16(data[0]) | uint16(data[1])<<8
+			if magic != MAGIC_WOF {
+				t.Errorf("expected magic 0x%04X, got 0x%04X", MAGIC_WOF, magic)
+			}
+
+			// Parse header fields
+			symCount := int(uint16(data[8]) | uint16(data[9])<<8)
+			relocCount := int(uint16(data[10]) | uint16(data[11])<<8)
+
+			if symCount != tt.wantSyms {
+				t.Errorf("expected %d symbols, got %d", tt.wantSyms, symCount)
+			}
+			if relocCount != tt.wantRelocs {
+				t.Errorf("expected %d relocations, got %d", tt.wantRelocs, relocCount)
+			}
+		})
+	}
+}
+
 // TestPseudoInstructions tests pseudo-instructions and verifies their
 // optimizations produce the correct machine code.
 func TestPseudoInstructions(t *testing.T) {

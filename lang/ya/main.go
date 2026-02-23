@@ -1,11 +1,12 @@
 // ya - YAPL compiler driver
 //
 // Usage: ya [flags] source.yapl
+//        ya [flags] source.wo ...    (link mode)
 //
 // Flags:
-//   -o file    Write output to file (default: wut4.out)
+//   -o file    Write output to file (default: wut4.out or <base>.wo with -c)
 //   -S         Stop after generating assembly (don't assemble)
-//   -c         Compile only (generate .asm, don't assemble)
+//   -c         Compile to relocatable object file (.wo)
 //   -k         Keep intermediate files (.lexout, .parseout, .ir, .asm)
 //   -v         Verbose output
 //
@@ -16,7 +17,7 @@
 //   If YAPL environment variable is set, binaries are found at:
 //     $YAPL/ylex/ylex, $YAPL/yparse/yparse, $YAPL/ysem/ysem, $YAPL/ygen/ygen
 //   Otherwise, binaries are found via PATH:
-//     ylex, yparse, ysem, ygen, yasm
+//     ylex, yparse, ysem, ygen, yasm, yld
 
 package main
 
@@ -32,23 +33,48 @@ import (
 )
 
 var (
-	outputFile  = flag.String("o", "wut4.out", "output file name")
+	outputFile  = flag.String("o", "", "output file name (default: wut4.out, or <base>.wo with -c)")
 	asmOnly     = flag.Bool("S", false, "stop after generating assembly")
-	compileOnly = flag.Bool("c", false, "compile only (same as -S)")
+	compileOnly = flag.Bool("c", false, "compile to relocatable object file (.wo)")
 	keepFiles   = flag.Bool("k", false, "keep intermediate files")
 	verbose     = flag.Bool("v", false, "verbose output")
 )
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [flags] source.yapl\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s [flags] source.yapl\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "       %s [flags] file.wo ...\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "YAPL compiler driver\n\n")
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
 
+	if flag.NArg() < 1 {
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	/* Detect link mode: all arguments end in .wo */
+	allWO := true
+	for _, arg := range flag.Args() {
+		if !strings.HasSuffix(arg, ".wo") {
+			allWO = false
+			break
+		}
+	}
+
+	if allWO {
+		/* Link mode: invoke yld directly */
+		if err := link(flag.Args()); err != nil {
+			fmt.Fprintf(os.Stderr, "ya: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if flag.NArg() != 1 {
+		fmt.Fprintf(os.Stderr, "ya: compile mode requires exactly one source file\n")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -92,7 +118,7 @@ func compile(sourceFile string) error {
 
 	// Only need assembler if we're going to use it
 	var asmPath string
-	if !*asmOnly && !*compileOnly {
+	if !*asmOnly {
 		asmPath, err = findBinary("yasm", "yasm")
 		if err != nil {
 			return err
@@ -149,7 +175,7 @@ func compile(sourceFile string) error {
 	if err != nil {
 		return fmt.Errorf("code generator failed: %v", err)
 	}
-	if *keepFiles || *asmOnly || *compileOnly {
+	if *keepFiles || *asmOnly {
 		asmFile := filepath.Join(sourceDir, baseNoExt+".asm")
 		if err := os.WriteFile(asmFile, asmOut, 0644); err != nil {
 			return fmt.Errorf("writing assembly: %v", err)
@@ -159,8 +185,8 @@ func compile(sourceFile string) error {
 		}
 	}
 
-	// Stop here if -S or -c
-	if *asmOnly || *compileOnly {
+	// Stop here if -S
+	if *asmOnly {
 		return nil
 	}
 
@@ -183,8 +209,24 @@ func compile(sourceFile string) error {
 	}
 	tmpAsm.Close()
 
+	// Determine output file name and assembler arguments
+	outFile := *outputFile
+	var asmArgs []string
+	if *compileOnly {
+		// Produce .wo object file
+		if outFile == "" {
+			outFile = filepath.Join(sourceDir, baseNoExt+".wo")
+		}
+		asmArgs = []string{"-c", "-o", outFile, tmpAsmName}
+	} else {
+		if outFile == "" {
+			outFile = "wut4.out"
+		}
+		asmArgs = []string{"-o", outFile, tmpAsmName}
+	}
+
 	// Run assembler
-	cmd := exec.Command(asmPath, tmpAsmName, "-o", *outputFile)
+	cmd := exec.Command(asmPath, asmArgs...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -195,7 +237,38 @@ func compile(sourceFile string) error {
 	}
 
 	if *verbose {
-		fmt.Fprintf(os.Stderr, "Wrote %s\n", *outputFile)
+		fmt.Fprintf(os.Stderr, "Wrote %s\n", outFile)
+	}
+
+	return nil
+}
+
+// link invokes yld to link the given .wo files into an executable
+func link(woFiles []string) error {
+	yldPath, err := findBinary("yld", "yld")
+	if err != nil {
+		return err
+	}
+
+	outFile := *outputFile
+	if outFile == "" {
+		outFile = "wut4.out"
+	}
+
+	args := append(woFiles, "-o", outFile)
+	if *verbose {
+		args = append(args, "-v")
+	}
+
+	cmd := exec.Command(yldPath, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	cmd.Stdout = os.Stdout
+	if err := cmd.Run(); err != nil {
+		if stderr.Len() > 0 {
+			return fmt.Errorf("linker failed: %s", stderr.String())
+		}
+		return fmt.Errorf("linker failed: %v", err)
 	}
 
 	return nil

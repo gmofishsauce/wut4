@@ -131,8 +131,16 @@ func (ep *ExprParser) parsePrimary() (int, error) {
 		/* Look up symbol */
 		sym := ep.lookupSymbol(name)
 		if sym == nil {
+			/* In object mode pass 2, undefined symbols are external references.
+			   Check this BEFORE allowFwd so we record the reference even when
+			   the caller used allowFwd=true (which is used for pass-1 forward refs). */
+			if ep.asm.objectMode && ep.asm.pass == 2 {
+				ep.asm.addExternalSymbol(name)
+				ep.asm.lastExternalRef = name
+				return 0, nil
+			}
 			if ep.allowFwd {
-				/* Forward reference - return 0 for now */
+				/* Forward reference in pass 1 - return 0 for now */
 				return 0, nil
 			}
 			return 0, fmt.Errorf("undefined symbol: %s", name)
