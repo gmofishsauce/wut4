@@ -42,12 +42,16 @@ func (cpu *CPU) loadSPR(addr uint16) (uint16, error) {
 		return cpu.spr[cpu.mode][SPR_LINK], nil
 
 	case SPR_FLAGS:
-		// Return flags with IE bit reflecting interrupt enable state
-		flags := cpu.spr[cpu.mode][SPR_FLAGS] & 0x00FF
-		if cpu.intEnabled {
-			flags |= FLAG_IE
+		if cpu.mode == ModeKernel {
+			// Kernel: return T (bit 8) + arithmetic flags (bits 3:0), IE overlaid at bit 9
+			flags := cpu.spr[ModeKernel][SPR_FLAGS] & 0x01FF
+			if cpu.intEnabled {
+				flags |= FLAG_IE
+			}
+			return flags, nil
 		}
-		return flags, nil
+		// User: return only arithmetic flags (bits 3:0)
+		return cpu.spr[ModeUser][SPR_FLAGS] & 0x000F, nil
 
 	case 2, 3, 4, 5:
 		// Undefined SPRs - return 0
@@ -123,13 +127,21 @@ func (cpu *CPU) storeSPR(addr uint16, value uint16) error {
 		cpu.tracer.TraceSPRWrite(spr, value)
 	}
 
-	// User mode can only access SPR 0 (LINK)
+	// User mode can only write to SPRs 0-7
 	if cpu.mode == ModeUser {
-		if spr == SPR_LINK {
-			cpu.spr[ModeUser][SPR_LINK] = value
+		if spr >= 8 {
+			cpu.raiseException(EX_ILLEGAL_INST, cpu.pc)
 			return nil
 		}
-		cpu.raiseException(EX_ILLEGAL_INST, cpu.pc)
+		switch spr {
+		case SPR_LINK:
+			cpu.spr[ModeUser][SPR_LINK] = value
+		case SPR_FLAGS:
+			cpu.spr[ModeUser][SPR_FLAGS] = value & 0x01FF
+		case SPR_CYCLO, SPR_CYCHI:
+			// Read-only - writes ignored
+		// cases 2,3,4,5: undefined - writes ignored
+		}
 		return nil
 	}
 
@@ -149,8 +161,11 @@ func (cpu *CPU) storeSPR(addr uint16, value uint16) error {
 	case SPR_CYCLO, SPR_CYCHI:
 		// Read-only - writes ignored
 
-	case SPR_IRR, SPR_ICR, SPR_IDR, SPR_ISR:
+	case SPR_IRR, SPR_ISR:
 		cpu.spr[ModeKernel][spr] = value
+
+	case SPR_ICR, SPR_IDR:
+		// Writes are ignored per spec
 
 	case 12, 13, 14:
 		// Reserved - writes ignored

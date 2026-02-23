@@ -14,12 +14,12 @@ func TestMMUTranslation(t *testing.T) {
 	cpu := NewCPU()
 
 	// Set up MMU: Map virtual page 0 to physical page 0 with RWX permissions
-	cpu.mmu[0][0] = 0x0000 | (PERM_RWX << 14)  // Code page 0
-	cpu.mmu[0][16] = 0x0000 | (PERM_RWX << 14) // Data page 0
+	cpu.mmu[0][0] = 0x0000 | (PERM_RWX << 12)  // Code page 0
+	cpu.mmu[0][16] = 0x0000 | (PERM_RWX << 12) // Data page 0
 
 	// Map virtual page 1 to physical page 5 with RWX permissions
-	cpu.mmu[0][1] = 0x0005 | (PERM_RWX << 14)  // Code page 1
-	cpu.mmu[0][17] = 0x0005 | (PERM_RWX << 14) // Data page 1
+	cpu.mmu[0][1] = 0x0005 | (PERM_RWX << 12)  // Code page 1
+	cpu.mmu[0][17] = 0x0005 | (PERM_RWX << 12) // Data page 1
 
 	tests := []struct {
 		name     string
@@ -104,11 +104,11 @@ func TestMMUPermissions(t *testing.T) {
 	cpu := NewCPU()
 
 	// Set up different permission scenarios
-	cpu.mmu[0][0] = 0x0010 | (PERM_RWX << 14)     // Code page 0: RWX on physical page 0x10
-	cpu.mmu[0][1] = 0x0011 | (PERM_EXEC << 14)    // Code page 1: Execute-only
-	cpu.mmu[0][2] = 0x0012 | (PERM_INVALID << 14) // Code page 2: Invalid
-	cpu.mmu[0][16] = 0x0020 | (PERM_RWX << 14)    // Data page 0: RWX
-	cpu.mmu[0][17] = 0x0021 | (PERM_EXEC << 14)   // Data page 1: Read-only (EXEC for data = read-only)
+	cpu.mmu[0][0] = 0x0010 | (PERM_RWX << 12)     // Code page 0: RWX on physical page 0x10
+	cpu.mmu[0][1] = 0x0011 | (PERM_EXEC << 12)    // Code page 1: Execute-only
+	cpu.mmu[0][2] = 0x0012 | (PERM_INVALID << 12) // Code page 2: Invalid
+	cpu.mmu[0][16] = 0x0020 | (PERM_RWX << 12)    // Data page 0: RWX
+	cpu.mmu[0][17] = 0x0021 | (PERM_EXEC << 12)   // Data page 1: Read-only (EXEC for data = read-only)
 
 	tests := []struct {
 		name     string
@@ -172,7 +172,7 @@ func TestLoadStoreWord(t *testing.T) {
 	cpu := NewCPU()
 
 	// Set up basic identity mapping for testing
-	cpu.mmu[0][16] = 0x0000 | (PERM_RWX << 14) // Data page 0
+	cpu.mmu[0][16] = 0x0000 | (PERM_RWX << 12) // Data page 0
 
 	// Test store and load
 	testValue := uint16(0x1234)
@@ -198,7 +198,7 @@ func TestLoadStoreByte(t *testing.T) {
 	cpu := NewCPU()
 
 	// Set up basic identity mapping
-	cpu.mmu[0][16] = 0x0000 | (PERM_RWX << 14)
+	cpu.mmu[0][16] = 0x0000 | (PERM_RWX << 12)
 
 	// Test byte operations
 	testByte := uint16(0x42)
@@ -224,7 +224,7 @@ func TestAlignmentCheck(t *testing.T) {
 	cpu := NewCPU()
 	cpu.consoleOut = &bytes.Buffer{} // Prevent nil pointer in raiseException
 	cpu.intEnabled = true              // Enable interrupts to avoid double fault
-	cpu.mmu[0][16] = 0x0000 | (PERM_RWX << 14)
+	cpu.mmu[0][16] = 0x0000 | (PERM_RWX << 12)
 
 	// Try to load from odd address - should raise alignment exception
 	oddAddr := uint16(0x0101)
@@ -239,8 +239,8 @@ func TestAlignmentCheck(t *testing.T) {
 		t.Errorf("Expected alignment exception to be pending")
 	}
 
-	if cpu.exceptionVector != 0x0014 {
-		t.Errorf("Exception vector = 0x%04X, want 0x0014 (alignment fault)", cpu.exceptionVector)
+	if cpu.exceptionVector != EX_ALIGNMENT_FAULT {
+		t.Errorf("Exception vector = 0x%04X, want 0x%04X (alignment fault)", cpu.exceptionVector, uint16(EX_ALIGNMENT_FAULT))
 	}
 }
 
@@ -249,10 +249,10 @@ func TestContextSwitching(t *testing.T) {
 	cpu := NewCPU()
 
 	// Set up different mappings for context 0 (kernel) and context 1 (user)
-	cpu.mmu[0][0] = 0x0010 | (PERM_RWX << 14)  // Kernel code page 0 → physical 0x10
-	cpu.mmu[1][0] = 0x0020 | (PERM_RWX << 14)  // User context 1 code page 0 → physical 0x20
-	cpu.mmu[0][16] = 0x0030 | (PERM_RWX << 14) // Kernel data page 0 → physical 0x30
-	cpu.mmu[1][16] = 0x0040 | (PERM_RWX << 14) // User context 1 data page 0 → physical 0x40
+	cpu.mmu[0][0] = 0x0010 | (PERM_RWX << 12)  // Kernel code page 0 → physical 0x10
+	cpu.mmu[1][0] = 0x0020 | (PERM_RWX << 12)  // User context 1 code page 0 → physical 0x20
+	cpu.mmu[0][16] = 0x0030 | (PERM_RWX << 12) // Kernel data page 0 → physical 0x30
+	cpu.mmu[1][16] = 0x0040 | (PERM_RWX << 12) // User context 1 data page 0 → physical 0x40
 
 	// Test in kernel mode (context 0)
 	cpu.mode = ModeKernel

@@ -12,8 +12,6 @@
 
 package main
 
-import "fmt"
-
 // execute executes a decoded instruction
 func (cpu *CPU) execute(inst *Instruction) error {
 	// Special case: 0x0000 is illegal instruction
@@ -55,7 +53,9 @@ func (cpu *CPU) executeBase(inst *Instruction) error {
 		if err != nil {
 			return err
 		}
-		regs[inst.rA] = value
+		if inst.rA != 0 {
+			regs[inst.rA] = value
+		}
 		cpu.pc += 2 // Advance to next instruction (byte address)
 
 	case 1: // LDB - Load byte (sign extended)
@@ -64,7 +64,9 @@ func (cpu *CPU) executeBase(inst *Instruction) error {
 		if err != nil {
 			return err
 		}
-		regs[inst.rA] = value
+		if inst.rA != 0 {
+			regs[inst.rA] = value
+		}
 		cpu.pc += 2
 
 	case 2: // STW - Store word
@@ -121,12 +123,13 @@ func (cpu *CPU) executeBase(inst *Instruction) error {
 		condition := cpu.evaluateBranchCondition(inst.branchCond)
 		if condition {
 			// Branch offset is in bytes, relative to next instruction (PC+2)
+			returnAddr := cpu.pc + 2
 			offset := int32(int16(inst.imm10))
 			cpu.pc = uint16(int32(cpu.pc+2) + offset)
 
 			// If this is BRL (branch and link), save return address
 			if inst.branchCond == BR_LINK {
-				cpu.spr[cpu.mode][SPR_LINK] = cpu.pc
+				cpu.spr[cpu.mode][SPR_LINK] = returnAddr
 			}
 		} else {
 			cpu.pc += 2
@@ -145,15 +148,8 @@ func (cpu *CPU) executeBase(inst *Instruction) error {
 
 		// Save return address (PC + 2 advances to next instruction in byte addressing)
 		returnAddr := cpu.pc + 2
-		if cpu.tracer != nil {
-			fmt.Fprintf(cpu.tracer.out, "JAL DEBUG: cpu.pc=0x%04X returnAddr=0x%04X targetAddr=0x%04X\n",
-				cpu.pc, returnAddr, targetAddr)
-		}
 		if inst.rA == 0 {
 			cpu.spr[cpu.mode][SPR_LINK] = returnAddr
-			if cpu.tracer != nil {
-				fmt.Fprintf(cpu.tracer.out, "JAL DEBUG: Set LINK = 0x%04X\n", returnAddr)
-			}
 		} else {
 			regs[inst.rA] = returnAddr
 		}
@@ -260,7 +256,9 @@ func (cpu *CPU) executeXOP(inst *Instruction) error {
 	}
 
 	cpu.updateFlags(result, carry, overflow)
-	regs[inst.rA] = uint16(result)
+	if inst.rA != 0 {
+		regs[inst.rA] = uint16(result)
+	}
 	cpu.pc += 2
 	return nil
 }
@@ -276,12 +274,14 @@ func (cpu *CPU) executeYOP(inst *Instruction) error {
 		if err != nil {
 			return err
 		}
-		regs[inst.rA] = value
+		if inst.rA != 0 {
+			regs[inst.rA] = value
+		}
 		cpu.pc += 2
 
 	case 1: // LSI - Load special register indirect
-		sprAddr := regs[inst.rA]
-		memAddr := regs[inst.rB]
+		sprAddr := regs[inst.rB]
+		memAddr := regs[inst.rA]
 		value, err := cpu.loadSPR(sprAddr)
 		if err != nil {
 			return err
@@ -320,7 +320,9 @@ func (cpu *CPU) executeYOP(inst *Instruction) error {
 		if err != nil {
 			return err
 		}
-		regs[inst.rA] = value
+		if inst.rA != 0 {
+			regs[inst.rA] = value
+		}
 		cpu.pc += 2
 
 	case 5: // SYS - System call
@@ -329,6 +331,8 @@ func (cpu *CPU) executeYOP(inst *Instruction) error {
 			cpu.raiseException(EX_ILLEGAL_INST, cpu.pc)
 			return nil
 		}
+		// Advance PC past SYS so IRR holds the return address (SYS+2)
+		cpu.pc += 2
 		// SYS 0-7 map to exception vectors 0x0010 through 0x001E (step 2)
 		vector := EX_SYSCALL_BASE + (uint16(inst.rA) * 2)
 		cpu.raiseException(vector, 0)
@@ -409,9 +413,6 @@ func (cpu *CPU) executeZOP(inst *Instruction) error {
 		var jumpAddr uint16
 		if inst.rA == 0 {
 			jumpAddr = cpu.spr[cpu.mode][SPR_LINK]
-			if cpu.tracer != nil {
-				fmt.Fprintf(cpu.tracer.out, "RTN DEBUG: Reading LINK = 0x%04X\n", jumpAddr)
-			}
 		} else {
 			jumpAddr = regs[inst.rA]
 		}
@@ -423,7 +424,9 @@ func (cpu *CPU) executeZOP(inst *Instruction) error {
 		return nil
 	}
 
-	regs[inst.rA] = result
+	if inst.rA != 0 {
+		regs[inst.rA] = result
+	}
 	cpu.pc += 2
 	return nil
 }

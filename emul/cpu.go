@@ -162,7 +162,7 @@ func (cpu *CPU) fetch() (uint16, error) {
 	// Translate PC (byte address) through code MMU to get physical byte address
 	physByteAddr, err := cpu.translateCode(cpu.pc)
 	if err != nil {
-		cpu.raiseException(0x0012, cpu.pc) // Page fault on code fetch
+		cpu.raiseException(EX_PAGE_FAULT, cpu.pc) // Page fault on code fetch
 		return 0, nil                       // Will be handled in next cycle
 	}
 

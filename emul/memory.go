@@ -62,7 +62,7 @@ func (cpu *CPU) translate(virtAddr uint16, isData bool) (uint32, error) {
 
 	// Extract physical page number (bits 11-0) and permissions (bits 14-15)
 	physPage := mmuEntry & 0x0FFF
-	perm := (mmuEntry >> 14) & 0x03
+	perm := (mmuEntry >> 12) & 0x03
 
 	// Check permissions
 	if perm == PERM_INVALID {
@@ -97,13 +97,13 @@ func (cpu *CPU) translate(virtAddr uint16, isData bool) (uint32, error) {
 func (cpu *CPU) loadWord(virtAddr uint16) (uint16, error) {
 	// Check alignment
 	if virtAddr&1 != 0 {
-		cpu.raiseException(0x0014, virtAddr) // Alignment fault
+		cpu.raiseException(EX_ALIGNMENT_FAULT, virtAddr) // Alignment fault
 		return 0, nil
 	}
 
 	physByteAddr, err := cpu.translateData(virtAddr)
 	if err != nil {
-		cpu.raiseException(0x0012, virtAddr) // Page fault
+		cpu.raiseException(EX_PAGE_FAULT, virtAddr) // Page fault
 		return 0, nil
 	}
 
@@ -124,7 +124,7 @@ func (cpu *CPU) loadByte(virtAddr uint16) (uint16, error) {
 	// Translate the byte address directly
 	physByteAddr, err := cpu.translateData(virtAddr)
 	if err != nil {
-		cpu.raiseException(0x0012, virtAddr) // Page fault
+		cpu.raiseException(EX_PAGE_FAULT, virtAddr) // Page fault
 		return 0, nil
 	}
 
@@ -160,13 +160,13 @@ func (cpu *CPU) loadByte(virtAddr uint16) (uint16, error) {
 func (cpu *CPU) storeWord(virtAddr uint16, value uint16) error {
 	// Check alignment
 	if virtAddr&1 != 0 {
-		cpu.raiseException(0x0014, virtAddr) // Alignment fault
+		cpu.raiseException(EX_ALIGNMENT_FAULT, virtAddr) // Alignment fault
 		return nil
 	}
 
 	physByteAddr, err := cpu.translateData(virtAddr)
 	if err != nil {
-		cpu.raiseException(0x0012, virtAddr) // Page fault
+		cpu.raiseException(EX_PAGE_FAULT, virtAddr) // Page fault
 		return nil
 	}
 
@@ -180,11 +180,11 @@ func (cpu *CPU) storeWord(virtAddr uint16, value uint16) error {
 	} else {
 		mmuEntry = cpu.mmu[cpu.context][slot]
 	}
-	perm := (mmuEntry >> 14) & 0x03
+	perm := (mmuEntry >> 12) & 0x03
 
 	// PERM_EXEC (01) for data means read-only
 	if perm == PERM_EXEC {
-		cpu.raiseException(0x0012, virtAddr) // Page fault (write to read-only)
+		cpu.raiseException(EX_PAGE_FAULT, virtAddr) // Page fault (write to read-only)
 		return nil
 	}
 
@@ -203,7 +203,7 @@ func (cpu *CPU) storeWord(virtAddr uint16, value uint16) error {
 func (cpu *CPU) storeByte(virtAddr uint16, value uint16) error {
 	physByteAddr, err := cpu.translateData(virtAddr)
 	if err != nil {
-		cpu.raiseException(0x0012, virtAddr) // Page fault
+		cpu.raiseException(EX_PAGE_FAULT, virtAddr) // Page fault
 		return nil
 	}
 
@@ -216,10 +216,10 @@ func (cpu *CPU) storeByte(virtAddr uint16, value uint16) error {
 	} else {
 		mmuEntry = cpu.mmu[cpu.context][slot]
 	}
-	perm := (mmuEntry >> 14) & 0x03
+	perm := (mmuEntry >> 12) & 0x03
 
 	if perm == PERM_EXEC {
-		cpu.raiseException(0x0012, virtAddr)
+		cpu.raiseException(EX_PAGE_FAULT, virtAddr)
 		return nil
 	}
 
@@ -251,7 +251,7 @@ func (cpu *CPU) loadCodeWord(virtAddr uint16) (uint16, error) {
 	// virtAddr is a byte address in code space
 	physByteAddr, err := cpu.translateCode(virtAddr)
 	if err != nil {
-		cpu.raiseException(0x0012, virtAddr)
+		cpu.raiseException(EX_PAGE_FAULT, virtAddr)
 		return 0, nil
 	}
 
