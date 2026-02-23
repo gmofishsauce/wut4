@@ -4,8 +4,6 @@ import (
 	"os"
 )
 
-const HEADER_SIZE = 16
-
 func writeExecutable(filename string, codeBuf, dataBuf []byte) error {
 	file, err := os.Create(filename)
 	if err != nil {

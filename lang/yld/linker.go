@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"os"
 )
 
 type Linker struct {
@@ -49,7 +50,7 @@ func (ld *Linker) resolveSymbols() error {
 				if sym.Section == SEC_DATA_WOF {
 					secName = "data"
 				}
-				fmt.Printf("  global %s: %s[0x%04X] from %s\n", sym.Name, secName, sym.Value, obj.path)
+				fmt.Fprintf(os.Stderr, "  global %s: %s[0x%04X] from %s\n", sym.Name, secName, sym.Value, obj.path)
 			}
 		}
 	}
@@ -71,26 +72,39 @@ func (ld *Linker) resolveSymbols() error {
 
 /* Phase 2: Compute code and data offsets for each object file.
    All code sections are placed first, then all data sections. */
-func (ld *Linker) layout() {
-	var codeOff, dataOff uint16
+func (ld *Linker) layout() error {
+	var codeOff, dataOff int
 	for _, obj := range ld.objects {
-		obj.codeOffset = codeOff
-		codeOff += obj.header.CodeSize
+		if codeOff > 0xFFFF {
+			return fmt.Errorf("code sections exceed 64KB address space")
+		}
+		obj.codeOffset = uint16(codeOff)
+		codeOff += int(obj.header.CodeSize)
 		/* Align to 2-byte boundary */
 		if codeOff%2 != 0 {
 			codeOff++
 		}
 
-		obj.dataOffset = dataOff
-		dataOff += obj.header.DataSize
+		if dataOff > 0xFFFF {
+			return fmt.Errorf("data sections exceed 64KB address space")
+		}
+		obj.dataOffset = uint16(dataOff)
+		dataOff += int(obj.header.DataSize)
 		if dataOff%2 != 0 {
 			dataOff++
 		}
 
 		if ld.verbose {
-			fmt.Printf("  %s: code@0x%04X data@0x%04X\n", obj.path, obj.codeOffset, obj.dataOffset)
+			fmt.Fprintf(os.Stderr, "  %s: code@0x%04X data@0x%04X\n", obj.path, obj.codeOffset, obj.dataOffset)
 		}
 	}
+	if codeOff > 0x10000 {
+		return fmt.Errorf("code sections exceed 64KB address space")
+	}
+	if dataOff > 0x10000 {
+		return fmt.Errorf("data sections exceed 64KB address space")
+	}
+	return nil
 }
 
 /* Phase 3: Copy sections into merged buffers and apply relocations. */
@@ -157,7 +171,7 @@ func (ld *Linker) relocate() ([]byte, []byte, error) {
 			/* Determine which merged buffer to patch and the absolute patch offset */
 			var buf []byte
 			var patchBase uint16
-			if r.Section == 0 {
+			if r.Section == RSEC_CODE {
 				buf = mergedCode
 				patchBase = obj.codeOffset
 			} else {
@@ -166,12 +180,27 @@ func (ld *Linker) relocate() ([]byte, []byte, error) {
 			}
 			patchOffset := int(patchBase) + int(r.Offset)
 
+			/* Verify r.Offset lies within this object's own section */
+			var sectionSize uint16
+			if r.Section == RSEC_CODE {
+				sectionSize = obj.header.CodeSize
+			} else {
+				sectionSize = obj.header.DataSize
+			}
+			patchSize := 4 /* LDI and JAL patch 4 bytes; WORD16 patches 2 */
+			if r.Type == R_WORD16_CODE || r.Type == R_WORD16_DATA {
+				patchSize = 2
+			}
+			if int(r.Offset)+patchSize > int(sectionSize) {
+				return nil, nil, fmt.Errorf("%s: relocation offset 0x%04X out of section bounds", obj.path, r.Offset)
+			}
+
 			if ld.verbose {
 				secStr := "code"
-				if r.Section != 0 {
+				if r.Section != RSEC_CODE {
 					secStr = "data"
 				}
-				fmt.Printf("  reloc %s+0x%04X type=0x%02X sym=%q final=0x%04X\n",
+				fmt.Fprintf(os.Stderr, "  reloc %s+0x%04X type=0x%02X sym=%q final=0x%04X\n",
 					secStr, r.Offset, r.Type, localSym.Name, finalAddr)
 			}
 
@@ -213,6 +242,9 @@ func patchLUIPlusADI(buf []byte, offset int, addr uint16) error {
 		return fmt.Errorf("offset %d+4 out of bounds (len=%d)", offset, len(buf))
 	}
 	word1 := binary.LittleEndian.Uint16(buf[offset:])
+	if word1&0xE000 != 0xA000 {
+		return fmt.Errorf("expected LUI at offset %d, got 0x%04X", offset, word1)
+	}
 	rT := word1 & 0x7
 	upper := (addr >> 6) & 0x3FF
 	lower := addr & 0x3F
@@ -233,6 +265,12 @@ func patchLUIPlusJAL(buf []byte, offset int, addr uint16) error {
 	}
 	word1 := binary.LittleEndian.Uint16(buf[offset:])
 	word2 := binary.LittleEndian.Uint16(buf[offset+2:])
+	if word1&0xE000 != 0xA000 {
+		return fmt.Errorf("expected LUI at offset %d, got 0x%04X", offset, word1)
+	}
+	if word2&0xE000 != 0xE000 {
+		return fmt.Errorf("expected JAL at offset %d+2, got 0x%04X", offset, word2)
+	}
 	rT := word1 & 0x7
 	rS := (word2 >> 3) & 0x7
 	upper := (addr >> 6) & 0x3FF
@@ -247,19 +285,21 @@ func patchLUIPlusJAL(buf []byte, offset int, addr uint16) error {
 /* link performs all four phases and returns the merged code and data buffers */
 func (ld *Linker) link() ([]byte, []byte, error) {
 	if ld.verbose {
-		fmt.Println("Phase 1: Symbol resolution")
+		fmt.Fprintln(os.Stderr, "Phase 1: Symbol resolution")
 	}
 	if err := ld.resolveSymbols(); err != nil {
 		return nil, nil, err
 	}
 
 	if ld.verbose {
-		fmt.Println("Phase 2: Layout")
+		fmt.Fprintln(os.Stderr, "Phase 2: Layout")
 	}
-	ld.layout()
+	if err := ld.layout(); err != nil {
+		return nil, nil, err
+	}
 
 	if ld.verbose {
-		fmt.Println("Phase 3: Relocation")
+		fmt.Fprintln(os.Stderr, "Phase 3: Relocation")
 	}
 	return ld.relocate()
 }

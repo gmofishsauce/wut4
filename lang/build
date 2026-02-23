@@ -20,6 +20,6 @@ cd ../ygen && go install && \
 echo build yasm
 cd ../yasm && go build && go test && go install && \
 echo build yld
-cd ../yld && go build && go install && \
+cd ../yld && go build && go test && go install && \
 echo build ya
 cd ../ya && go install

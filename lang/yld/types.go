@@ -1,5 +1,8 @@
 package main
 
+/* Header size in bytes (applies to both WOF and executable formats) */
+const HEADER_SIZE = 16
+
 /* Magic numbers */
 const (
 	MAGIC_WOF = 0xDDD2 /* WUT-4 Object Format */
@@ -11,6 +14,12 @@ const (
 	SEC_UNDEF    = 0
 	SEC_CODE_WOF = 1
 	SEC_DATA_WOF = 2
+)
+
+/* Relocation record section values (distinct from WOF section identifiers above) */
+const (
+	RSEC_CODE = 0 /* relocation record refers to code section */
+	RSEC_DATA = 1 /* relocation record refers to data section */
 )
 
 /* WOF symbol visibility */
@@ -75,7 +84,7 @@ type ObjectFile struct {
 
 /* ResolvedSym is a globally-visible symbol after resolution */
 type ResolvedSym struct {
-	name     string
+	name     string   /* retained for verbose diagnostics; not used during relocation */
 	value    uint16   /* section-relative offset */
 	section  uint8    /* SEC_CODE_WOF or SEC_DATA_WOF */
 	objIndex int      /* which object file defines it */

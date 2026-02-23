@@ -55,6 +55,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Link successful: %s\n", *output)
-	fmt.Printf("Code: %d bytes, Data: %d bytes\n", len(mergedCode), len(mergedData))
+	if *verbose {
+		fmt.Fprintf(os.Stderr, "Link successful: %s\n", *output)
+		fmt.Fprintf(os.Stderr, "Code: %d bytes, Data: %d bytes\n", len(mergedCode), len(mergedData))
+	}
 }

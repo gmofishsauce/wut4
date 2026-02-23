@@ -12,7 +12,7 @@ func readObjectFile(path string) (*ObjectFile, error) {
 		return nil, fmt.Errorf("reading %s: %v", path, err)
 	}
 
-	if len(data) < 16 {
+	if len(data) < HEADER_SIZE {
 		return nil, fmt.Errorf("%s: file too short for WOF header", path)
 	}
 
@@ -33,7 +33,7 @@ func readObjectFile(path string) (*ObjectFile, error) {
 	obj.header.Reserved = binary.LittleEndian.Uint16(data[14:16])
 
 	/* Compute section offsets within file */
-	codeStart := 16
+	codeStart := HEADER_SIZE
 	dataStart := codeStart + int(obj.header.CodeSize)
 	symStart := dataStart + int(obj.header.DataSize)
 	relocStart := symStart + int(obj.header.SymCount)*8
