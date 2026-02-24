@@ -218,14 +218,37 @@ func compile(sourceFile string) error {
 			outFile = filepath.Join(sourceDir, baseNoExt+".wo")
 		}
 		asmArgs = []string{"-c", "-o", outFile, tmpAsmName}
-	} else {
+	} else if hasBootstrapPragma(sourceData) {
+		// Bootstrap program: yasm produces binary directly (legacy path)
 		if outFile == "" {
 			outFile = "wut4.out"
 		}
 		asmArgs = []string{"-o", outFile, tmpAsmName}
+	} else {
+		// Normal program: assemble to temp .wo, then link with crt0
+		tmpWO, err := os.CreateTemp("", "ya-*.wo")
+		if err != nil {
+			return fmt.Errorf("creating temp object file: %v", err)
+		}
+		tmpWOName := tmpWO.Name()
+		tmpWO.Close()
+		defer os.Remove(tmpWOName)
+
+		woArgs := []string{"-c", "-o", tmpWOName, tmpAsmName}
+		cmd := exec.Command(asmPath, woArgs...)
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		if err := cmd.Run(); err != nil {
+			if stderr.Len() > 0 {
+				return fmt.Errorf("assembler failed: %s", stderr.String())
+			}
+			return fmt.Errorf("assembler failed: %v", err)
+		}
+
+		return link([]string{tmpWOName})
 	}
 
-	// Run assembler
+	// Run assembler (compile-only or bootstrap path)
 	cmd := exec.Command(asmPath, asmArgs...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -243,8 +266,19 @@ func compile(sourceFile string) error {
 	return nil
 }
 
-// link invokes yld to link the given .wo files into an executable
+// link prepends crt0.wo and invokes yld to link the given .wo files into an executable
 func link(woFiles []string) error {
+	crt0, err := findCrt0()
+	if err != nil {
+		return err
+	}
+
+	allFiles := append([]string{crt0}, woFiles...)
+	return runLinker(allFiles)
+}
+
+// runLinker invokes yld with the exact file list provided
+func runLinker(woFiles []string) error {
 	yldPath, err := findBinary("yld", "yld")
 	if err != nil {
 		return err
@@ -272,6 +306,34 @@ func link(woFiles []string) error {
 	}
 
 	return nil
+}
+
+// hasBootstrapPragma returns true if the source contains #pragma bootstrap
+func hasBootstrapPragma(src []byte) bool {
+	return bytes.Contains(src, []byte("#pragma bootstrap"))
+}
+
+// findCrt0 locates the crt0.wo startup file.
+// Looks at $YAPL/../lib/crt0.wo, then <bindir>/../lib/crt0.wo.
+func findCrt0() (string, error) {
+	// Try $YAPL/../lib/crt0.wo
+	if yaplDir := os.Getenv("YAPL"); yaplDir != "" {
+		p := filepath.Join(yaplDir, "..", "lib", "crt0.wo")
+		if _, err := os.Stat(p); err == nil {
+			return filepath.Clean(p), nil
+		}
+	}
+
+	// Try <directory of ya binary>/../lib/crt0.wo
+	exe, err := os.Executable()
+	if err == nil {
+		p := filepath.Join(filepath.Dir(exe), "..", "lib", "crt0.wo")
+		if _, err := os.Stat(p); err == nil {
+			return filepath.Clean(p), nil
+		}
+	}
+
+	return "", fmt.Errorf("crt0.wo not found; set YAPL env var to repo root or install lib/crt0.wo alongside binaries")
 }
 
 // findBinary locates a compiler component binary.

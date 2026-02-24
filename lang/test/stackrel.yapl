@@ -1,0 +1,71 @@
+#pragma bootstrap
+
+// stackrel.yapl - Stack relocation test
+//
+// Demonstrates moving the active stack from virtual data page 0 to page 15:
+//   1. Initialize a canary value on the stack.
+//   2. Map virtual data page 15 (0xF000-0xFFFF) to physical page 1.
+//   3. Copy all of virtual page 0 to virtual page 15 byte by byte.
+//   4. Adjust SP by +0xF000 to switch to the new page.
+//   5. Verify the canary survived the copy, then print "hello, stack".
+//
+// Run from repo root:
+//   cat lib/mmu.yapl lib/nio.yapl lang/test/stackrel.yapl > /tmp/stackrel.yapl
+//   ya /tmp/stackrel.yapl
+//   emul wut4.out
+//
+// ISKERNEL (and other MMU constants) are defined in lib/mmu.yapl and become
+// available in this file after concatenation.
+
+const byte msgOk[]   = "hello, stack\n";
+const byte msgFail[] = "stack copy failed!\n";
+
+// readByte: load one byte from data-space address addr.
+func byte readByte(uint16 addr) {
+    #asm("ldb r1, r1, 0");
+}
+
+// writeByte: store one byte to data-space address addr.
+func void writeByte(uint16 addr, byte val) {
+    #asm("stb r2, r1, 0");
+}
+
+func void main() {
+    var uint16 canary;
+    var uint16 i;
+    var byte   b;
+
+    // Canary: initialized now, must survive copy and SP relocation intact.
+    canary = 0xBEEF;
+
+    // Map virtual kernel data page 15 to physical page 1, all permissions.
+    // Physical page 0 is boot page (stays mapped at virtual page 0).
+    // Physical page 1 is unused at this point.
+    MapPage(ISKERNEL, 15, 1);
+
+    // Copy all of virtual data page 0 (0x0000-0x0FFF) to page 15 (0xF000-0xFFFF).
+    // Reads from page 0 (the live stack); writes to the newly mapped page 15.
+    // No overlap: source and destination are distinct physical pages.
+    i = 0;
+    while (i < 4096) {
+        b = readByte(i);
+        writeByte(0xF000 + i, b);
+        i = i + 1;
+    }
+
+    // Relocate SP to page 15.  The bootstrap set SP = 0x1000 (top of page 0),
+    // and main's frame pulled it below 0x1000, so SP is now 0x0xxx.  Adding
+    // 0xF000 lands it at 0xFxxx, within page 15.  All local variable accesses
+    // after this point use SP-relative offsets that now address the copied page.
+    #asm("ldi r1 0xF000");
+    #asm("add r7, r7, r1");
+
+    // Canary check.  After relocation the compiler reads canary from the new
+    // SP + offset, which is in the copied page.  If the copy was correct the
+    // value is still 0xBEEF.
+    if (canary == 0xBEEF) {
+        Putstr(&msgOk);
+    } else {
+        Putstr(&msgFail);
+    }
+}

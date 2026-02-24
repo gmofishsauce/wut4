@@ -1,0 +1,285 @@
+// nio.yapl - WUT-4 Native I/O library
+//
+// Console I/O and SPI SD card access for privileged (kernel) code.
+// Compile to a relocatable object and link with programs that need I/O:
+//
+//   ya -c -o lib/nio.wo lib/nio.yapl
+//
+// Console UART (SPR assignments):
+//   SPR 96:  TX data (write)
+//   SPR 97:  RX data (read)
+//   SPR 98:  TX status (bit 0=overflow, bit 15=empty)
+//   SPR 99:  RX status (bit 0=underflow, bit 15=data available)
+//
+// SPI SD card (SPR assignments):
+//   SPR 100: SPI data (write=send, read=receive)
+//   SPR 101: SPI chip select (write)
+
+// --- Putc: write one byte to the console TX FIFO ---
+
+func void Putc(byte b) {
+    #asm("ldi r2 96");
+    #asm("ssp r1 r2");
+}
+
+// --- isOverflow: TX overflow flag (SPR 98 bit 0); nonzero = overflow ---
+
+func byte isOverflow() {
+    #asm("ldi r2 98");
+    #asm("lsp r1 r2");
+    #asm("ldi r2 1");
+    #asm("and r1, r1, r2");
+}
+
+// --- rxReady: RX data available flag (SPR 99 bit 15); nonzero = ready ---
+
+func uint16 rxReady() {
+    #asm("ldi r2 99");
+    #asm("lsp r1 r2");
+    #asm("lui r2 512");
+    #asm("and r1, r1, r2");
+}
+
+// --- rxRead: read one byte from RX FIFO (SPR 97) ---
+// Returns uint16 to avoid sign-extension on bytes > 0x7F.
+
+func uint16 rxRead() {
+    #asm("ldi r2 97");
+    #asm("lsp r1 r2");
+}
+
+// --- spiSend: write one byte to SPI (SPR 100) ---
+
+func void spiSend(byte tx) {
+    #asm("ldi r2 100");
+    #asm("ssp r1 r2");
+}
+
+// --- spiRecv: read one byte from SPI (SPR 100), returns byte ---
+
+func byte spiRecv() {
+    #asm("ldi r2 100");
+    #asm("lsp r1 r2");
+}
+
+// --- spiRx: read one byte from SPI (SPR 100), returns uint16 ---
+// Use instead of spiRecv() when comparing with values > 0x7F to
+// avoid sign-extension bugs on byte values > 0x7F.
+
+func uint16 spiRx() {
+    #asm("ldi r2 100");
+    #asm("lsp r1 r2");
+}
+
+// --- spiSel: write chip-select line (SPR 101) ---
+
+func void spiSel(byte val) {
+    #asm("ldi r2 101");
+    #asm("ssp r1 r2");
+}
+
+// --- storeByte: write one byte to a memory address ---
+
+func void storeByte(uint16 addr, byte val) {
+    #asm("stb r2, r1, 0");
+}
+
+// --- emit: write byte to console, retrying on TX FIFO overflow ---
+
+func void emit(byte b) {
+    Putc(b);
+    while (isOverflow() != 0) {
+        Putc(b);
+    }
+}
+
+// --- pump: discard one SPI response byte ---
+
+func void pump() {
+    var byte d;
+    d = spiRecv();
+}
+
+// --- Putstr: write null-terminated string to the console ---
+
+func void Putstr(@byte bp) {
+    while (@bp != 0) {
+        emit(@bp);
+        bp = bp + 1;
+    }
+}
+
+// --- Getc: non-blocking console read ---
+// Returns 0 if no data is available, or the ASCII character code.
+// Returns -1 on error (reserved; not currently generated).
+
+func int16 Getc() {
+    if (rxReady() == 0) {
+        return 0;
+    }
+    return int16(rxRead());
+}
+
+// --- pump5: discard five SPI response bytes ---
+
+func void pump5() {
+    pump();
+    pump();
+    pump();
+    pump();
+    pump();
+}
+
+// --- waitResp: poll SPI up to 32 times for a non-0xFF response ---
+// Returns uint16 to avoid sign-extension on response bytes > 0x7F.
+
+func uint16 waitResp() {
+    var uint16 resp;
+    var uint16 i;
+    i = 0;
+    while (i < 32) {
+        resp = spiRx();
+        if (resp != 0xFF) {
+            return resp;
+        }
+        i = i + 1;
+    }
+    return 0xFF;
+}
+
+// --- Getstr: blocking read of one line into a buffer ---
+// Reads characters until a newline is received or maxlen-1 characters
+// have been stored. Spins on Getc() until each character is available.
+// The newline (if received) is included in the buffer.
+// The buffer is always null-terminated.
+// maxlen must be >= 1.
+
+func void Getstr(@byte buf, uint16 maxlen) {
+    var int16 c;
+    var uint16 i;
+    var uint16 stop;
+    i = 0;
+    stop = 0;
+    while (stop == 0) {
+        if (i >= maxlen - 1) {
+            stop = 1;
+        } else {
+            c = 0;
+            while (c == 0) {
+                c = Getc();
+            }
+            if (c > 0) {
+                @(buf + i) = byte(c);
+                i = i + 1;
+                if (byte(c) == '\n') {
+                    stop = 1;
+                }
+            } else {
+                stop = 1;
+            }
+        }
+    }
+    @(buf + i) = 0;
+}
+
+// --- sdCmd: send a 6-byte SD SPI command, return R1 response byte ---
+
+func byte sdCmd(byte cmd, uint16 argHi, uint16 argLo) {
+    var byte crc;
+    if (cmd == 0) {
+        crc = byte(0x95);
+    } else {
+        if (cmd == 8) {
+            crc = byte(0x87);
+        } else {
+            crc = byte(0xFF);
+        }
+    }
+    spiSend(byte(uint16(cmd) | 0x40));
+    spiSend(byte(argHi >> 8));
+    spiSend(byte(argHi & 0xFF));
+    spiSend(byte(argLo >> 8));
+    spiSend(byte(argLo & 0xFF));
+    spiSend(crc);
+    return byte(waitResp());
+}
+
+// --- sdInit0: send 80 clock pulses and CMD0; returns 0 or error 1 ---
+
+func byte sdInit0() {
+    var uint16 i;
+    var byte r;
+    spiSel(1);
+    i = 0;
+    while (i < 12) {
+        spiSend(byte(0xFF));
+        i = i + 1;
+    }
+    spiSel(0);
+    r = sdCmd(0, 0, 0);
+    if (r != 1) { return 1; }
+    pump();
+    return 0;
+}
+
+// --- sdInit1: CMD8 + CMD58 voltage check; returns 0 or error 2-3 ---
+
+func byte sdInit1() {
+    var byte r;
+    r = sdCmd(8, 0, uint16(0x01AA));
+    if (r != 1) { return 2; }
+    pump5();
+    r = sdCmd(58, 0, 0);
+    if (r != 1) { return 3; }
+    pump5();
+    return 0;
+}
+
+// --- sdInit2: CMD55 + ACMD41 card init; returns 0 or error 4-5 ---
+
+func byte sdInit2() {
+    var byte r;
+    r = sdCmd(55, 0, 0);
+    if (r != 1) { return 4; }
+    pump();
+    r = sdCmd(41, uint16(0x4000), 0);
+    if (r != 0) { return 5; }
+    pump();
+    return 0;
+}
+
+// --- SdInit: full SD card initialization sequence ---
+// Returns 0 on success, or error code 1-5 on failure.
+
+func byte SdInit() {
+    var byte r;
+    r = sdInit0();
+    if (r != 0) { return r; }
+    r = sdInit1();
+    if (r != 0) { return r; }
+    return sdInit2();
+}
+
+// --- SdReadSec: read one 512-byte SD sector into memory ---
+// addr: SD card sector byte address
+// dest: destination memory address
+// Returns 0 on success, nonzero on error.
+
+func byte SdReadSec(uint16 addr, uint16 dest) {
+    var byte r;
+    var uint16 i;
+    var uint16 tok;
+    r = sdCmd(17, 0, addr);
+    if (r != 0) { return r; }
+    tok = waitResp();
+    if (tok != 0xFE) { return byte(0xFF); }
+    i = 0;
+    while (i < 512) {
+        r = spiRecv();
+        storeByte(dest + i, r);
+        i = i + 1;
+    }
+    pump();
+    pump();
+    return 0;
+}
