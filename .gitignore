@@ -15,12 +15,14 @@
 foo
 out.bin
 wut4.out
-yasm/yasm
 emul/emul
 lang/ylex/ylex
 lang/yparse/yparse
 lang/ysem/ysem
+lang/ypeep/ypeep
 lang/ygen/ygen
+lang/yasm/yasm
+lang/yld/yld
 lang/ya/ya
 
 

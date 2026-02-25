@@ -17,6 +17,8 @@ echo build ysem
 cd ../ysem && go build && go test && go install && \
 echo build ygen
 cd ../ygen && go build && go test && go install && \
+echo build ypeep
+cd ../ypeep && go build && go test && go install && \
 echo build yasm
 cd ../yasm && go build && go test && go install && \
 echo build yld
@@ -39,6 +41,8 @@ echo rebuild ysem in place
 cd ../ysem && go build
 echo rebuild ygen in place
 cd ../ygen && go build
+echo build ypeep in place
+cd ../ypeep && go build
 echo rebuild yasm in place
 cd ../yasm && go build
 echo rebuild yld in place

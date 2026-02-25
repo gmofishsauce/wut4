@@ -38,6 +38,7 @@ var (
 	compileOnly = flag.Bool("c", false, "compile to relocatable object file (.wo)")
 	keepFiles   = flag.Bool("k", false, "keep intermediate files")
 	verbose     = flag.Bool("v", false, "verbose output")
+	doOptimize  = flag.Bool("O", false, "run peephole optimizer (ypeep) on generated assembly")
 )
 
 func main() {
@@ -125,6 +126,15 @@ func compile(sourceFile string) error {
 		}
 	}
 
+	// Only need optimizer if requested
+	var ypeepPath string
+	if *doOptimize {
+		ypeepPath, err = findBinary("ypeep", "ypeep")
+		if err != nil {
+			return err
+		}
+	}
+
 	// Read source file
 	sourceData, err := os.ReadFile(sourceFile)
 	if err != nil {
@@ -188,6 +198,17 @@ func compile(sourceFile string) error {
 			return fmt.Errorf("reading boot.asm: %v", err)
 		}
 		asmOut = append(bootData, asmOut...)
+	}
+
+	// Stage 5 (optional): Peephole optimizer
+	if *doOptimize {
+		if *verbose {
+			fmt.Fprintf(os.Stderr, "Running peephole optimizer...\n")
+		}
+		asmOut, err = runStage(ypeepPath, nil, bytes.NewReader(asmOut))
+		if err != nil {
+			return fmt.Errorf("peephole optimizer failed: %v", err)
+		}
 	}
 
 	if *keepFiles || *asmOnly {
@@ -352,7 +373,7 @@ func findCrt0() (string, error) {
 }
 
 // findBootAsm locates the boot.asm startup file for bootstrap programs.
-// Looks at $YAPL/../lib/boot.asm, then <bindir>/../lib/boot.asm.
+// Looks at $YAPL/../lib/boot.asm, then <bindir>/boot.asm, then <bindir>/../lib/boot.asm.
 func findBootAsm() (string, error) {
 	// Try $YAPL/../lib/boot.asm
 	if yaplDir := os.Getenv("YAPL"); yaplDir != "" {
@@ -362,16 +383,24 @@ func findBootAsm() (string, error) {
 		}
 	}
 
-	// Try <directory of ya binary>/../lib/boot.asm
 	exe, err := os.Executable()
 	if err == nil {
-		p := filepath.Join(filepath.Dir(exe), "..", "lib", "boot.asm")
+		bindir := filepath.Dir(exe)
+
+		// Try <bindir>/boot.asm (flat install: boot.asm alongside binaries)
+		p := filepath.Join(bindir, "boot.asm")
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+
+		// Try <bindir>/../lib/boot.asm
+		p = filepath.Join(bindir, "..", "lib", "boot.asm")
 		if _, err := os.Stat(p); err == nil {
 			return filepath.Clean(p), nil
 		}
 	}
 
-	return "", fmt.Errorf("boot.asm not found; set YAPL env var to repo root or install lib/boot.asm alongside binaries")
+	return "", fmt.Errorf("boot.asm not found; set YAPL env var to repo root or install boot.asm alongside binaries")
 }
 
 // findBinary locates a compiler component binary.
