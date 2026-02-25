@@ -51,7 +51,8 @@ Declaration     = ConstDecl
                 | FuncDecl
                 | StructDecl
                 | AsmDecl
-                | PragmaDecl .
+                | PragmaDecl
+                | ExternDecl .
 
 
 (* ============================================================ *)
@@ -161,6 +162,14 @@ StructDecl      = "struct" identifier "{" { StructMember } "}" ";" .
 
 StructMember    = TypeSpecifier identifier ";"
                 | TypeSpecifier identifier "[" ConstExpr "]" ";" .
+
+(* External declarations - declare symbols defined in other compilation units.
+ * No storage is allocated; the linker resolves references at link time.
+ * 'extern const' is not permitted: constants have no runtime symbol.
+ * An initializer is a syntax error; use VarDecl for definitions. *)
+ExternDecl      = "extern" TypeSpecifier identifier ";"
+                | "extern" TypeSpecifier identifier "[" ConstExpr "]" ";"
+                | "extern" "func" ReturnType identifier "(" [ ParamList ] ")" ";" .
 
 (* Inline assembly - passes through to generated assembly unchanged *)
 AsmDecl         = "#asm" "(" raw_string ")" ";" .
@@ -288,7 +297,7 @@ PrimaryExpr     = identifier
 (* ============================================================ *)
 (*
  * Language keywords:
- *   break    const    continue   else      for      func
+ *   break    const    continue   else      extern   for      func
  *   goto     if       return     struct    var      while
  *
  * Type names (predefined identifiers, not keywords):
@@ -331,6 +340,10 @@ PrimaryExpr     = identifier
  * - Declare before use: all identifiers must be declared before reference
  * - No forward declarations: functions, types, constants must precede use
  * - Visibility: uppercase initial = global (public), lowercase = static (file-private)
+ * - ExternDecl: identifier must begin with an uppercase letter
+ * - ExternDecl: 'extern const' is not permitted (use #include to share constants)
+ * - ExternDecl: struct types referenced in an extern signature must be fully defined locally
+ * - ExternDecl: does not allocate storage; linker resolves references at link time
  * - void restriction: 'void' only valid as function return type; '@void' valid as pointer
  * - const identifiers: in ConstExpr, identifiers must refer to prior const declarations
  * - Global initializers: must be ConstExpr (compile-time evaluable)

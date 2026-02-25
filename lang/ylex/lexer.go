@@ -26,7 +26,7 @@ var keywords = map[string]bool{
 	"break": true, "continue": true, "else": true, "for": true,
 	"goto": true, "if": true, "return": true, "while": true,
 	// Declarations
-	"const": true, "func": true, "struct": true, "var": true,
+	"const": true, "extern": true, "func": true, "struct": true, "var": true,
 	// Types (made keywords per design decision)
 	"byte": true, "uint8": true, "uint16": true, "int16": true,
 	"void": true, "block32": true, "block64": true, "block128": true,

@@ -68,6 +68,7 @@ YAPL resembles C with deliberate simplifications for a small compiler.
 - **`func` keyword** for functions: `func int16 add(int16 a, int16 b) { ... }`
 - **No type promotion** - must use explicit casts: `int16(x)`
 - **Visibility by case** - uppercase initial = public/global, lowercase = static/private
+- **`extern` declarations** for referencing symbols defined in other compilation units: `extern int16 Counter;` or `extern func void Print(int16 x);`. Only public (uppercase) names may be declared extern. No storage is allocated; the linker resolves the reference.
 - **Single global namespace** - all top-level symbols (functions, variables, constants, struct tags) share one namespace, so struct tags can be used directly as type names
 - **No preprocessor** - `#if`/`#else`/`#endif`, `#include` handled by lexer; constant expressions folded at lex time
 - **`#asm("...")`** for inline assembly (raw string, no escapes)
@@ -213,7 +214,7 @@ Implementation limits: 16 params, 32 locals, 256-byte frame, 32 struct fields, 1
 - Example: `const uint16 SIZE = 64;` -> token stream with `LIT, 0x0040`
 
 ### Pass 2 (yparse) - Parser
-- Parses token stream into text-based AST with STRUCT, CONST, VAR, FUNC sections
+- Parses token stream into text-based AST with STRUCT, CONST, VAR, EXTERN, FUNC sections
 - Builds symbol table; validates visibility rules
 - Outputs hierarchical structure: FUNC contains PARAM, LOCAL, FRAMESIZE, BODY with statements
 - Expressions in prefix notation: `BINARY +`, `UNARY @`, `CALL`, `INDEX`, `FIELD`, etc.
@@ -272,7 +273,7 @@ yasm -d wut4.out
 - Multi-pass with ASCII inter-pass files: debuggability over speed; each pass must fit in 64KB for self-hosting
 - No frame pointer: SP fixed during function execution, locals at fixed offsets
 - `@` for dereference instead of `*`: avoids ambiguity with multiplication
-- Visibility by identifier case: eliminates need for `static`/`extern` keywords
+- Visibility by identifier case: eliminates need for `static`; `extern` is still needed to reference public symbols defined in other compilation units
 - Constant folding in lexer: simplifies parser and later passes
 - `#asm()` passes through all passes unchanged to final assembly output
 

@@ -51,6 +51,7 @@ type Symbol struct {
 	Storage  Storage // for SymVar
 	Offset   int     // data offset for global/static, stack offset for local
 	IsPublic bool    // true if name starts with uppercase
+	IsExtern bool    // true if declared via 'extern' (defined in another compilation unit)
 	Loc      SourceLoc
 	// For functions
 	Params []*ParamSymbol
@@ -167,6 +168,42 @@ func (st *SymbolTable) DefineFunc(name string, returnType *Type, loc SourceLoc) 
 		Kind:     SymFunc,
 		Type:     returnType,
 		IsPublic: isPublic(name),
+		Loc:      loc,
+		Params:   make([]*ParamSymbol, 0),
+		Locals:   make([]*LocalSymbol, 0),
+		Labels:   make(map[string]*LabelSymbol),
+	}
+	st.Globals[name] = sym
+	return sym, nil
+}
+
+// DeclareExternVar declares an external variable (no storage allocated)
+func (st *SymbolTable) DeclareExternVar(name string, typ *Type, arrayLen int, loc SourceLoc) error {
+	if _, exists := st.Globals[name]; exists {
+		return fmt.Errorf("redefinition of '%s'", name)
+	}
+	st.Globals[name] = &Symbol{
+		Name:     name,
+		Kind:     SymVar,
+		Type:     typ,
+		IsPublic: isPublic(name),
+		IsExtern: true,
+		Loc:      loc,
+	}
+	return nil
+}
+
+// DeclareExternFunc declares an external function (no body, no storage allocated)
+func (st *SymbolTable) DeclareExternFunc(name string, returnType *Type, loc SourceLoc) (*Symbol, error) {
+	if _, exists := st.Globals[name]; exists {
+		return nil, fmt.Errorf("redefinition of '%s'", name)
+	}
+	sym := &Symbol{
+		Name:     name,
+		Kind:     SymFunc,
+		Type:     returnType,
+		IsPublic: isPublic(name),
+		IsExtern: true,
 		Loc:      loc,
 		Params:   make([]*ParamSymbol, 0),
 		Locals:   make([]*LocalSymbol, 0),

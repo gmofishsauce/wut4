@@ -66,6 +66,7 @@ func (r *ASTReader) Read() (*Program, error) {
 		Constants: make([]*ConstDef, 0),
 		Globals:   make([]*VarDef, 0),
 		Functions: make([]*FuncDef, 0),
+		Externs:   make([]*ExternDef, 0),
 		AsmDecls:  make([]string, 0),
 	}
 
@@ -139,6 +140,16 @@ func (r *ASTReader) Read() (*Program, error) {
 			continue
 		}
 
+		// Parse extern declaration
+		if strings.HasPrefix(line, "EXTERN ") {
+			e, err := r.readExtern(line)
+			if err != nil {
+				return nil, err
+			}
+			prog.Externs = append(prog.Externs, e)
+			continue
+		}
+
 		// Parse file-level inline assembly
 		if strings.HasPrefix(line, "ASM ") {
 			asmText := r.extractAsmText(line)
@@ -160,6 +171,70 @@ func (r *ASTReader) extractAsmText(line string) string {
 		return rest[1 : len(rest)-1]
 	}
 	return rest
+}
+
+func (r *ASTReader) readExtern(line string) (*ExternDef, error) {
+	// "EXTERN FUNC rettype name" -> function extern
+	// "EXTERN type name"         -> scalar variable extern
+	// "EXTERN [n]type name"      -> array variable extern
+	parts := strings.Fields(line)
+	if len(parts) < 3 {
+		return nil, r.error("invalid EXTERN line: %s", line)
+	}
+
+	if parts[1] == "FUNC" {
+		if len(parts) < 4 {
+			return nil, r.error("invalid EXTERN FUNC line: %s", line)
+		}
+		ed := &ExternDef{
+			Name:       parts[3],
+			IsFunc:     true,
+			ReturnType: parseType(parts[2]),
+			Params:     make([]*VarDef, 0),
+		}
+		// Read EPARAM lines
+		for r.nextLine() {
+			paramLine := strings.TrimSpace(r.line)
+			if !strings.HasPrefix(paramLine, "EPARAM ") {
+				r.unreadLine()
+				break
+			}
+			// "EPARAM type name"
+			paramParts := strings.Fields(paramLine)
+			if len(paramParts) < 3 {
+				return nil, r.error("invalid EPARAM line: %s", paramLine)
+			}
+			ed.Params = append(ed.Params, &VarDef{
+				Name:    paramParts[2],
+				Type:    parseType(paramParts[1]),
+				IsParam: true,
+			})
+		}
+		return ed, nil
+	}
+
+	// Variable: "EXTERN type name" or "EXTERN [n]type name"
+	typePart := parts[1]
+	name := parts[2]
+	var arrayLen int
+	var baseType *Type
+
+	if strings.HasPrefix(typePart, "[") {
+		idx := strings.Index(typePart, "]")
+		if idx > 0 {
+			arrayLen, _ = strconv.Atoi(typePart[1:idx])
+			baseType = parseType(typePart[idx+1:])
+		}
+	} else {
+		baseType = parseType(typePart)
+	}
+
+	return &ExternDef{
+		Name:     name,
+		IsFunc:   false,
+		Type:     baseType,
+		ArrayLen: arrayLen,
+	}, nil
 }
 
 func (r *ASTReader) readStruct() (*StructDef, error) {

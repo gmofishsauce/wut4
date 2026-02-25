@@ -70,7 +70,7 @@ func (p *Parser) synchronize() {
 		// Synchronize at declaration keywords
 		if tok.Category == TokKEY {
 			switch tok.Value {
-			case "const", "var", "func", "struct":
+			case "const", "extern", "var", "func", "struct":
 				return
 			}
 		}
@@ -244,6 +244,9 @@ func (p *Parser) parseDeclaration() Decl {
 	if tok.IsKeyword("#asm") {
 		return p.parseAsmDecl()
 	}
+	if tok.IsKeyword("extern") {
+		return p.parseExternDecl()
+	}
 
 	p.error("expected declaration, got %s %q", tok.Category, tok.Value)
 	p.synchronize()
@@ -275,6 +278,141 @@ func (p *Parser) parseAsmDecl() *AsmDecl {
 		AsmText: asmText,
 		Loc:     loc,
 	}
+}
+
+// parseExternDecl parses an extern declaration:
+//   extern TypeSpecifier identifier [ "[" ConstExpr "]" ] ";"
+//   extern func ReturnType identifier "(" [ ParamList ] ")" ";"
+func (p *Parser) parseExternDecl() *ExternDecl {
+	loc := p.currentLoc()
+	p.tokens.Next() // consume 'extern'
+
+	// extern func ...
+	if p.tokens.Peek().IsKeyword("func") {
+		p.tokens.Next() // consume 'func'
+
+		returnType := p.parseReturnType()
+		if returnType == nil {
+			p.synchronize()
+			return nil
+		}
+
+		nameTok, err := p.tokens.ExpectID()
+		if err != nil {
+			p.error("expected function name in extern declaration")
+			p.synchronize()
+			return nil
+		}
+
+		if !isPublic(nameTok.Value) {
+			p.errorAt(loc, "extern name %q must begin with an uppercase letter", nameTok.Value)
+		}
+
+		if _, err := p.tokens.ExpectPunct("("); err != nil {
+			p.error("expected '(' after extern function name")
+			p.synchronize()
+			return nil
+		}
+
+		// Parse parameters without entering a function scope
+		params := make([]*Param, 0)
+		if !p.tokens.Peek().IsPunct(")") {
+			for {
+				param := p.parseParam() // funcScope is nil here, so no scope side-effects
+				if param != nil {
+					params = append(params, param)
+				}
+				if !p.tokens.Peek().IsPunct(",") {
+					break
+				}
+				p.tokens.Next() // consume ','
+			}
+		}
+
+		if _, err := p.tokens.ExpectPunct(")"); err != nil {
+			p.error("expected ')' after extern function parameters")
+		}
+
+		if _, err := p.tokens.ExpectPunct(";"); err != nil {
+			p.error("expected ';' after extern function declaration")
+			p.synchronize()
+		}
+
+		decl := &ExternDecl{
+			Name:       nameTok.Value,
+			IsFunc:     true,
+			ReturnType: returnType,
+			Params:     params,
+			Loc:        loc,
+		}
+
+		if _, err := p.symtab.DeclareExternFunc(nameTok.Value, returnType, loc); err != nil {
+			p.errorAt(loc, "%v", err)
+		}
+
+		return decl
+	}
+
+	// extern TypeSpecifier identifier [ "[" ConstExpr "]" ] ";"
+	externType := p.parseType()
+	if externType == nil {
+		p.synchronize()
+		return nil
+	}
+
+	nameTok, err := p.tokens.ExpectID()
+	if err != nil {
+		p.error("expected identifier in extern declaration")
+		p.synchronize()
+		return nil
+	}
+
+	if !isPublic(nameTok.Value) {
+		p.errorAt(loc, "extern name %q must begin with an uppercase letter", nameTok.Value)
+	}
+
+	var arrayLen int
+	if p.tokens.Peek().IsPunct("[") {
+		p.tokens.Next() // consume '['
+		dimTok := p.tokens.Next()
+		if dimTok.Category != TokLIT {
+			p.error("expected constant array dimension in extern declaration")
+			p.synchronize()
+			return nil
+		}
+		arrayLen = int(p.parseLiteralValue(dimTok))
+		if _, err := p.tokens.ExpectPunct("]"); err != nil {
+			p.error("expected ']' after extern array dimension")
+			p.synchronize()
+			return nil
+		}
+	}
+
+	// An initializer is a syntax error for extern declarations
+	if p.tokens.Peek().IsPunct("=") {
+		p.error("extern declaration cannot have an initializer")
+		p.synchronize()
+		return nil
+	}
+
+	if _, err := p.tokens.ExpectPunct(";"); err != nil {
+		p.error("expected ';' after extern declaration")
+		p.synchronize()
+	}
+
+	decl := &ExternDecl{
+		Name:       nameTok.Value,
+		IsFunc:     false,
+		ExternType: externType,
+		ArrayLen:   arrayLen,
+		Loc:        loc,
+	}
+
+	if err := p.symtab.DeclareExternVar(nameTok.Value, externType, arrayLen, loc); err != nil {
+		p.errorAt(loc, "%v", err)
+	}
+
+	return decl
 }
 
 // parseConstDecl parses: const TypeSpecifier identifier = ConstExpr ;

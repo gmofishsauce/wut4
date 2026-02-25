@@ -125,6 +125,31 @@ func (a *Analyzer) buildSymbolTables() {
 		}
 		a.functions[f.Name] = f
 	}
+
+	// Register extern declarations (type info only; no data/code emitted)
+	for _, ed := range a.prog.Externs {
+		if ed.IsFunc {
+			if _, exists := a.functions[ed.Name]; exists {
+				a.error("extern redeclares existing symbol: %s", ed.Name)
+				continue
+			}
+			a.functions[ed.Name] = &FuncDef{
+				Name:       ed.Name,
+				ReturnType: ed.ReturnType,
+				Params:     ed.Params,
+			}
+		} else {
+			if _, exists := a.globals[ed.Name]; exists {
+				a.error("extern redeclares existing symbol: %s", ed.Name)
+				continue
+			}
+			a.globals[ed.Name] = &VarDef{
+				Name:     ed.Name,
+				Type:     ed.Type,
+				ArrayLen: ed.ArrayLen,
+			}
+		}
+	}
 }
 
 // Phase 2: Type checking

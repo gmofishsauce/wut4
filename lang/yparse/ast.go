@@ -120,6 +120,21 @@ type AsmDecl struct {
 func (d *AsmDecl) declNode()         {}
 func (d *AsmDecl) GetLoc() SourceLoc { return d.Loc }
 
+// ExternDecl represents an external symbol declaration.
+// No storage is allocated; the linker resolves references at link time.
+type ExternDecl struct {
+	Name       string
+	IsFunc     bool     // true for "extern func ..."
+	ExternType *Type    // variable type (or nil if IsFunc)
+	ArrayLen   int      // 0 if scalar; only valid when !IsFunc
+	ReturnType *Type    // return type (only valid when IsFunc)
+	Params     []*Param // parameter list (only valid when IsFunc)
+	Loc        SourceLoc
+}
+
+func (d *ExternDecl) declNode()         {}
+func (d *ExternDecl) GetLoc() SourceLoc { return d.Loc }
+
 // FieldDecl represents a struct field
 type FieldDecl struct {
 	Name      string

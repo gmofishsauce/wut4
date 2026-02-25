@@ -13,6 +13,7 @@ type Program struct {
 	Constants   []*ConstDef
 	Globals     []*VarDef
 	Functions   []*FuncDef
+	Externs     []*ExternDef
 	AsmDecls    []string // File-level inline assembly declarations
 }
 
@@ -60,6 +61,16 @@ type FuncDef struct {
 	FrameSize  int
 	Body       []Stmt
 	Line       int
+}
+
+// ExternDef represents an external declaration (variable or function)
+type ExternDef struct {
+	Name       string
+	IsFunc     bool
+	Type       *Type     // variable type (nil if IsFunc)
+	ArrayLen   int       // for array variables; 0 if scalar
+	ReturnType *Type     // function return type (nil if !IsFunc)
+	Params     []*VarDef // function parameters (nil if !IsFunc)
 }
 
 // Type represents a YAPL type

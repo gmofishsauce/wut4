@@ -53,10 +53,35 @@ func (ow *OutputWriter) WriteProgram(prog *Program, symtab *SymbolTable, filenam
 	ow.writeConstants(prog)
 	ow.writeGlobalVars(prog, symtab)
 
+	// Write extern declarations
+	ow.writeExternDecls(prog)
+
 	// Write functions
 	for _, decl := range prog.Decls {
 		if fd, ok := decl.(*FuncDecl); ok {
 			ow.writeFunc(fd, symtab)
+		}
+	}
+}
+
+// writeExternDecls writes extern variable and function declarations
+func (ow *OutputWriter) writeExternDecls(prog *Program) {
+	for _, decl := range prog.Decls {
+		ed, ok := decl.(*ExternDecl)
+		if !ok {
+			continue
+		}
+		if ed.IsFunc {
+			ow.write("EXTERN FUNC %s %s", ed.ReturnType.String(), ed.Name)
+			ow.indent++
+			for _, param := range ed.Params {
+				ow.write("EPARAM %s %s", param.ParamType.String(), param.Name)
+			}
+			ow.indent--
+		} else if ed.ArrayLen > 0 {
+			ow.write("EXTERN [%d]%s %s", ed.ArrayLen, ed.ExternType.String(), ed.Name)
+		} else {
+			ow.write("EXTERN %s %s", ed.ExternType.String(), ed.Name)
 		}
 	}
 }
