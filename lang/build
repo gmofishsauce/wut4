@@ -16,10 +16,33 @@ cd ../yparse && go build && go test && go install && \
 echo build ysem
 cd ../ysem && go build && go test && go install && \
 echo build ygen
-cd ../ygen && go install && \
+cd ../ygen && go build && go test && go install && \
 echo build yasm
 cd ../yasm && go build && go test && go install && \
 echo build yld
 cd ../yld && go build && go test && go install && \
 echo build ya
-cd ../ya && go install
+cd ../ya && go build && go install && \
+cd ..
+echo build emulator
+pushd ../emul
+go build && go test && go install && \
+popd
+
+# now rebuild all the batteries in place so the compiler will work if the
+# YAPL environment variable is set.
+echo rebuild ylex in place
+cd ylex && go build
+echo rebuild yparse in place
+cd ../yparse && go build
+echo rebuild ysem in place
+cd ../ysem && go build
+echo rebuild ygen in place
+cd ../ygen && go build
+echo rebuild yasm in place
+cd ../yasm && go build
+echo rebuild yld in place
+cd ../yld && go build
+echo rebuild ya in place
+cd ../ya && go build
+

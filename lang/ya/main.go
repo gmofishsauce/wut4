@@ -175,6 +175,21 @@ func compile(sourceFile string) error {
 	if err != nil {
 		return fmt.Errorf("code generator failed: %v", err)
 	}
+
+	// Prepend boot.asm for bootstrap programs so the stack page is mapped
+	// before the crt0-equivalent startup code runs.
+	if hasBootstrapPragma(sourceData) {
+		bootAsmPath, err := findBootAsm()
+		if err != nil {
+			return err
+		}
+		bootData, err := os.ReadFile(bootAsmPath)
+		if err != nil {
+			return fmt.Errorf("reading boot.asm: %v", err)
+		}
+		asmOut = append(bootData, asmOut...)
+	}
+
 	if *keepFiles || *asmOnly {
 		asmFile := filepath.Join(sourceDir, baseNoExt+".asm")
 		if err := os.WriteFile(asmFile, asmOut, 0644); err != nil {
@@ -334,6 +349,29 @@ func findCrt0() (string, error) {
 	}
 
 	return "", fmt.Errorf("crt0.wo not found; set YAPL env var to repo root or install lib/crt0.wo alongside binaries")
+}
+
+// findBootAsm locates the boot.asm startup file for bootstrap programs.
+// Looks at $YAPL/../lib/boot.asm, then <bindir>/../lib/boot.asm.
+func findBootAsm() (string, error) {
+	// Try $YAPL/../lib/boot.asm
+	if yaplDir := os.Getenv("YAPL"); yaplDir != "" {
+		p := filepath.Join(yaplDir, "..", "lib", "boot.asm")
+		if _, err := os.Stat(p); err == nil {
+			return filepath.Clean(p), nil
+		}
+	}
+
+	// Try <directory of ya binary>/../lib/boot.asm
+	exe, err := os.Executable()
+	if err == nil {
+		p := filepath.Join(filepath.Dir(exe), "..", "lib", "boot.asm")
+		if _, err := os.Stat(p); err == nil {
+			return filepath.Clean(p), nil
+		}
+	}
+
+	return "", fmt.Errorf("boot.asm not found; set YAPL env var to repo root or install lib/boot.asm alongside binaries")
 }
 
 // findBinary locates a compiler component binary.

@@ -107,9 +107,9 @@ func TestParseIntHex(t *testing.T) {
 // TestSmokeHello runs ygen on the hello.ir integration IR and checks that
 // the output contains the expected structural landmarks.
 func TestSmokeHello(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "test", "hello.ir"))
+	data, err := os.ReadFile(filepath.Join("..", "test", "hello.ir_reference"))
 	if err != nil {
-		t.Fatalf("ReadFile hello.ir: %v", err)
+		t.Fatalf("ReadFile hello.ir_reference: %v", err)
 	}
 	asm := runYgen(t, string(data))
 
@@ -133,9 +133,9 @@ func TestSmokeHello(t *testing.T) {
 // callee-saved per the ABI; skipping it for leaf functions is a future
 // optimisation that has not yet been implemented.
 func TestLinkAlwaysSaved(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "test", "hello.ir"))
+	data, err := os.ReadFile(filepath.Join("..", "test", "hello.ir_reference"))
 	if err != nil {
-		t.Fatalf("ReadFile hello.ir: %v", err)
+		t.Fatalf("ReadFile hello.ir_reference: %v", err)
 	}
 	asm := runYgen(t, string(data))
 

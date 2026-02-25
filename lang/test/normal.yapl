@@ -1,5 +1,0 @@
-// normal.yapl - minimal normal program (no #pragma bootstrap)
-// crt0 provides _start with SP=0x0000
-
-func void main() {
-}

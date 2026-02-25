@@ -85,9 +85,9 @@ func (cg *CodeGen) Generate() {
 	// This initializes the stack pointer and calls main
 	if cg.isBootstrap {
 		cg.emit.Comment("Bootstrap startup code")
-		cg.emit.Comment("Stack initialized to 0x1000 (top of page 0)")
+		cg.emit.Comment("SP=0 wraps to top of 64KB; boot.asm maps phys page 1 at 0xF000..0xFFFF")
 		cg.emit.Label("_start")
-		cg.emit.Ldi(R7, 0x1000)
+		cg.emit.Ldi(R7, 0)
 		cg.emit.Jal("main")
 		cg.emit.Instr0("hlt")
 		cg.emit.BlankLine()

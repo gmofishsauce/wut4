@@ -9,6 +9,7 @@ This document is designed to efficiently rebuild Claude's context for working on
 **Repository root:** `github.com/gmofishsauce/wut4`
 
 **Key locations:**
+
 | Path | Contents |
 |------|----------|
 | `lang/` | Compiler source (this directory) |
