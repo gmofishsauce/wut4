@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -491,6 +492,81 @@ func (l *Lexer) handleDirective() {
 			l.error(fmt.Sprintf("unknown pragma: %s", pragmaName))
 		}
 
+	case "include":
+		// #include "filename" or #include <filename>
+		// Angle brackets are treated identically to double quotes for now.
+		if l.skipping {
+			l.scanToEndOfLine()
+			return
+		}
+		var closeDelim byte
+		if l.peek() == '"' {
+			closeDelim = '"'
+		} else if l.peek() == '<' {
+			closeDelim = '>'
+		} else {
+			l.error("expected '\"' or '<' after #include")
+			return
+		}
+		l.advance() // consume opening delimiter
+		var nameBuf strings.Builder
+		for l.peek() != closeDelim && l.peek() != '\n' && l.peek() != 0 {
+			nameBuf.WriteByte(l.advance())
+		}
+		if l.peek() != closeDelim {
+			l.error("unterminated #include filename")
+			return
+		}
+		l.advance() // consume closing delimiter
+		inclName := nameBuf.String()
+		if inclName == "" {
+			l.error("empty filename in #include")
+			return
+		}
+
+		// Resolve path: absolute if starts with '/', else relative to current file's dir
+		var resolvedPath string
+		if filepath.IsAbs(inclName) {
+			resolvedPath = inclName
+		} else {
+			resolvedPath = filepath.Join(filepath.Dir(l.filename), inclName)
+		}
+
+		f, err := os.Open(resolvedPath)
+		if err != nil {
+			l.error(fmt.Sprintf("cannot open included file %q: %v", inclName, err))
+			return
+		}
+
+		// Save current reader state
+		savedReader := l.reader
+		savedLine := l.line
+		savedLastEmitLine := l.lastEmitLine
+		savedFilename := l.filename
+
+		// Switch to included file
+		l.reader = bufio.NewReader(f)
+		l.line = 1
+		l.lastEmitLine = 0
+		l.filename = resolvedPath
+
+		// Emit #file for the included file so downstream passes track location
+		fmt.Fprintf(l.output, "#file %s\n", l.filename)
+
+		// Lex the included file
+		l.runUntilEOF()
+
+		// Close and restore state
+		f.Close()
+		l.reader = savedReader
+		l.line = savedLine
+		l.lastEmitLine = savedLastEmitLine
+		l.filename = savedFilename
+
+		// Restore downstream location tracking
+		fmt.Fprintf(l.output, "#file %s\n", l.filename)
+		l.lastEmitLine = 0 // force #line on next token
+
 	default:
 		l.error(fmt.Sprintf("unknown directive #%s", name))
 	}
@@ -850,7 +926,19 @@ func (l *Lexer) applyTypeCast(typeName string, val int64) int64 {
 func (l *Lexer) Run() {
 	// Emit file directive
 	fmt.Fprintf(l.output, "#file %s\n", l.filename)
+	l.runUntilEOF()
 
+	// Check for unclosed #if
+	if len(l.ifStack) > 0 {
+		l.error("unterminated #if")
+	}
+
+	l.output.Flush()
+}
+
+// runUntilEOF processes tokens from the current reader until EOF.
+// Called by Run() for the top-level file and recursively by #include handling.
+func (l *Lexer) runUntilEOF() {
 	for l.peek() != 0 {
 		l.skipWhitespace()
 		if l.peek() == 0 {
@@ -943,13 +1031,6 @@ func (l *Lexer) Run() {
 
 		l.error(fmt.Sprintf("unexpected character: %c (0x%02X)", ch, ch))
 	}
-
-	// Check for unclosed #if
-	if len(l.ifStack) > 0 {
-		l.error("unterminated #if")
-	}
-
-	l.output.Flush()
 }
 
 // Handle const declaration - parse and record the constant value

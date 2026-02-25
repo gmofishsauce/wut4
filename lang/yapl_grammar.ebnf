@@ -296,7 +296,14 @@ PrimaryExpr     = identifier
  *   block32  block64  block128
  *
  * Lexer directives (contain #, handled by lexer, not parser):
- *   #if      #else    #endif     #file     #line    #pragma
+ *   #if      #else    #endif     #file     #line    #pragma    #include
+ *
+ * #include syntax:
+ *   #include "path"    - double-quoted filename
+ *   #include <path>    - angle brackets (treated identically to double quotes)
+ * Paths may be relative to the including file's directory, or absolute (leading /).
+ * The directive may appear anywhere in the source; the file's tokens are substituted
+ * in place. Angle brackets are reserved for future use (e.g. search paths).
  *
  * Inline assembly directive (passed through to generated code):
  *   #asm

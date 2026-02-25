@@ -38,8 +38,8 @@ This document is designed to efficiently rebuild Claude's context for working on
 ## Compiler Pipeline
 
 ```
-source.yapl --> ylex --> yparse --> ysem --> ygen --> yasm --> wut4.out
-              tokens   AST+syms   IR(3addr)  .asm     binary
+source.yapl --> ylex --> yparse --> ysem --> ygen --> ypeep [optional] --> yasm --> wut4.out
+              tokens   AST+syms   IR(3addr)  .asm     asm to asm           .asm --> binary 
 ```
 
 All inter-pass formats are ASCII text. Use `ya -k -v source.yapl` to see all stages and keep intermediate files:
@@ -69,7 +69,7 @@ YAPL resembles C with deliberate simplifications for a small compiler.
 - **No type promotion** - must use explicit casts: `int16(x)`
 - **Visibility by case** - uppercase initial = public/global, lowercase = static/private
 - **Single global namespace** - all top-level symbols (functions, variables, constants, struct tags) share one namespace, so struct tags can be used directly as type names
-- **No preprocessor** - `#if`/`#else`/`#endif` handled by lexer; constant expressions folded at lex time
+- **No preprocessor** - `#if`/`#else`/`#endif`, `#include` handled by lexer; constant expressions folded at lex time
 - **`#asm("...")`** for inline assembly (raw string, no escapes)
 - **`#pragma`** directives handled by lexer: `#pragma bootstrap` for standalone programs (replaces `#asm(".bootstrap")` which no longer triggers bootstrap mode), `#pragma message <text>` prints to stderr at compile time
 - **Declarations before statements** in function bodies
@@ -116,7 +116,7 @@ func void Putstr(@byte bp) {
 ### Registers
 | Reg | Purpose |
 |-----|---------|
-| R0 | Hardwired zero |
+| R0 | Hardwired zero for most instructions; LINK for a few |
 | R1 | Arg 1 / return value (caller-saved) |
 | R2 | Arg 2 (caller-saved) |
 | R3 | Arg 3 (caller-saved) |
@@ -207,7 +207,8 @@ Implementation limits: 16 params, 32 locals, 256-byte frame, 32 struct fields, 1
 ### Pass 1 (ylex) - Lexer + Constant Evaluator
 - Tokenizes source into `token#, CATEGORY, value` lines (CATEGORY: KEY, ID, PUNCT, LIT)
 - Evaluates constant expressions in `const` initializers, array dimensions, and `#if` conditions
-- Handles `#if`/`#else`/`#endif`, `#file`, `#line`, `#pragma` directives
+- Handles `#if`/`#else`/`#endif`, `#include`, `#file`, `#line`, `#pragma` directives
+- `#include "path"` or `#include <path>` splices the named file's tokens in place; path is relative to the including file's directory, or absolute
 - Numeric literals output as hex; strings as quoted
 - Example: `const uint16 SIZE = 64;` -> token stream with `LIT, 0x0040`
 
