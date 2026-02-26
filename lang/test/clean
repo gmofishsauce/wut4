@@ -1,0 +1,6 @@
+#!/bin/bash
+rm -f *.lexout
+rm -f *.parseout
+rm -f *.ir
+rm -f *.asm
+echo done
