@@ -1,0 +1,88 @@
+ Hi Claude. The root of this repo is directoey wut4. It is located
+ at /Users/jeff/go/src/github.com/gmofishsauce/wut4/ on my machine.
+
+ You can read wut4/lang/README.md for context on the YAPL programming
+ languag and read wut4/specs/wut4arch.pdf for a description of the
+ target machine.
+
+My goal here is to write a bootstrap loader that can load a program
+from the SD card. The loaded program would be an operating system.
+
+Writing this loader has proven to be a challenging problem. There
+are critical constraints:
+
+1. The entire loader, including all code and static data but not
+its stack, must fit in one physical page (4096 bytes). Good news:
+the computer is in privileged mode when the program begins execution
+and it can remain in privileged mode when the loader chains to the
+operating system.  The loader can change the operating system by
+jumping to virtual zero (the system reset vector). Bad news: the
+Loader begins execution at virtual zero. So it must relocate itself,
+first, in order to put the operating system at that virtual address.
+
+2. The loader must not only physically load the operating system
+from The SD card, it must also set up the kernel code and data MMU
+registers so that the loaded operating system can execute. In the
+WUT-4 there is no DMA or other I/O to physical addresses, so pages
+must always be mapped into virtual space before they are loaded
+from the SD card programmatically. It probably makes the most sense
+To do this at increasing addresses rather than reading from the
+card into a buffer So that the data does not have to be copied after
+being read.
+
+So the loader needs something like the MapPage function
+(wut4/lib/mmu.{inc,yapl}) and also the code from wut4/lib/nio.{inc,yapl}.
+
+BUT:
+
+3. I have already proven, by other experiments, that simply linking
+these libraries to a main function results in a binary that does
+not fit in a page.
+
+4. I would like the loader to be written in YAPL, but parts of it
+can be hand written assembly if required. The loader must be a
+#pragma bootstrap program that can be rebuilt using the existing
+tool chain, either compiler or assembler or both.
+
+5. As I mentioned, after the operating system is loaded, the first
+page of the operating system must end up being virtual page 0 in
+kernel code space because it contains interrupt and exception factors
+that are taken from low kernel virtual addresses.
+
+here is some supplementary information:
+
+1. In the SD card file that will be loaded from at runtime, the
+binary starts at SD card offset zero (but see below about creating
+a mkbootimg tool.) I presume it will be necessary to load the first
+sector from the SD card in order to learn the code and data sizes.
+If the mapping is set up ahead of time, the problem of reading the
+data which is not sector aligned will be simplified. But it would
+be OK if you propose a Golang tool that would re-process the operating
+system into an SD card file and re-format the layout so that it was
+easier to load. E.g. mkbootimage wut4.out whch would produce
+wut4.bootimg.
+
+2. I think the loader needs to handle the possibility of an OS
+static data segment. The OS will likely need some static strings.
+
+3.  The loader can begin allocating physical page frames at 2,
+skipping the loader's two frames. The OS can worry about reclaiming
+physical page frames zero and one later.
+
+I had thought the loader would need to copy itself in order two of
+three up pages zero and one.  But in an earlier interaction you
+suggested this solution: "The loader doesn't need to copy itself.
+Instead, it writes a tiny (4-instruction) position-independent
+trampoline into a scratch physical page, mapped to kernel code page
+1. It finishes loading, jumps to the trampoline, and the trampoline
+remaps kernel code page 0 to the OS's first physical page and then
+jis to virtual address 0. This is necessary because the arch doc
+warns against remapping the currently-executing code page — we can't
+safely execute anything after the remap, so it must happen in page
+1."
+
+---End of supplementary information---
+
+Do you think you can write a program that meets all these constraints?
+I have an alternative approach (adding a feature to the emulator)
+that would be a lot of work but could become a fallback solution.

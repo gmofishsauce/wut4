@@ -1,0 +1,425 @@
+// loader.yapl - WUT-4 bootstrap loader
+//
+// Loads the operating system from the SD card boot image and transfers
+// control to it. The boot image is produced by the mkbootimg tool from
+// a normal WUT-4 executable (0xDDD1 magic), yielding a 0xDDDD boot image.
+//
+// Boot image layout (512-byte sectors):
+//   Sector 0:                  header (magic 0xDDDD, code_sectors u16, data_sectors u16)
+//   Sectors 1..code_sectors:   OS code, zero-padded to sector boundary
+//   Sectors 1+code_sectors..:  OS data, zero-padded to sector boundary
+//
+// Physical page frame allocation:
+//   Frame 0:   loader (this program, code + stack)
+//   Frame 1:   (reserved, skipped)
+//   Frame 2:   trampoline + staging (header read, trampoline write)
+//   Frames 3+: OS pages (code pages then data pages, 8 sectors per page)
+//
+// Trampoline technique: the loader cannot safely remap kernel code page 0
+// while executing from it. Instead, the loader writes a short trampoline
+// to physical frame 2, jumps to it via code page 15 (also mapped to frame
+// 2), and the trampoline then remaps code page 0 to the OS's first code
+// frame and jumps to virtual address 0.
+//
+// MMU register assignments:
+//   SPR 64..79: kernel code pages 0..15
+//   SPR 80..95: kernel data pages 0..15
+//   SPR 96:     console TX data (write)
+//   SPR 100:    SPI data (read = receive, write = send)
+//   SPR 101:    SPI chip select (write)
+//
+// Build:
+//   ya -c -o loader.wo loader.yapl
+//   yld loader.wo -o loader.out
+// The resulting loader.out is the loader itself (#pragma bootstrap format).
+// The OS boot image (produced by mkbootimg from the OS executable) is placed
+// on the emulated SD card and is loaded by this program at runtime.
+
+#pragma bootstrap
+
+// -----------------------------------------------------------------------
+// Low-level I/O primitives
+// -----------------------------------------------------------------------
+
+// Putc: write byte b to console TX FIFO (SPR 96)
+func void Putc(byte b) {
+    #asm("ldi r2, 96");
+    #asm("ssp r1, r2");
+}
+
+// spiSend: write one byte to the SPI data register (SPR 100)
+func void spiSend(byte tx) {
+    #asm("ldi r2, 100");
+    #asm("ssp r1, r2");
+}
+
+// spiRecv: read one byte from the SPI data register (SPR 100), returns byte
+func byte spiRecv() {
+    #asm("ldi r2, 100");
+    #asm("lsp r1, r2");
+}
+
+// spiRx: read one byte from SPI (SPR 100), returns uint16 to avoid
+// sign-extension bugs when comparing values >= 0x80
+func uint16 spiRx() {
+    #asm("ldi r2, 100");
+    #asm("lsp r1, r2");
+}
+
+// spiSel: write chip-select line (SPR 101); 0 = selected, 1 = deselected
+func void spiSel(byte val) {
+    #asm("ldi r2, 101");
+    #asm("ssp r1, r2");
+}
+
+// storeByte: write one byte to a virtual data address
+// r1=addr, r2=val → stb r2, r1, 0
+func void storeByte(uint16 addr, byte val) {
+    #asm("stb r2, r1, 0");
+}
+
+// storeWord: write one 16-bit word (little-endian) to a virtual data address
+// r1=addr, r2=val → stw r2, r1, 0
+func void storeWord(uint16 addr, uint16 val) {
+    #asm("stw r2, r1, 0");
+}
+
+// loadWord: read one 16-bit word (little-endian) from a virtual data address
+// r1=addr → ldw r1, r1, 0 → return value in r1
+func uint16 loadWord(uint16 addr) {
+    #asm("ldw r1, r1, 0");
+}
+
+// writeMMU: write a kernel MMU entry.
+// spr:   SPR number (64..79 for code pages, 80..95 for data pages)
+// frame: physical page frame number (bits 11:0; bits 15:12 = perm = 0 = RWX)
+// r1=spr, r2=frame; ssp r2, r1 stores r2 to SPR[r1]
+func void writeMMU(uint16 spr, uint16 frame) {
+    #asm("ssp r2, r1");
+}
+
+// -----------------------------------------------------------------------
+// SPI helpers
+// -----------------------------------------------------------------------
+
+// pump: discard one SPI response byte
+func void pump() {
+    var byte d;
+    d = spiRecv();
+}
+
+// pump5: discard five SPI response bytes (used after R3/R7 responses)
+func void pump5() {
+    pump();
+    pump();
+    pump();
+    pump();
+    pump();
+}
+
+// waitResp: poll SPI up to 32 times for a non-0xFF response byte.
+// Returns the response as uint16 to avoid sign-extension on bytes >= 0x80.
+func uint16 waitResp() {
+    var uint16 resp;
+    var uint16 i;
+    i = 0;
+    while (i < 32) {
+        resp = spiRx();
+        if (resp != 0xFF) {
+            return resp;
+        }
+        i = i + 1;
+    }
+    return 0xFF;
+}
+
+// -----------------------------------------------------------------------
+// SD card SPI protocol
+// -----------------------------------------------------------------------
+
+// sdCmd: send a 6-byte SD SPI command and return the R1 response byte.
+// The 32-bit SD argument is split: argHi = bits 31:16, argLo = bits 15:0.
+func byte sdCmd(byte cmd, uint16 argHi, uint16 argLo) {
+    var byte crc;
+    if (cmd == 0) {
+        crc = byte(0x95);
+    } else {
+        if (cmd == 8) {
+            crc = byte(0x87);
+        } else {
+            crc = byte(0xFF);
+        }
+    }
+    spiSend(byte(uint16(cmd) | 0x40));
+    spiSend(byte(argHi >> 8));
+    spiSend(byte(argHi & 0xFF));
+    spiSend(byte(argLo >> 8));
+    spiSend(byte(argLo & 0xFF));
+    spiSend(crc);
+    return byte(waitResp());
+}
+
+// sdInit0: send 80 SPI clock pulses (card deselected) then CMD0 (reset).
+// Returns 0 on success, 1 on error.
+func byte sdInit0() {
+    var uint16 i;
+    var byte r;
+    spiSel(1);
+    i = 0;
+    while (i < 12) {
+        spiSend(byte(0xFF));
+        i = i + 1;
+    }
+    spiSel(0);
+    r = sdCmd(0, 0, 0);
+    if (r != 1) { return 1; }
+    pump();
+    return 0;
+}
+
+// sdInit1: CMD8 (interface condition) + CMD58 (OCR read).
+// Returns 0 on success, 2 or 3 on error.
+func byte sdInit1() {
+    var byte r;
+    r = sdCmd(8, 0, uint16(0x01AA));
+    if (r != 1) { return 2; }
+    pump5();
+    r = sdCmd(58, 0, 0);
+    if (r != 1) { return 3; }
+    pump5();
+    return 0;
+}
+
+// sdInit2: CMD55 + ACMD41 (SD card initialization).
+// Returns 0 on success, 4 or 5 on error.
+func byte sdInit2() {
+    var byte r;
+    r = sdCmd(55, 0, 0);
+    if (r != 1) { return 4; }
+    pump();
+    r = sdCmd(41, uint16(0x4000), 0);
+    if (r != 0) { return 5; }
+    pump();
+    return 0;
+}
+
+// sdInit: full SD card initialization (CMD0 → CMD8 → CMD58 → ACMD41).
+// Returns 0 on success, or an error code 1-5 on failure.
+func byte sdInit() {
+    var byte r;
+    r = sdInit0();
+    if (r != 0) { return r; }
+    r = sdInit1();
+    if (r != 0) { return r; }
+    return sdInit2();
+}
+
+// readSector: read one 512-byte SD sector into memory at dest.
+// sector: 0-based sector index in the boot image (sector 0 = header).
+// dest:   virtual data address where the 512 bytes will be written.
+// Returns 0 on success, nonzero on error.
+//
+// Sector byte address = sector * 512; split into two uint16 halves so that
+// the full 32-bit address range is covered without overflow:
+//   argHi = sector >> 7          (high 16 bits of byte address)
+//   argLo = (sector & 0x7F) << 9 (low  16 bits of byte address)
+func byte readSector(uint16 sector, uint16 dest) {
+    var uint16 argHi;
+    var uint16 argLo;
+    var byte r;
+    var uint16 tok;
+    var uint16 i;
+    argHi = sector >> 7;
+    argLo = (sector & 0x7F) << 9;
+    r = sdCmd(17, argHi, argLo);
+    if (r != 0) { return r; }
+    tok = waitResp();
+    if (tok != 0xFE) { return byte(0xFF); }
+    i = 0;
+    while (i < 512) {
+        r = spiRecv();
+        storeByte(dest + i, r);
+        i = i + 1;
+    }
+    pump();
+    pump();
+    return 0;
+}
+
+// -----------------------------------------------------------------------
+// Error reporting
+// -----------------------------------------------------------------------
+
+// die: print "ERR" + one-byte code + newline to the console, then halt.
+// Called on unrecoverable errors during boot.
+func void die(byte code) {
+    Putc(byte('E'));
+    Putc(byte('R'));
+    Putc(byte('R'));
+    Putc(code);
+    Putc(byte('\n'));
+    #asm("hlt");
+}
+
+// -----------------------------------------------------------------------
+// Bootstrap entry point
+// -----------------------------------------------------------------------
+
+func void Main() {
+    var uint16 codeSectors;
+    var uint16 dataSectors;
+    var uint16 codePages;
+    var uint16 dataPages;
+    var uint16 p;
+    var uint16 s;
+    var uint16 sector;
+    var uint16 physFrame;
+    var uint16 dest;
+    var byte r;
+    var uint16 magic;
+
+    // Map data page 1 (SPR 81, virtual 0x1000-0x1FFF) → frame 2.
+    // Frame 2 is the dedicated staging/trampoline physical frame.
+    // This provides a scratch window for reading the 512-byte boot header.
+    writeMMU(81, 2);
+
+    // Initialize the SD card.
+    r = sdInit();
+    if (r != 0) {
+        die(byte('I'));
+    }
+
+    // Read boot image sector 0 (header) into virtual data 0x1000.
+    r = readSector(0, 0x1000);
+    if (r != 0) {
+        die(byte('H'));
+    }
+
+    // Verify boot image magic word (must be 0xDDDD).
+    magic = loadWord(0x1000);
+    if (magic != 0xDDDD) {
+        die(byte('M'));
+    }
+
+    // Extract code and data sector counts from the boot image header.
+    codeSectors = loadWord(0x1002);
+    dataSectors = loadWord(0x1004);
+
+    // Compute physical page counts: ceil(sectors / 8), since each
+    // physical page (4096 bytes) holds exactly 8 SD sectors (512 bytes each).
+    codePages = (codeSectors + 7) >> 3;
+    dataPages = (dataSectors + 7) >> 3;
+
+    // ---------------------------------------------------------------
+    // Load OS code pages into physical frames 3, 4, ...
+    // ---------------------------------------------------------------
+    // Data page 2 (SPR 82, virtual 0x2000-0x2FFF) is used as a staging
+    // window: it is remapped to the target physical frame before each
+    // page load, so sector data is written directly into the target frame.
+    //
+    // IMPORTANT: code page 0 (SPR 64) is intentionally NOT remapped here.
+    // The loader is executing from code page 0 (frame 0); remapping it
+    // mid-execution would corrupt the instruction stream. The trampoline
+    // (written and executed later) performs the final remap of code page 0.
+    p = 0;
+    sector = 1;
+    while (p < codePages) {
+        physFrame = 3 + p;
+
+        // Remap data page 2 → physFrame (staging window for this code page)
+        writeMMU(82, physFrame);
+
+        // Remap code page p → physFrame, but skip page 0 (see above)
+        if (p != 0) {
+            writeMMU(64 + p, physFrame);
+        }
+
+        // Load up to 8 sectors into data page 2 (virtual 0x2000..0x2FFF)
+        s = 0;
+        while (s < 8) {
+            if (sector <= codeSectors) {
+                dest = 0x2000 + (s << 9);
+                r = readSector(sector, dest);
+                if (r != 0) {
+                    die(byte('C'));
+                }
+                sector = sector + 1;
+            }
+            s = s + 1;
+        }
+
+        p = p + 1;
+    }
+
+    // ---------------------------------------------------------------
+    // Load OS data pages into physical frames 3+codePages, ...
+    // ---------------------------------------------------------------
+    // Data page 3 (SPR 83, virtual 0x3000-0x3FFF) is the staging window.
+    // SPR 80+p is set to physFrame so that the OS data page p mapping is
+    // established at the same time the page is loaded.
+    p = 0;
+    sector = 1 + codeSectors;
+    while (p < dataPages) {
+        physFrame = 3 + codePages + p;
+
+        // Map OS kernel data page p → physFrame
+        writeMMU(80 + p, physFrame);
+
+        // Remap data page 3 → physFrame (staging window for this data page)
+        writeMMU(83, physFrame);
+
+        // Load up to 8 sectors into data page 3 (virtual 0x3000..0x3FFF)
+        s = 0;
+        while (s < 8) {
+            if (sector <= codeSectors + dataSectors) {
+                dest = 0x3000 + (s << 9);
+                r = readSector(sector, dest);
+                if (r != 0) {
+                    die(byte('D'));
+                }
+                sector = sector + 1;
+            }
+            s = s + 1;
+        }
+
+        p = p + 1;
+    }
+
+    // ---------------------------------------------------------------
+    // Write the trampoline to physical frame 2
+    // ---------------------------------------------------------------
+    // Map data page 14 (SPR 94, virtual 0xE000-0xEFFF) → frame 2.
+    // Data page 14 and data page 1 (used earlier for the header) both
+    // map to the same physical frame 2, so writing to 0xE000 writes to
+    // the start of frame 2, overwriting the now-unneeded header data.
+    writeMMU(94, 2);
+
+    // The trampoline (8 words = 16 bytes) is written to virtual data 0xE000.
+    // When executed from virtual CODE 0xF000 (code page 15 → same frame 2),
+    // these bytes are read as instructions.
+    //
+    //   ldi r1, 3     0xA001, 0x80C9   load physical frame 3 (OS code pg 0)
+    //   ldi r2, 64    0xA00A, 0x8012   SPR 64 = kernel code page 0 MMU entry
+    //   ssp r1, r2    0xFE91           remap code page 0 → frame 3
+    //   ldi r1, 0     0xA001, 0x8009   jump target = virtual code address 0
+    //   ji r1         0xFFF1           jump to OS entry point
+    storeWord(0xE000, 0xA001);
+    storeWord(0xE002, 0x80C9);
+    storeWord(0xE004, 0xA00A);
+    storeWord(0xE006, 0x8012);
+    storeWord(0xE008, 0xFE91);
+    storeWord(0xE00A, 0xA001);
+    storeWord(0xE00C, 0x8009);
+    storeWord(0xE00E, 0xFFF1);
+
+    // Map code page 15 (SPR 79, virtual code 0xF000-0xFFFF) → frame 2.
+    // This makes the trampoline code we just wrote executable at 0xF000.
+    writeMMU(79, 2);
+
+    // Jump to the trampoline at virtual code 0xF000.
+    // The trampoline remaps code page 0 to the OS's first physical frame
+    // (frame 3) and then jumps to virtual code address 0, transferring
+    // control to the newly loaded operating system.
+    #asm("ldi r1, 0xF000");
+    #asm("ji r1");
+}
