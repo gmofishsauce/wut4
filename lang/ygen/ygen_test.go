@@ -115,11 +115,11 @@ func TestSmokeHello(t *testing.T) {
 
 	for _, want := range []string{
 		"_start:",  // bootstrap entry point
-		"main:",    // main function label
+		"Main:",    // main function label
 		"Putstr:",  // Putstr function label
 		"hello:",   // global data label
 		".bytes",   // data initializer
-		"jal main", // bootstrap call to main
+		"jal Main", // bootstrap call to Main
 		"hlt",      // halt after main returns
 	} {
 		if !strings.Contains(asm, want) {

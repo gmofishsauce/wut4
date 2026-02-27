@@ -14,6 +14,7 @@
 // SPI SD card (SPR assignments):
 //   SPR 100: SPI data (write=send, read=receive)
 //   SPR 101: SPI chip select (write)
+#include "nio.inc"
 
 // --- Putc: write one byte to the console TX FIFO ---
 

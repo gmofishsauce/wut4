@@ -133,54 +133,54 @@ var peepTests = []peepTest{
 	// --- branch-over-jal folding: forward target ---
 	//
 	// Layout (byte addresses):
-	//   0: brnz L_skip0   (2 bytes)
-	//   2: jal  L_target  (4 bytes)
-	//   6: L_skip0:       (0 bytes)
+	//   0: brnz l_skip0   (2 bytes)
+	//   2: jal  l_target  (4 bytes)
+	//   6: l_skip0:       (0 bytes)
 	//   8: mv r1, r2      (2 bytes)
-	//  10: L_target:      (0 bytes)
+	//  10: l_target:      (0 bytes)
 	//
 	// Post-opt offset = (10 - 4) - (0 + 2) = 4.  In range.
 	{
 		name: "branch_fold_forward",
 		input: "" +
-			"    brnz L_skip0\n" +
-			"    jal  L_target\n" +
-			"L_skip0:\n" +
+			"    brnz l_skip0\n" +
+			"    jal  l_target\n" +
+			"l_skip0:\n" +
 			"    mv r1, r2\n" +
-			"L_target:\n" +
+			"l_target:\n" +
 			"    ret\n",
 		want: "" +
-			"    brz L_target\n" +
-			"L_skip0:\n" +
+			"    brz l_target\n" +
+			"l_skip0:\n" +
 			"    mv r1, r2\n" +
-			"L_target:\n" +
+			"l_target:\n" +
 			"    ret\n",
 	},
 
 	// --- branch-over-jal folding: backward target ---
 	//
 	// Layout:
-	//   0: L_target:      (0 bytes)
+	//   0: l_target:      (0 bytes)
 	//   0: mv r1, r2      (2 bytes)
-	//   2: brnz L_skip1   (2 bytes)
-	//   4: jal  L_target  (4 bytes)
-	//   8: L_skip1:       (0 bytes)
+	//   2: brnz l_skip1   (2 bytes)
+	//   4: jal  l_target  (4 bytes)
+	//   8: l_skip1:       (0 bytes)
 	//
 	// Post-opt offset = 0 - (2 + 2) = -4.  In range.
 	{
 		name: "branch_fold_backward",
 		input: "" +
-			"L_target:\n" +
+			"l_target:\n" +
 			"    mv r1, r2\n" +
-			"    brnz L_skip1\n" +
-			"    jal  L_target\n" +
-			"L_skip1:\n" +
+			"    brnz l_skip1\n" +
+			"    jal  l_target\n" +
+			"l_skip1:\n" +
 			"    ret\n",
 		want: "" +
-			"L_target:\n" +
+			"l_target:\n" +
 			"    mv r1, r2\n" +
-			"    brz L_target\n" +
-			"L_skip1:\n" +
+			"    brz l_target\n" +
+			"l_skip1:\n" +
 			"    ret\n",
 	},
 
@@ -188,19 +188,19 @@ var peepTests = []peepTest{
 	{
 		name: "branch_fold_comment_transparent",
 		input: "" +
-			"    brz L_skip2\n" +
+			"    brz l_skip2\n" +
 			"; intervening comment\n" +
-			"    jal L_target\n" +
-			"L_skip2:\n" +
+			"    jal l_target\n" +
+			"l_skip2:\n" +
 			"    ret\n" +
-			"L_target:\n" +
+			"l_target:\n" +
 			"    ret\n",
 		want: "" +
-			"    brnz L_target\n" +
+			"    brnz l_target\n" +
 			"; intervening comment\n" +
-			"L_skip2:\n" +
+			"l_skip2:\n" +
 			"    ret\n" +
-			"L_target:\n" +
+			"l_target:\n" +
 			"    ret\n",
 	},
 
@@ -211,16 +211,16 @@ var peepTests = []peepTest{
 	{
 		name: "branch_fold_label_breaks",
 		input: "" +
-			"    brnz L_skip3\n" +
+			"    brnz l_skip3\n" +
 			"other:\n" +
 			"    jal  ExternalTarget\n" +
-			"L_skip3:\n" +
+			"l_skip3:\n" +
 			"    ret\n",
 		want: "" +
-			"    brnz L_skip3\n" +
+			"    brnz l_skip3\n" +
 			"other:\n" +
 			"    jal  ExternalTarget\n" +
-			"L_skip3:\n" +
+			"l_skip3:\n" +
 			"    ret\n",
 	},
 
@@ -228,43 +228,43 @@ var peepTests = []peepTest{
 	{
 		name: "branch_fold_brz",
 		input: "" +
-			"    brz L_s\n" +
-			"    jal L_t\n" +
-			"L_s:\n" +
-			"L_t:\n" +
+			"    brz l_s\n" +
+			"    jal l_t\n" +
+			"l_s:\n" +
+			"l_t:\n" +
 			"    ret\n",
 		want: "" +
-			"    brnz L_t\n" +
-			"L_s:\n" +
-			"L_t:\n" +
+			"    brnz l_t\n" +
+			"l_s:\n" +
+			"l_t:\n" +
 			"    ret\n",
 	},
 	{
 		name: "branch_fold_brc",
 		input: "" +
-			"    brc L_s\n" +
-			"    jal L_t\n" +
-			"L_s:\n" +
-			"L_t:\n" +
+			"    brc l_s\n" +
+			"    jal l_t\n" +
+			"l_s:\n" +
+			"l_t:\n" +
 			"    ret\n",
 		want: "" +
-			"    brnc L_t\n" +
-			"L_s:\n" +
-			"L_t:\n" +
+			"    brnc l_t\n" +
+			"l_s:\n" +
+			"l_t:\n" +
 			"    ret\n",
 	},
 	{
 		name: "branch_fold_brsge",
 		input: "" +
-			"    brsge L_s\n" +
-			"    jal L_t\n" +
-			"L_s:\n" +
-			"L_t:\n" +
+			"    brsge l_s\n" +
+			"    jal l_t\n" +
+			"l_s:\n" +
+			"l_t:\n" +
 			"    ret\n",
 		want: "" +
-			"    brslt L_t\n" +
-			"L_s:\n" +
-			"L_t:\n" +
+			"    brslt l_t\n" +
+			"l_s:\n" +
+			"l_t:\n" +
 			"    ret\n",
 	},
 
@@ -272,33 +272,33 @@ var peepTests = []peepTest{
 	{
 		name: "branch_fold_external_no_change",
 		input: "" +
-			"    brnz L_skip4\n" +
+			"    brnz l_skip4\n" +
 			"    jal  ExternalFunc\n" +
-			"L_skip4:\n" +
+			"l_skip4:\n" +
 			"    ret\n",
 		want: "" +
-			"    brnz L_skip4\n" +
+			"    brnz l_skip4\n" +
 			"    jal  ExternalFunc\n" +
-			"L_skip4:\n" +
+			"l_skip4:\n" +
 			"    ret\n",
 	},
 
 	// --- standalone jal → br ---
 	//
 	// Layout:
-	//   0: jal L_near   (4 bytes)
-	//   4: L_near:      (0 bytes)
+	//   0: jal l_near   (4 bytes)
+	//   4: l_near:      (0 bytes)
 	//
 	// Post-opt offset = (4 - 2) - (0 + 2) = 0.  In range.
 	{
 		name: "standalone_jal_to_br",
 		input: "" +
-			"    jal L_near\n" +
-			"L_near:\n" +
+			"    jal l_near\n" +
+			"l_near:\n" +
 			"    ret\n",
 		want: "" +
-			"    br L_near\n" +
-			"L_near:\n" +
+			"    br l_near\n" +
+			"l_near:\n" +
 			"    ret\n",
 	},
 
@@ -319,20 +319,20 @@ var peepTests = []peepTest{
 //
 // Layout (byte addresses):
 //
-//	 0: brnz L_skipX       (2 bytes)
-//	 2: jal  L_farTarget   (4 bytes)
-//	 6: L_skipX:           (0 bytes)
+//	 0: brnz l_skipX       (2 bytes)
+//	 2: jal  l_farTarget   (4 bytes)
+//	 6: l_skipX:           (0 bytes)
 //	 6: <filler × mv>      (filler × 2 bytes)
-//	 6+2*filler: L_farTarget:
+//	 6+2*filler: l_farTarget:
 //
 // Post-opt offset = (6 + 2*filler - 4) - (0 + 2) = 2*filler.
 func branchFoldAtLimitInput(filler int) string {
 	var sb strings.Builder
-	sb.WriteString("    brnz L_skipX\n")
-	sb.WriteString("    jal  L_farTarget\n")
-	sb.WriteString("L_skipX:\n")
+	sb.WriteString("    brnz l_skipX\n")
+	sb.WriteString("    jal  l_farTarget\n")
+	sb.WriteString("l_skipX:\n")
 	sb.WriteString(nInstrs(filler))
-	sb.WriteString("L_farTarget:\n")
+	sb.WriteString("l_farTarget:\n")
 	sb.WriteString("    ret\n")
 	return sb.String()
 }
@@ -358,14 +358,14 @@ func TestBranchFoldRangeBoundary(t *testing.T) {
 	if strings.Contains(got, "jal") {
 		t.Errorf("255-filler case: expected jal to be folded, but got:\n%s", got)
 	}
-	if !strings.Contains(got, "    brz L_farTarget\n") {
-		t.Errorf("255-filler case: expected 'brz L_farTarget', got:\n%s", got)
+	if !strings.Contains(got, "    brz l_farTarget\n") {
+		t.Errorf("255-filler case: expected 'brz l_farTarget', got:\n%s", got)
 	}
 
 	// 256 fillers → post-opt offset = 512 > 511: should NOT fold.
 	outOfRange := branchFoldAtLimitInput(256)
 	got = runPeep(outOfRange)
-	if !strings.Contains(got, "    jal  L_farTarget\n") {
+	if !strings.Contains(got, "    jal  l_farTarget\n") {
 		t.Errorf("256-filler case: expected jal to remain, but got:\n%s", got)
 	}
 }

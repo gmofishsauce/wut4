@@ -3,7 +3,7 @@
 
 const byte hello[] = "hello, world.\n";
 
-func void main() {
+func void Main() {
     Putstr(&hello);
 }
 

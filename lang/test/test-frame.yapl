@@ -119,6 +119,6 @@ func void BigFunc(uint16 p1, byte p2, uint16 p3, byte p4, uint16 p5, byte p6, ui
     PutHexWord(w18); Putnl();
 }
 
-func void main() {
+func void Main() {
     BigFunc(uint16(0x0100), byte(0x20), uint16(0x0300), byte(0x40), uint16(0x0500), byte(0x60), uint16(0x0700), byte(0x80), uint16(0x0900), byte(0xA0), uint16(0x0B00), byte(0xC0), uint16(0x0D00), byte(0xE0), uint16(0x0F00));
 }

@@ -88,7 +88,7 @@ func (cg *CodeGen) Generate() {
 		cg.emit.Comment("SP=0 wraps to top of 64KB; boot.asm maps phys page 1 at 0xF000..0xFFFF")
 		cg.emit.Label("_start")
 		cg.emit.Ldi(R7, 0)
-		cg.emit.Jal("main")
+		cg.emit.Jal("Main")
 		cg.emit.Instr0("hlt")
 		cg.emit.BlankLine()
 	}
@@ -158,13 +158,13 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Label("__shru16")
 		cg.emit.Comment("Shift R1 right by R2 bits (logical)")
 		cg.emit.Tst(R2, R0)
-		cg.emit.Brz("L_shru_done")
-		cg.emit.Label("L_shru_loop")
+		cg.emit.Brz("l_shru_done")
+		cg.emit.Label("l_shru_loop")
 		cg.emit.Srl(R1)
 		cg.emit.Adi(R2, R2, -1)
 		cg.emit.Tst(R2, R0)
-		cg.emit.Brnz("L_shru_loop")
-		cg.emit.Label("L_shru_done")
+		cg.emit.Brnz("l_shru_loop")
+		cg.emit.Label("l_shru_done")
 		cg.emit.Ret()
 		cg.emit.BlankLine()
 	}
@@ -173,13 +173,13 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Label("__shrs16")
 		cg.emit.Comment("Shift R1 right by R2 bits (arithmetic)")
 		cg.emit.Tst(R2, R0)
-		cg.emit.Brz("L_shrs_done")
-		cg.emit.Label("L_shrs_loop")
+		cg.emit.Brz("l_shrs_done")
+		cg.emit.Label("l_shrs_loop")
 		cg.emit.Sra(R1)
 		cg.emit.Adi(R2, R2, -1)
 		cg.emit.Tst(R2, R0)
-		cg.emit.Brnz("L_shrs_loop")
-		cg.emit.Label("L_shrs_done")
+		cg.emit.Brnz("l_shrs_loop")
+		cg.emit.Label("l_shrs_done")
 		cg.emit.Ret()
 		cg.emit.BlankLine()
 	}
@@ -188,13 +188,13 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Label("__shlu16")
 		cg.emit.Comment("Shift R1 left by R2 bits")
 		cg.emit.Tst(R2, R0)
-		cg.emit.Brz("L_shlu_done")
-		cg.emit.Label("L_shlu_loop")
+		cg.emit.Brz("l_shlu_done")
+		cg.emit.Label("l_shlu_loop")
 		cg.emit.Sll(R1)
 		cg.emit.Adi(R2, R2, -1)
 		cg.emit.Tst(R2, R0)
-		cg.emit.Brnz("L_shlu_loop")
-		cg.emit.Label("L_shlu_done")
+		cg.emit.Brnz("l_shlu_loop")
+		cg.emit.Label("l_shlu_done")
 		cg.emit.Ret()
 		cg.emit.BlankLine()
 	}
@@ -204,21 +204,21 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Comment("Multiply R1 * R2 -> R1")
 		cg.emit.Mv(R3, R1)     // R3 = multiplicand
 		cg.emit.Ldi(R1, 0)     // R1 = result (accumulator)
-		cg.emit.Label("L_mul_loop")
+		cg.emit.Label("l_mul_loop")
 		cg.emit.Tst(R2, R0)
-		cg.emit.Brz("L_mul_done")
+		cg.emit.Brz("l_mul_done")
 		// Check if low bit of R2 is set
 		cg.emit.Mv(R4, R2)
 		cg.emit.Ldi(R5, 1)
 		cg.emit.And(R4, R4, R5)
 		cg.emit.Tst(R4, R0)
-		cg.emit.Brz("L_mul_skip")
+		cg.emit.Brz("l_mul_skip")
 		cg.emit.Add(R1, R1, R3) // result += multiplicand
-		cg.emit.Label("L_mul_skip")
+		cg.emit.Label("l_mul_skip")
 		cg.emit.Sll(R3)         // multiplicand <<= 1
 		cg.emit.Srl(R2)         // multiplier >>= 1
-		cg.emit.Br("L_mul_loop")
-		cg.emit.Label("L_mul_done")
+		cg.emit.Br("l_mul_loop")
+		cg.emit.Label("l_mul_done")
 		cg.emit.Ret()
 		cg.emit.BlankLine()
 	}
@@ -230,27 +230,27 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Ldi(R3, 0)      // R3 = quotient
 		cg.emit.Ldi(R4, 0)      // R4 = remainder
 		cg.emit.Ldi(R5, 16)     // R5 = bit counter
-		cg.emit.Label("L_divu_loop")
+		cg.emit.Label("l_divu_loop")
 		cg.emit.Sll(R4)         // remainder <<= 1
 		// Get high bit of dividend into low bit of remainder
 		// Test if R1 is negative (high bit set) and add 1 to remainder if so
 		cg.emit.Tst(R1, R0)
-		cg.emit.Brslt("L_divu_setbit")
-		cg.emit.Br("L_divu_nobit")
-		cg.emit.Label("L_divu_setbit")
+		cg.emit.Brslt("l_divu_setbit")
+		cg.emit.Br("l_divu_nobit")
+		cg.emit.Label("l_divu_setbit")
 		cg.emit.Adi(R4, R4, 1)
-		cg.emit.Label("L_divu_nobit")
+		cg.emit.Label("l_divu_nobit")
 		cg.emit.Sll(R1)         // dividend <<= 1
 		cg.emit.Sll(R3)         // quotient <<= 1
 		// if remainder >= divisor
 		cg.emit.Tst(R4, R2)
-		cg.emit.Brult("L_divu_next")
+		cg.emit.Brult("l_divu_next")
 		cg.emit.Sub(R4, R4, R2) // remainder -= divisor
 		cg.emit.Adi(R3, R3, 1)  // quotient |= 1
-		cg.emit.Label("L_divu_next")
+		cg.emit.Label("l_divu_next")
 		cg.emit.Adi(R5, R5, -1)
 		cg.emit.Tst(R5, R0)
-		cg.emit.Brnz("L_divu_loop")
+		cg.emit.Brnz("l_divu_loop")
 		cg.emit.Mv(R1, R3)      // return quotient
 		cg.emit.Ret()
 		cg.emit.BlankLine()
@@ -262,15 +262,15 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		// Handle signs, call unsigned, fix sign
 		cg.emit.Ldi(R3, 0)      // R3 = sign flag
 		cg.emit.Tst(R1, R0)
-		cg.emit.Brsge("L_divs_pos1")
+		cg.emit.Brsge("l_divs_pos1")
 		cg.emit.Sub(R1, R0, R1) // negate R1
 		cg.emit.Adi(R3, R3, 1)
-		cg.emit.Label("L_divs_pos1")
+		cg.emit.Label("l_divs_pos1")
 		cg.emit.Tst(R2, R0)
-		cg.emit.Brsge("L_divs_pos2")
+		cg.emit.Brsge("l_divs_pos2")
 		cg.emit.Sub(R2, R0, R2) // negate R2
 		cg.emit.Adi(R3, R3, 1)
-		cg.emit.Label("L_divs_pos2")
+		cg.emit.Label("l_divs_pos2")
 		cg.emit.Adi(R7, R7, -2)
 		cg.emit.Stw(R3, R7, 0)  // save sign
 		cg.emit.Jal("__divu16")
@@ -279,9 +279,9 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Ldi(R4, 1)
 		cg.emit.And(R3, R3, R4)
 		cg.emit.Tst(R3, R0)
-		cg.emit.Brz("L_divs_done")
+		cg.emit.Brz("l_divs_done")
 		cg.emit.Sub(R1, R0, R1) // negate result
-		cg.emit.Label("L_divs_done")
+		cg.emit.Label("l_divs_done")
 		cg.emit.Ret()
 		cg.emit.BlankLine()
 	}
@@ -291,22 +291,22 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Comment("Unsigned modulo R1 %% R2 -> R1")
 		cg.emit.Ldi(R4, 0)      // R4 = remainder
 		cg.emit.Ldi(R5, 16)     // R5 = bit counter
-		cg.emit.Label("L_modu_loop")
+		cg.emit.Label("l_modu_loop")
 		cg.emit.Sll(R4)
 		cg.emit.Tst(R1, R0)
-		cg.emit.Brslt("L_modu_setbit")
-		cg.emit.Br("L_modu_nobit")
-		cg.emit.Label("L_modu_setbit")
+		cg.emit.Brslt("l_modu_setbit")
+		cg.emit.Br("l_modu_nobit")
+		cg.emit.Label("l_modu_setbit")
 		cg.emit.Adi(R4, R4, 1)
-		cg.emit.Label("L_modu_nobit")
+		cg.emit.Label("l_modu_nobit")
 		cg.emit.Sll(R1)
 		cg.emit.Tst(R4, R2)
-		cg.emit.Brult("L_modu_next")
+		cg.emit.Brult("l_modu_next")
 		cg.emit.Sub(R4, R4, R2)
-		cg.emit.Label("L_modu_next")
+		cg.emit.Label("l_modu_next")
 		cg.emit.Adi(R5, R5, -1)
 		cg.emit.Tst(R5, R0)
-		cg.emit.Brnz("L_modu_loop")
+		cg.emit.Brnz("l_modu_loop")
 		cg.emit.Mv(R1, R4)      // return remainder
 		cg.emit.Ret()
 		cg.emit.BlankLine()
@@ -317,23 +317,23 @@ func (cg *CodeGen) genRuntimeLibrary() {
 		cg.emit.Comment("Signed modulo R1 %% R2 -> R1")
 		cg.emit.Ldi(R3, 0)      // R3 = sign of dividend
 		cg.emit.Tst(R1, R0)
-		cg.emit.Brsge("L_mods_pos1")
+		cg.emit.Brsge("l_mods_pos1")
 		cg.emit.Sub(R1, R0, R1)
 		cg.emit.Ldi(R3, 1)
-		cg.emit.Label("L_mods_pos1")
+		cg.emit.Label("l_mods_pos1")
 		cg.emit.Tst(R2, R0)
-		cg.emit.Brsge("L_mods_pos2")
+		cg.emit.Brsge("l_mods_pos2")
 		cg.emit.Sub(R2, R0, R2)
-		cg.emit.Label("L_mods_pos2")
+		cg.emit.Label("l_mods_pos2")
 		cg.emit.Adi(R7, R7, -2)
 		cg.emit.Stw(R3, R7, 0)
 		cg.emit.Jal("__modu16")
 		cg.emit.Ldw(R3, R7, 0)
 		cg.emit.Adi(R7, R7, 2)
 		cg.emit.Tst(R3, R0)
-		cg.emit.Brz("L_mods_done")
+		cg.emit.Brz("l_mods_done")
 		cg.emit.Sub(R1, R0, R1) // result has sign of dividend
-		cg.emit.Label("L_mods_done")
+		cg.emit.Label("l_mods_done")
 		cg.emit.Ret()
 		cg.emit.BlankLine()
 	}
@@ -462,7 +462,7 @@ func (cg *CodeGen) genFunction(f *IRFunction) {
 	}
 
 	// Epilogue label and code
-	cg.emit.Label(fmt.Sprintf("L_%s_epilogue", f.Name))
+	cg.emit.Label(fmt.Sprintf("l_%s_epilogue", f.Name))
 	cg.genEpilogue()
 
 	cg.emit.BlankLine()
@@ -604,7 +604,7 @@ func (cg *CodeGen) genInstruction(instr *IRInstr) {
 		// Strip leading dot from label names (assembler requires labels start with a letter)
 		label := instr.Label
 		if strings.HasPrefix(label, ".") {
-			label = "L_" + label[1:]
+			label = "l_" + label[1:]
 		}
 		cg.emit.Label(label)
 
@@ -1188,7 +1188,7 @@ func (cg *CodeGen) genReturn(instr *IRInstr) {
 	if len(instr.Args) > 0 && instr.Args[0] != "" {
 		cg.loadOperand(instr.Args[0], R1)
 	}
-	cg.emit.Jmp(fmt.Sprintf("L_%s_epilogue", cg.currFunc.Name))
+	cg.emit.Jmp(fmt.Sprintf("l_%s_epilogue", cg.currFunc.Name))
 }
 
 // Helper functions
@@ -1273,7 +1273,7 @@ func min(a, b int) int {
 // fixLabel converts dot-prefixed labels to valid assembler labels
 func (cg *CodeGen) fixLabel(label string) string {
 	if strings.HasPrefix(label, ".") {
-		return "L_" + label[1:]
+		return "l_" + label[1:]
 	}
 	return label
 }

@@ -77,7 +77,7 @@ func byte isSpace(int16 ch) {
     return 0;
 }
 
-func void main() {
+func void Main() {
     var int16 ch;
     var uint16 chars;
     var uint16 words;

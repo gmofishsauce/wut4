@@ -22,7 +22,7 @@ func NewEmitter(w *bufio.Writer) *Emitter {
 // NewLabel generates a unique label
 func (e *Emitter) NewLabel(prefix string) string {
 	// Labels must begin with a letter per assembler spec (not a dot)
-	label := fmt.Sprintf("L_%s%d", prefix, e.labelCount)
+	label := fmt.Sprintf("l_%s%d", prefix, e.labelCount)
 	e.labelCount++
 	return label
 }

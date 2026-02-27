@@ -243,7 +243,7 @@ func optimize(lines []*Line) {
 					k := nextNonTrivial(lines, j+1)
 					if k >= 0 && lines[k].Kind == LineLabel &&
 						labelName(lines[k].Raw) == skipName &&
-						strings.HasPrefix(targetName, "L_") {
+						strings.HasPrefix(targetName, "l_") {
 						if targetAddr, ok := am.label[targetName]; ok {
 							branchAddr := am.line[i]
 							jalAddr := am.line[j]
@@ -277,7 +277,7 @@ func optimize(lines []*Line) {
 			// function entry points; converting their jal to br would destroy
 			// the link register update needed for the callee to return.
 			if l.Op == "jal" && len(l.Args) == 1 &&
-				strings.HasPrefix(l.Args[0], "L_") {
+				strings.HasPrefix(l.Args[0], "l_") {
 				targetName := l.Args[0]
 				if targetAddr, ok := am.label[targetName]; ok {
 					jalAddr := am.line[i]

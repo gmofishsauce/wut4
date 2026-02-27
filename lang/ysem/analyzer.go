@@ -126,11 +126,13 @@ func (a *Analyzer) buildSymbolTables() {
 		a.functions[f.Name] = f
 	}
 
-	// Register extern declarations (type info only; no data/code emitted)
+	// Register extern declarations (type info only; no data/code emitted).
+	// If the name is already defined locally, the definition satisfies the
+	// declaration and we skip it silently (analogous to C's extern + definition
+	// in the same translation unit, e.g. when a file #includes its own header).
 	for _, ed := range a.prog.Externs {
 		if ed.IsFunc {
 			if _, exists := a.functions[ed.Name]; exists {
-				a.error("extern redeclares existing symbol: %s", ed.Name)
 				continue
 			}
 			a.functions[ed.Name] = &FuncDef{
@@ -140,7 +142,6 @@ func (a *Analyzer) buildSymbolTables() {
 			}
 		} else {
 			if _, exists := a.globals[ed.Name]; exists {
-				a.error("extern redeclares existing symbol: %s", ed.Name)
 				continue
 			}
 			a.globals[ed.Name] = &VarDef{

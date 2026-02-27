@@ -1,13 +1,18 @@
 // ya - YAPL compiler driver
 //
-// Usage: ya [flags] source.yapl
-//        ya [flags] source.wo ...    (link mode)
+// Usage: ya [flags] file ...
+//
+// Input files:
+//   .yapl files are compiled; .wo files are passed to the linker.
+//   -c, -S, and -k are incompatible with .wo input files.
+//   -o and -c are incompatible with each other.
+//   #pragma bootstrap may only appear in the first source file.
 //
 // Flags:
-//   -o file    Write output to file (default: wut4.out or <base>.wo with -c)
-//   -S         Stop after generating assembly (don't assemble)
-//   -c         Compile to relocatable object file (.wo)
-//   -k         Keep intermediate files (.lexout, .parseout, .ir, .asm)
+//   -o file    Write output to file (incompatible with -c)
+//   -S         Stop after generating assembly (incompatible with .wo inputs)
+//   -c         Compile to relocatable object file (.wo) (incompatible with -o, .wo inputs)
+//   -k         Keep intermediate files (incompatible with .wo inputs)
 //   -v         Verbose output
 //
 // The compiler pipeline:
@@ -33,7 +38,7 @@ import (
 )
 
 var (
-	outputFile  = flag.String("o", "", "output file name (default: wut4.out, or <base>.wo with -c)")
+	outputFile  = flag.String("o", "", "output file name (incompatible with -c)")
 	asmOnly     = flag.Bool("S", false, "stop after generating assembly")
 	compileOnly = flag.Bool("c", false, "compile to relocatable object file (.wo)")
 	keepFiles   = flag.Bool("k", false, "keep intermediate files")
@@ -43,8 +48,7 @@ var (
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [flags] source.yapl\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "       %s [flags] file.wo ...\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s [flags] file ...\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "YAPL compiler driver\n\n")
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		flag.PrintDefaults()
@@ -56,41 +60,113 @@ func main() {
 		os.Exit(1)
 	}
 
-	/* Detect link mode: all arguments end in .wo */
-	allWO := true
+	// Validate incompatible flag combinations
+	if *compileOnly && *outputFile != "" {
+		fmt.Fprintf(os.Stderr, "ya: -o and -c are incompatible\n")
+		os.Exit(1)
+	}
+
+	// Split args into YAPL source files and .wo object files
+	var yaplFiles, inputWOs []string
 	for _, arg := range flag.Args() {
-		if !strings.HasSuffix(arg, ".wo") {
-			allWO = false
-			break
+		if strings.HasSuffix(arg, ".wo") {
+			inputWOs = append(inputWOs, arg)
+		} else {
+			yaplFiles = append(yaplFiles, arg)
 		}
 	}
 
-	if allWO {
-		/* Link mode: invoke yld directly */
-		if err := link(flag.Args()); err != nil {
+	// Validate .wo inputs with incompatible flags
+	if len(inputWOs) > 0 && (*compileOnly || *asmOnly || *keepFiles) {
+		fmt.Fprintf(os.Stderr, "ya: .wo object files cannot be used with -c, -S, or -k\n")
+		os.Exit(1)
+	}
+
+	// Validate bootstrap pragma: only the first source file may have it
+	if len(yaplFiles) > 1 {
+		for _, src := range yaplFiles[1:] {
+			data, err := os.ReadFile(src)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ya: cannot read %s: %v\n", src, err)
+				os.Exit(1)
+			}
+			if hasBootstrapPragma(data) {
+				fmt.Fprintf(os.Stderr, "ya: #pragma bootstrap may only appear in the first source file\n")
+				os.Exit(1)
+			}
+		}
+	}
+
+	// Link-only mode: only .wo files given
+	if len(yaplFiles) == 0 {
+		if err := link(inputWOs); err != nil {
 			fmt.Fprintf(os.Stderr, "ya: %v\n", err)
 			os.Exit(1)
 		}
 		return
 	}
 
-	if flag.NArg() != 1 {
-		fmt.Fprintf(os.Stderr, "ya: compile mode requires exactly one source file\n")
-		flag.Usage()
-		os.Exit(1)
+	// -c or -S: compile each source file individually, no link step
+	if *compileOnly || *asmOnly {
+		for _, src := range yaplFiles {
+			if err := compile(src); err != nil {
+				fmt.Fprintf(os.Stderr, "ya: %s: %v\n", src, err)
+				os.Exit(1)
+			}
+		}
+		return
 	}
 
-	sourceFile := flag.Arg(0)
-	if err := compile(sourceFile); err != nil {
+	// Single source file, no .wo inputs: single-file path (preserves bootstrap-to-binary)
+	if len(yaplFiles) == 1 && len(inputWOs) == 0 {
+		if err := compile(yaplFiles[0]); err != nil {
+			fmt.Fprintf(os.Stderr, "ya: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Multi-file compile+link: compile each source to a temp .wo, then link all
+	compiledWOs := make([]string, 0, len(yaplFiles))
+	for _, src := range yaplFiles {
+		wo, err := compileForLink(src)
+		if err != nil {
+			for _, f := range compiledWOs {
+				os.Remove(f)
+			}
+			fmt.Fprintf(os.Stderr, "ya: %s: %v\n", src, err)
+			os.Exit(1)
+		}
+		compiledWOs = append(compiledWOs, wo)
+	}
+	defer func() {
+		for _, f := range compiledWOs {
+			os.Remove(f)
+		}
+	}()
+
+	allWOs := append(compiledWOs, inputWOs...)
+	if err := link(allWOs); err != nil {
 		fmt.Fprintf(os.Stderr, "ya: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func compile(sourceFile string) error {
+// pipelineResult holds the output of the compilation pipeline for a single source file.
+type pipelineResult struct {
+	asmOut       []byte
+	hasBootstrap bool
+	baseNoExt    string
+	sourceDir    string
+}
+
+// runPipeline runs ylex→yparse→ysem→ygen (plus optional peephole optimizer and
+// boot.asm prepend) for a single YAPL source file. It handles -k and -S file
+// writing. Returns the assembly bytes and metadata needed by the caller.
+func runPipeline(sourceFile string) (*pipelineResult, error) {
 	// Verify source file exists
 	if _, err := os.Stat(sourceFile); err != nil {
-		return fmt.Errorf("cannot access %s: %v", sourceFile, err)
+		return nil, fmt.Errorf("cannot access %s: %v", sourceFile, err)
 	}
 
 	// Determine base name for intermediate files
@@ -102,43 +178,33 @@ func compile(sourceFile string) error {
 	// Find compiler components
 	ylexPath, err := findBinary("ylex", "ylex")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	parsePath, err := findBinary("yparse", "yparse")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	semPath, err := findBinary("ysem", "ysem")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	genPath, err := findBinary("ygen", "ygen")
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Only need assembler if we're going to use it
-	var asmPath string
-	if !*asmOnly {
-		asmPath, err = findBinary("yasm", "yasm")
-		if err != nil {
-			return err
-		}
-	}
-
-	// Only need optimizer if requested
 	var ypeepPath string
 	if *doOptimize {
 		ypeepPath, err = findBinary("ypeep", "ypeep")
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	// Read source file
 	sourceData, err := os.ReadFile(sourceFile)
 	if err != nil {
-		return fmt.Errorf("reading source: %v", err)
+		return nil, fmt.Errorf("reading source: %v", err)
 	}
 
 	// Stage 1: Lexer
@@ -147,7 +213,7 @@ func compile(sourceFile string) error {
 	}
 	lexOut, err := runStage(ylexPath, []string{sourceFile}, bytes.NewReader(sourceData))
 	if err != nil {
-		return fmt.Errorf("lexer failed: %v", err)
+		return nil, fmt.Errorf("lexer failed: %v", err)
 	}
 	if *keepFiles {
 		writeIntermediate(sourceDir, baseNoExt+".lexout", lexOut)
@@ -159,7 +225,7 @@ func compile(sourceFile string) error {
 	}
 	parseOut, err := runStage(parsePath, nil, bytes.NewReader(lexOut))
 	if err != nil {
-		return fmt.Errorf("parser failed: %v", err)
+		return nil, fmt.Errorf("parser failed: %v", err)
 	}
 	if *keepFiles {
 		writeIntermediate(sourceDir, baseNoExt+".parseout", parseOut)
@@ -171,7 +237,7 @@ func compile(sourceFile string) error {
 	}
 	irOut, err := runStage(semPath, nil, bytes.NewReader(parseOut))
 	if err != nil {
-		return fmt.Errorf("semantic analyzer failed: %v", err)
+		return nil, fmt.Errorf("semantic analyzer failed: %v", err)
 	}
 	if *keepFiles {
 		writeIntermediate(sourceDir, baseNoExt+".ir", irOut)
@@ -183,19 +249,19 @@ func compile(sourceFile string) error {
 	}
 	asmOut, err := runStage(genPath, nil, bytes.NewReader(irOut))
 	if err != nil {
-		return fmt.Errorf("code generator failed: %v", err)
+		return nil, fmt.Errorf("code generator failed: %v", err)
 	}
 
-	// Prepend boot.asm for bootstrap programs so the stack page is mapped
-	// before the crt0-equivalent startup code runs.
-	if hasBootstrapPragma(sourceData) {
+	// Prepend boot.asm for bootstrap programs
+	hasBootstrap := hasBootstrapPragma(sourceData)
+	if hasBootstrap {
 		bootAsmPath, err := findBootAsm()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		bootData, err := os.ReadFile(bootAsmPath)
 		if err != nil {
-			return fmt.Errorf("reading boot.asm: %v", err)
+			return nil, fmt.Errorf("reading boot.asm: %v", err)
 		}
 		asmOut = append(bootData, asmOut...)
 	}
@@ -207,28 +273,61 @@ func compile(sourceFile string) error {
 		}
 		asmOut, err = runStage(ypeepPath, nil, bytes.NewReader(asmOut))
 		if err != nil {
-			return fmt.Errorf("peephole optimizer failed: %v", err)
+			return nil, fmt.Errorf("peephole optimizer failed: %v", err)
 		}
 	}
 
+	// Write .asm file if -k or -S
 	if *keepFiles || *asmOnly {
 		asmFile := filepath.Join(sourceDir, baseNoExt+".asm")
 		if err := os.WriteFile(asmFile, asmOut, 0644); err != nil {
-			return fmt.Errorf("writing assembly: %v", err)
+			return nil, fmt.Errorf("writing assembly: %v", err)
 		}
 		if *verbose {
 			fmt.Fprintf(os.Stderr, "Wrote %s\n", asmFile)
 		}
 	}
 
-	// Stop here if -S
+	return &pipelineResult{
+		asmOut:       asmOut,
+		hasBootstrap: hasBootstrap,
+		baseNoExt:    baseNoExt,
+		sourceDir:    sourceDir,
+	}, nil
+}
+
+// runAssembler invokes yasm with the given arguments.
+func runAssembler(asmPath string, args []string) error {
+	cmd := exec.Command(asmPath, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if stderr.Len() > 0 {
+			return fmt.Errorf("assembler failed: %s", stderr.String())
+		}
+		return fmt.Errorf("assembler failed: %v", err)
+	}
+	return nil
+}
+
+// compile compiles a single YAPL source file using single-file mode logic.
+// In -S mode: writes <base>.asm and stops.
+// In -c mode: assembles to <base>.wo.
+// With #pragma bootstrap: assembles directly to a binary (legacy path).
+// Otherwise: assembles to a temp .wo and calls link().
+func compile(sourceFile string) error {
+	res, err := runPipeline(sourceFile)
+	if err != nil {
+		return err
+	}
+
 	if *asmOnly {
 		return nil
 	}
 
-	// Stage 5: Assembler
-	if *verbose {
-		fmt.Fprintf(os.Stderr, "Running assembler...\n")
+	asmPath, err := findBinary("yasm", "yasm")
+	if err != nil {
+		return err
 	}
 
 	// Write assembly to temp file for assembler
@@ -239,67 +338,102 @@ func compile(sourceFile string) error {
 	tmpAsmName := tmpAsm.Name()
 	defer os.Remove(tmpAsmName)
 
-	if _, err := tmpAsm.Write(asmOut); err != nil {
+	if _, err := tmpAsm.Write(res.asmOut); err != nil {
 		tmpAsm.Close()
 		return fmt.Errorf("writing temp assembly: %v", err)
 	}
 	tmpAsm.Close()
 
-	// Determine output file name and assembler arguments
-	outFile := *outputFile
-	var asmArgs []string
+	if *verbose {
+		fmt.Fprintf(os.Stderr, "Running assembler...\n")
+	}
+
 	if *compileOnly {
-		// Produce .wo object file
+		outFile := *outputFile
 		if outFile == "" {
-			outFile = filepath.Join(sourceDir, baseNoExt+".wo")
+			outFile = filepath.Join(res.sourceDir, res.baseNoExt+".wo")
 		}
-		asmArgs = []string{"-c", "-o", outFile, tmpAsmName}
-	} else if hasBootstrapPragma(sourceData) {
+		if err := runAssembler(asmPath, []string{"-c", "-o", outFile, tmpAsmName}); err != nil {
+			return err
+		}
+		if *verbose {
+			fmt.Fprintf(os.Stderr, "Wrote %s\n", outFile)
+		}
+		return nil
+	}
+
+	if res.hasBootstrap {
 		// Bootstrap program: yasm produces binary directly (legacy path)
+		outFile := *outputFile
 		if outFile == "" {
 			outFile = "wut4.out"
 		}
-		asmArgs = []string{"-o", outFile, tmpAsmName}
-	} else {
-		// Normal program: assemble to temp .wo, then link with crt0
-		tmpWO, err := os.CreateTemp("", "ya-*.wo")
-		if err != nil {
-			return fmt.Errorf("creating temp object file: %v", err)
+		if err := runAssembler(asmPath, []string{"-o", outFile, tmpAsmName}); err != nil {
+			return err
 		}
-		tmpWOName := tmpWO.Name()
-		tmpWO.Close()
-		defer os.Remove(tmpWOName)
-
-		woArgs := []string{"-c", "-o", tmpWOName, tmpAsmName}
-		cmd := exec.Command(asmPath, woArgs...)
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		if err := cmd.Run(); err != nil {
-			if stderr.Len() > 0 {
-				return fmt.Errorf("assembler failed: %s", stderr.String())
-			}
-			return fmt.Errorf("assembler failed: %v", err)
+		if *verbose {
+			fmt.Fprintf(os.Stderr, "Wrote %s\n", outFile)
 		}
-
-		return link([]string{tmpWOName})
+		return nil
 	}
 
-	// Run assembler (compile-only or bootstrap path)
-	cmd := exec.Command(asmPath, asmArgs...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		if stderr.Len() > 0 {
-			return fmt.Errorf("assembler failed: %s", stderr.String())
-		}
-		return fmt.Errorf("assembler failed: %v", err)
+	// Normal: assemble to temp .wo, then link
+	tmpWO, err := os.CreateTemp("", "ya-*.wo")
+	if err != nil {
+		return fmt.Errorf("creating temp object file: %v", err)
 	}
+	tmpWOName := tmpWO.Name()
+	tmpWO.Close()
+	defer os.Remove(tmpWOName)
+
+	if err := runAssembler(asmPath, []string{"-c", "-o", tmpWOName, tmpAsmName}); err != nil {
+		return err
+	}
+	return link([]string{tmpWOName})
+}
+
+// compileForLink compiles a YAPL source file to a temporary .wo object file.
+// The caller is responsible for removing the returned temp file.
+func compileForLink(sourceFile string) (string, error) {
+	res, err := runPipeline(sourceFile)
+	if err != nil {
+		return "", err
+	}
+
+	asmPath, err := findBinary("yasm", "yasm")
+	if err != nil {
+		return "", err
+	}
+
+	tmpAsm, err := os.CreateTemp("", "ya-*.asm")
+	if err != nil {
+		return "", fmt.Errorf("creating temp file: %v", err)
+	}
+	tmpAsmName := tmpAsm.Name()
+	defer os.Remove(tmpAsmName)
+
+	if _, err := tmpAsm.Write(res.asmOut); err != nil {
+		tmpAsm.Close()
+		return "", fmt.Errorf("writing temp assembly: %v", err)
+	}
+	tmpAsm.Close()
 
 	if *verbose {
-		fmt.Fprintf(os.Stderr, "Wrote %s\n", outFile)
+		fmt.Fprintf(os.Stderr, "Running assembler...\n")
 	}
 
-	return nil
+	tmpWO, err := os.CreateTemp("", "ya-*.wo")
+	if err != nil {
+		return "", fmt.Errorf("creating temp object file: %v", err)
+	}
+	tmpWOName := tmpWO.Name()
+	tmpWO.Close()
+
+	if err := runAssembler(asmPath, []string{"-c", "-o", tmpWOName, tmpAsmName}); err != nil {
+		os.Remove(tmpWOName)
+		return "", err
+	}
+	return tmpWOName, nil
 }
 
 // link prepends crt0.wo and invokes yld to link the given .wo files into an executable
@@ -325,10 +459,11 @@ func runLinker(woFiles []string) error {
 		outFile = "wut4.out"
 	}
 
-	args := append(woFiles, "-o", outFile)
+	args := []string{"-o", outFile}
 	if *verbose {
 		args = append(args, "-v")
 	}
+	args = append(args, woFiles...)
 
 	cmd := exec.Command(yldPath, args...)
 	var stderr bytes.Buffer

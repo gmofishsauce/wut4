@@ -277,7 +277,7 @@ func void DumpHex(uint16 addr) {
 
 // --- Main ---
 
-func void main() {
+func void Main() {
     var byte r;
 
     Putstr(&msgInit);

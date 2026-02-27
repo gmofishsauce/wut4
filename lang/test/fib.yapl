@@ -1,10 +1,17 @@
 // fib.yapl - Print Fibonacci numbers up to the largest that fits in uint16
 // Compile together with bootstrap.yapl and itoa.yapl
+#pragma bootstrap
+
+#include "../../lib/nio.inc"
 
 // Largest Fibonacci number that fits in uint16 (65535)
 const uint16 MAX_FIB = 46368;
 
-func void main() {
+func void Utoa(uint16 n, @byte bp) {
+     //fixme
+}
+
+func void Main() {
     var byte buf[6];
     var uint16 n1;
     var uint16 n2;
@@ -30,27 +37,3 @@ func void main() {
     }
 }
 
-// Write a byte to the serial transmit FIFO
-func void Putc(byte b) {
-    #asm("ldi r2 96");
-    #asm("ssp r1 r2");
-}
-
-// Return 1 if the transmit FIFO overflowed, 0 otherwise
-func byte isOverflow() {
-    #asm("ldi r2 98");
-    #asm("lsp r1 r2");
-    #asm("ldi r2 1");
-    #asm("and r1 r1 r2");
-}
-
-// Print a null-terminated string
-func void Putstr(@byte bp) {
-    while (@bp != 0) {
-        Putc(@bp);
-        if (isOverflow()) {
-            continue;
-        }
-        bp = bp + 1;
-    }
-}

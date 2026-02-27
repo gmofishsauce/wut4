@@ -125,7 +125,7 @@ func (st *SymbolTable) DefineConst(name string, value int64, loc SourceLoc) erro
 
 // DefineGlobalVar defines a global or static variable
 func (st *SymbolTable) DefineGlobalVar(name string, typ *Type, arrayLen int, loc SourceLoc) error {
-	if _, exists := st.Globals[name]; exists {
+	if existing, exists := st.Globals[name]; exists && !existing.IsExtern {
 		return fmt.Errorf("redefinition of '%s'", name)
 	}
 
@@ -160,7 +160,7 @@ func (st *SymbolTable) DefineGlobalVar(name string, typ *Type, arrayLen int, loc
 
 // DefineFunc defines a function
 func (st *SymbolTable) DefineFunc(name string, returnType *Type, loc SourceLoc) (*Symbol, error) {
-	if _, exists := st.Globals[name]; exists {
+	if existing, exists := st.Globals[name]; exists && !existing.IsExtern {
 		return nil, fmt.Errorf("redefinition of '%s'", name)
 	}
 	sym := &Symbol{

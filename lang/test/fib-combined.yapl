@@ -80,7 +80,7 @@ func @byte Utoa(uint16 n, @byte buf) {
 // Largest Fibonacci number that fits in uint16 (65535)
 const uint16 MAX_FIB = 46368;
 
-func void main() {
+func void Main() {
     var byte buf[6];
     var uint16 n1;
     var uint16 n2;

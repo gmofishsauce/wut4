@@ -1,27 +1,80 @@
 #ir 1
-#source hello.yapl
+#source test/hello.yapl
 
 BOOTSTRAP
 
-DATA hello GLOBAL STRING 15 15 "hello, world.\n"
+DATA hello STATIC BYTES 15 15 "hello, world.\x0A\x00"
 
-FUNC main
-  VISIBILITY GLOBAL
+FUNC Main
+  VISIBILITY PUBLIC
   RETURN VOID
   PARAMS 0
   LOCALS 0
   FRAMESIZE 0
+
+  t0 = ADDR hello
+  ARG 0, t0
+  CALL Putstr, 1
   RETURN
+
+ENDFUNC
+
+FUNC Putc
+  VISIBILITY PUBLIC
+  RETURN UINT8
+  PARAMS 1
+    PARAM b UINT8 0
+  LOCALS 0
+  FRAMESIZE 0
+
+  ASM "ldi r2 96"
+  ASM "ssp r1 r2"
+
+ENDFUNC
+
+FUNC isOverflow
+  VISIBILITY STATIC
+  RETURN UINT8
+  PARAMS 0
+  LOCALS 0
+  FRAMESIZE 0
+
+  ASM "ldi r2 98"
+  ASM "lsp r1 r2"
+  ASM "ldi r2 1"
+  ASM "and r1, r1, r2"
 
 ENDFUNC
 
 FUNC Putstr
-  VISIBILITY GLOBAL
+  VISIBILITY PUBLIC
   RETURN VOID
   PARAMS 1
-    PARAM bp PTR8 0
+    PARAM bp PTR:UINT8 0
   LOCALS 0
   FRAMESIZE 0
+
+.while0:
+  t0 = PARAM 0
+  t1 = LOAD.BU [t0]
+  t2 = CONST.W 0x0000
+  t3 = NE.W t1, t2
+  JUMPZ t3, .endwhile1
+  t4 = PARAM 0
+  t5 = LOAD.BU [t4]
+  ARG 0, t5
+  t6 = CALL Putc, 1
+  t7 = CALL isOverflow, 0
+  JUMPZ t7, .endif2
+  JUMP .while0
+.endif2:
+  t8 = PARAM 0
+  t9 = CONST.W 0x0001
+  t10 = ADD.W t8, t9
+  SETPARAM 0, t10
+  JUMP .while0
+.endwhile1:
   RETURN
 
 ENDFUNC
+

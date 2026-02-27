@@ -58,7 +58,7 @@ func void PutHex(uint16 val) {
     PutHexNib(val & 15);
 }
 
-func void main() {
+func void Main() {
     var uint16 result;
 
     result = BigFunc(1, 2, 3, 4, 5, 1);

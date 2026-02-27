@@ -1,7 +1,7 @@
 // Simple test program
 #pragma bootstrap
 
-func void main() {
+func void Main() {
     var byte buf[6];
     var uint16 n;
 
