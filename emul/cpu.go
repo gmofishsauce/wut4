@@ -82,6 +82,17 @@ func NewCPU() *CPU {
 		},
 	}
 
+	// On real hardware, MMU slots power up in a random state. Only the two
+	// kernel slots below are architecturally guaranteed to be zeroed. We
+	// pre-fill every slot with 0xFFFF (permission bits 11 = PERM_INVALID) so
+	// that any access through an uninitialized slot faults immediately, matching
+	// hardware behavior rather than silently mapping everything to physical page 0.
+	for ctx := range cpu.mmu {
+		for slot := range cpu.mmu[ctx] {
+			cpu.mmu[ctx][slot] = 0xFFFF
+		}
+	}
+
 	// Initialize kernel MMU: slot 0 points to physical page 0 with RWX permissions
 	// Permission bits: 00 = RWX (see spec)
 	cpu.mmu[0][0] = 0x0000  // Code page 0 → physical page 0

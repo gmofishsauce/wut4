@@ -40,22 +40,34 @@ func void Main() {
     var uint16 next;
 
     n1 = 0;
-    n2 = 1;
+    n2 = 10;
 
     // Print first Fibonacci number (1)
+
     Utoa(n2, &buf[0]);
     Putstr(&buf[0]);
-    Putc(byte('\n'));
-
+    Putstr(&"\r\n");
+/*
+    n2 = 7;
+    Utoa(n2, &buf[0]);
+    Putstr(&buf[0]);
+    Putstr(&"\r\n");
+    n2 =17;
+    Utoa(n2, &buf[0]);
+    Putstr(&buf[0]);
+    Putstr(&"\r\n");
+   */
+/*
     // Generate and print remaining Fibonacci numbers
     // Use subtraction to avoid uint16 overflow in the addition
     while (n1 <= MAX_FIB - n2) {
         next = n1 + n2;
         Utoa(next, &buf[0]);
         Putstr(&buf[0]);
-        Putc(byte('\n'));
+        Putstr("\r\n");
         n1 = n2;
         n2 = next;
     }
+   */
 }
 

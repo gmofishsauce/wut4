@@ -1,0 +1,32 @@
+Let me eplain this situation because it is complex. Several fixes
+to unrelated code will be required to completely straighten this
+out.
+
+First of all, the architecture guarantees only that the very first
+element of the kernel code and data MMU will be initialized to 0,
+a value that maps physical page frames 0 read/write/execute. In the
+actual hardware, all the other MMU entries will be random values.
+So the first fix we will want to make is to have the emulator initialize
+all the other MMU entries with the value 0xFFFF to catch the mistaken
+assumption that uninitialized MMU entries map to physical page frame 0.
+
+Second, to take advantage of  of the way the MMU initializes, the
+compiler is supposed to combine code and data when "#pragma bootstrap"
+is seen.  The "#pragma bootstrap" language feature is designed for programs
+that load immediately upon hardware initialization like the bootstrap
+loader or certain future diagnostic programs. The compiler should
+never combine code and data for rograms which do not have "#pragma
+bootstrap" ("normal" programs).
+
+So the desired fixes are:
+1. Ensure the compiler always combines code and data when "#pragma
+bootstrap" is the first satement in the source.
+2. Ensure the compiler keeps code and data separate with
+data going into its own data segment when "#pragma bootstrap" is
+not given in the source.
+3. Fix the emulator by initializing all MMU slots to 0xFFFF and
+then zeroing only kernel code slot 0 and kernel data slot 0.
+4. Ensure that the bootloader properly creates a mapping for both
+code and data segments of the program it loads, mapping both segments
+starting at virtual 0.
+
