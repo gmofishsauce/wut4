@@ -114,13 +114,11 @@ func TestSmokeHello(t *testing.T) {
 	asm := runYgen(t, string(data))
 
 	for _, want := range []string{
-		"_start:",  // bootstrap entry point
-		"Main:",    // main function label
-		"Putstr:",  // Putstr function label
-		"hello:",   // global data label
-		".bytes",   // data initializer
-		"jal Main", // bootstrap call to Main
-		"hlt",      // halt after main returns
+		".bootstrap", // bootstrap section directive
+		"Main:",      // main function label
+		"Putstr:",    // Putstr function label
+		"hello:",     // global data label
+		".bytes",     // data initializer
 	} {
 		if !strings.Contains(asm, want) {
 			t.Errorf("expected %q in ygen output; not found\noutput:\n%s", want, asm)

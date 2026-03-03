@@ -314,34 +314,55 @@ symbol table implemented as a Go map.
 
 ## 7. Changes to ygen and the Bootstrap Problem
 
-Currently `ygen` emits a `_start` block in every output file:
+Every linked executable receives two prepended object files. The `ya` driver
+is responsible for inserting them in order before the program's own objects.
+
+**`crt0.wo`** (always prepended, to every executable):
 
 ```asm
 _start:
-    ldi r7, 0xFFFF    ; initialize stack pointer
-    jal main
+    ldi r7, 0    ; SP = 0; first push wraps to data page 15 (0xF000-0xFFFF)
+    jal Main
     hlt
 ```
 
-In a multi-file world, `_start` must appear exactly once. Two approaches:
+This gives every program a stack and a clean exit. `ldi r7, 0` works because
+the first frame allocation (`adi r7, r7, -N`) wraps the 16-bit SP into the top
+of data space (page 15, 0xF000–0xFFFF), which is always mapped to a writable
+frame before `_start` runs — either by the bootloader trampoline (for loaded
+programs) or by `lib/boot.wo` (for bootstrap programs, see below).
 
-**Option A — Explicit `#pragma bootstrap`** (already partially supported):
-The programmer designates one file as the bootstrap file with `#pragma bootstrap`.
-Only that file emits `_start`. All other files are compiled normally. The linker
-is told which file provides the entry point.
+**`lib/boot.wo`** (prepended only when `#pragma bootstrap` is present, before
+`crt0.wo`):
 
-**Option B — Separate runtime object**:
-A pre-assembled `crt0.wo` provides `_start`. No YAPL source file emits it.
-The driver links `crt0.wo` automatically unless the user passes `--no-crt0`.
+Assembled from `lib/boot.asm`. Maps physical frame 1 to kernel data page 15
+(virtual 0xF000–0xFFFF), establishing the stack page before `_start` runs:
 
-Option B is cleaner and more conventional. Option A requires less new
-infrastructure. Either works. Option A is recommended for the first
-implementation since `#pragma bootstrap` already exists.
+```asm
+    ldi r1, 0x0001
+    srw r1, r2, 95    ; KERN DATAMMU[15] = frame 1
+```
 
-`ygen` change: when **not** in bootstrap mode, do not emit `_start`. This is a
-small change (~10 lines) but requires care: currently the emitter always emits
-the startup block. A new flag (or absence of `#pragma bootstrap`) should
-suppress it.
+Bootstrap programs run on bare hardware where no MMU setup has been done yet.
+`lib/boot.wo` performs the minimum required setup so that `crt0`'s `ldi r7, 0`
+has a valid stack page to grow into. Loaded (non-bootstrap) programs do not
+need `lib/boot.wo` because the bootloader trampoline has already mapped data
+page 15 before jumping to the loaded image.
+
+**Linking order for a bootstrap program:**
+
+```
+lib/boot.wo | crt0.wo | program objects...
+```
+
+**Linking order for a normal (bootloader-loaded) program:**
+
+```
+crt0.wo | program objects...
+```
+
+`ygen` must **not** emit `_start` or any startup code; those come exclusively
+from `crt0.wo`. No YAPL source file should contain `_start`.
 
 ## 8. Changes to the ya Driver
 

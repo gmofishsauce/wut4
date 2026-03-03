@@ -75,23 +75,13 @@ func (cg *CodeGen) Generate() {
 		cg.emit.BlankLine()
 	}
 
-	// Generate code section - but not for bootstrap programs
-	if !cg.isBootstrap {
-		cg.emit.DataCode()
-		cg.emit.BlankLine()
-	}
-
-	// For bootstrap programs, emit startup code at the very beginning
-	// This initializes the stack pointer and calls main
+	// Emit section directive
 	if cg.isBootstrap {
-		cg.emit.Comment("Bootstrap startup code")
-		cg.emit.Comment("SP=0 wraps to top of 64KB; boot.asm maps phys page 1 at 0xF000..0xFFFF")
-		cg.emit.Label("_start")
-		cg.emit.Ldi(R7, 0)
-		cg.emit.Jal("Main")
-		cg.emit.Instr0("hlt")
-		cg.emit.BlankLine()
+		cg.emit.Bootstrap()
+	} else {
+		cg.emit.DataCode()
 	}
+	cg.emit.BlankLine()
 
 	// Emit runtime library if needed
 	cg.genRuntimeLibrary()

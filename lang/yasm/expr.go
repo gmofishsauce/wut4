@@ -148,6 +148,13 @@ func (ep *ExprParser) parsePrimary() (int, error) {
 		if !sym.defined && !ep.allowFwd {
 			return 0, fmt.Errorf("symbol used before definition: %s", name)
 		}
+		/* In object mode pass 2, defined label symbols need relocations so
+		   the linker can adjust their addresses when the file is placed.
+		   .set constants (segment == -1) are pure values and don't need relocation. */
+		if ep.asm.objectMode && ep.asm.pass == 2 && sym.defined &&
+			(sym.segment == SEG_CODE || sym.segment == SEG_DATA) {
+			ep.asm.lastExternalRef = sym.name
+		}
 		return sym.value, nil
 
 	case TOK_LPAREN:

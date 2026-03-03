@@ -25,7 +25,7 @@ func void Putstr(@byte bp) {
 
     while (@bp != 0) {
 	Putc(@bp);
-	if (isOverflow()) {continue;}
+	while (isOverflow()) {continue;}
 	bp = bp + 1;
     }
 }

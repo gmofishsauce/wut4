@@ -80,9 +80,13 @@ func writeObjectFile(filename string, asm *Assembler) error {
 		sym := &asm.symbols[i]
 		isGlobal := len(sym.name) > 0 && sym.name[0] >= 'A' && sym.name[0] <= 'Z'
 		isUndefined := !sym.defined
+		/* Local label symbols (segment == SEG_CODE or SEG_DATA) must be emitted
+		   so the linker can resolve intra-file relocations.  .set constants
+		   (segment == -1) are pure values and do not need relocation. */
+		isLocalLabel := sym.defined && (sym.segment == SEG_CODE || sym.segment == SEG_DATA)
 
-		if !isGlobal && !isUndefined {
-			continue /* skip local defined symbols */
+		if !isGlobal && !isUndefined && !isLocalLabel {
+			continue /* skip .set constants and other non-label symbols */
 		}
 
 		/* Add name to string table if not already there */

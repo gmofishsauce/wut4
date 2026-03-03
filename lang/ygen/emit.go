@@ -272,6 +272,11 @@ func (e *Emitter) Ssp(src, sprReg int) {
 
 // --- Data emission helpers ---
 
+// Bootstrap emits the .bootstrap directive for programs that run at hardware startup
+func (e *Emitter) Bootstrap() {
+	fmt.Fprintln(e.out, ".bootstrap")
+}
+
 // DataCode switches to code section
 func (e *Emitter) DataCode() {
 	fmt.Fprintln(e.out, ".code")

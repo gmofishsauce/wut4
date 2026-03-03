@@ -252,19 +252,7 @@ func runPipeline(sourceFile string) (*pipelineResult, error) {
 		return nil, fmt.Errorf("code generator failed: %v", err)
 	}
 
-	// Prepend boot.asm for bootstrap programs
 	hasBootstrap := hasBootstrapPragma(sourceData)
-	if hasBootstrap {
-		bootAsmPath, err := findBootAsm()
-		if err != nil {
-			return nil, err
-		}
-		bootData, err := os.ReadFile(bootAsmPath)
-		if err != nil {
-			return nil, fmt.Errorf("reading boot.asm: %v", err)
-		}
-		asmOut = append(bootData, asmOut...)
-	}
 
 	// Stage 5 (optional): Peephole optimizer
 	if *doOptimize {
@@ -362,22 +350,7 @@ func compile(sourceFile string) error {
 		return nil
 	}
 
-	if res.hasBootstrap {
-		// Bootstrap program: yasm produces binary directly (legacy path)
-		outFile := *outputFile
-		if outFile == "" {
-			outFile = "wut4.out"
-		}
-		if err := runAssembler(asmPath, []string{"-o", outFile, tmpAsmName}); err != nil {
-			return err
-		}
-		if *verbose {
-			fmt.Fprintf(os.Stderr, "Wrote %s\n", outFile)
-		}
-		return nil
-	}
-
-	// Normal: assemble to temp .wo, then link
+	// Assemble to temp .wo, then link (bootstrap prepends boot.wo + crt0.wo; normal prepends crt0.wo)
 	tmpWO, err := os.CreateTemp("", "ya-*.wo")
 	if err != nil {
 		return fmt.Errorf("creating temp object file: %v", err)
@@ -388,6 +361,9 @@ func compile(sourceFile string) error {
 
 	if err := runAssembler(asmPath, []string{"-c", "-o", tmpWOName, tmpAsmName}); err != nil {
 		return err
+	}
+	if res.hasBootstrap {
+		return linkBootstrap([]string{tmpWOName})
 	}
 	return link([]string{tmpWOName})
 }
@@ -444,6 +420,21 @@ func link(woFiles []string) error {
 	}
 
 	allFiles := append([]string{crt0}, woFiles...)
+	return runLinker(allFiles)
+}
+
+// linkBootstrap prepends boot.wo and crt0.wo and invokes yld to link bootstrap programs
+func linkBootstrap(woFiles []string) error {
+	bootWO, err := findBootWO()
+	if err != nil {
+		return err
+	}
+	crt0, err := findCrt0()
+	if err != nil {
+		return err
+	}
+
+	allFiles := append([]string{bootWO, crt0}, woFiles...)
 	return runLinker(allFiles)
 }
 
@@ -507,35 +498,27 @@ func findCrt0() (string, error) {
 	return "", fmt.Errorf("crt0.wo not found; set YAPL env var to repo root or install lib/crt0.wo alongside binaries")
 }
 
-// findBootAsm locates the boot.asm startup file for bootstrap programs.
-// Looks at $YAPL/../lib/boot.asm, then <bindir>/boot.asm, then <bindir>/../lib/boot.asm.
-func findBootAsm() (string, error) {
-	// Try $YAPL/../lib/boot.asm
+// findBootWO locates the boot.wo startup object for bootstrap programs.
+// Looks at $YAPL/../lib/boot.wo, then <bindir>/../lib/boot.wo.
+func findBootWO() (string, error) {
+	// Try $YAPL/../lib/boot.wo
 	if yaplDir := os.Getenv("YAPL"); yaplDir != "" {
-		p := filepath.Join(yaplDir, "..", "lib", "boot.asm")
+		p := filepath.Join(yaplDir, "..", "lib", "boot.wo")
 		if _, err := os.Stat(p); err == nil {
 			return filepath.Clean(p), nil
 		}
 	}
 
+	// Try <directory of ya binary>/../lib/boot.wo
 	exe, err := os.Executable()
 	if err == nil {
-		bindir := filepath.Dir(exe)
-
-		// Try <bindir>/boot.asm (flat install: boot.asm alongside binaries)
-		p := filepath.Join(bindir, "boot.asm")
-		if _, err := os.Stat(p); err == nil {
-			return p, nil
-		}
-
-		// Try <bindir>/../lib/boot.asm
-		p = filepath.Join(bindir, "..", "lib", "boot.asm")
+		p := filepath.Join(filepath.Dir(exe), "..", "lib", "boot.wo")
 		if _, err := os.Stat(p); err == nil {
 			return filepath.Clean(p), nil
 		}
 	}
 
-	return "", fmt.Errorf("boot.asm not found; set YAPL env var to repo root or install boot.asm alongside binaries")
+	return "", fmt.Errorf("boot.wo not found; set YAPL env var to repo root or install lib/boot.wo alongside binaries")
 }
 
 // findBinary locates a compiler component binary.
