@@ -7,10 +7,12 @@
 ;   Sectors 1+code_sectors..: OS data, zero-padded to sector boundary
 ;
 ; Physical frame allocation:
-;   Frame 0:   loader (code)
-;   Frame 1:   stack (data page 15, mapped below)
-;   Frame 2:   trampoline + staging
-;   Frames 3+: OS pages
+;   Frame 0:   loader (code + data, kernel code/data page 0)
+;   Frame 1:   loader stack (kernel data page 15)
+;   Frame 2:   trampoline
+;   Frames 3..3+codePages-1:                     OS code pages 0..codePages-1
+;   Frames 3+codePages..3+codePages+dataPages-1: OS data pages 0..dataPages-1
+;   Maximum 16+16 pages: frames 3-18 (code), frames 19-34 (data).
 ;
 ; boot.asm preamble: map physical frame 1 at virtual data 0xF000..0xFFFF
 ; MMU entry format: bits[11:0]=physical frame, bits[15:12]=perms (0=RWX)
@@ -475,8 +477,15 @@ die:
 
 ; -----------------------------------------------------------------------
 ; Main: bootstrap entry point
-; Maps staging page, inits SD, reads header, loads OS code+data pages,
-; writes trampoline to frame 2, jumps to trampoline at 0xF000.
+; Inits SD, reads header, loads OS code+data pages via the data-side
+; staging window. During loading, maps code pages 1-14 (SPRs 65-78)
+; and data pages 0-14 (SPRs 80-94) to their OS frames. Deliberately skips:
+;   code page 0  (SPR 64)  - loader is executing from it
+;   code page 15 (SPR 79)  - trampoline will live here
+;   data page 15 (SPR 95)  - loader stack lives here
+; Writes trampoline to frame 2, maps code page 15 -> frame 2,
+; jumps to trampoline at virtual code 0xF000.
+; See os/README.md for the full boot protocol and OS entry convention.
 ;
 ; Stack frame: 18 bytes
 ;   r7+0:  codeSectors
@@ -583,8 +592,12 @@ l_main_code_body:
     or r2, r6, r0
     jal writeMMU
 
-    ; if (p != 0): writeMMU(64+p, physFrame) - map code page p
+    ; skip code MMU write for p=0 (loader executes from it) and
+    ; p=15 (trampoline lives there; OS entry remaps it - see os/README.md)
     tst r4, r0              ; p - 0
+    brz l_main_skip_code_mmu
+    ldi r3, 15
+    tst r4, r3              ; p - 15
     brz l_main_skip_code_mmu
     ldi r1, 64
     add r1, r1, r4          ; r1 = 64 + p
@@ -663,13 +676,18 @@ l_main_data_body:
     add r6, r6, r3          ; r6 = 3 + codePages
     add r6, r6, r4          ; r6 = 3 + codePages + p
 
-    ; writeMMU(80+p, physFrame) - map OS kernel data page p
+    ; skip data MMU write for p=15: loader stack lives on data page 15
+    ; until the trampoline remaps it as a non-returning stub
+    ldi r3, 15
+    tst r4, r3              ; p - 15
+    brz l_main_skip_data_mmu
     ldi r1, 80
     add r1, r1, r4          ; r1 = 80 + p
     or r2, r6, r0
     jal writeMMU
+l_main_skip_data_mmu:
 
-    ; writeMMU(83, physFrame) - remap data page 3 (staging)
+    ; writeMMU(83, physFrame) - remap data page 3 (staging, always)
     ldi r1, 83
     or r2, r6, r0
     jal writeMMU
@@ -728,31 +746,38 @@ l_main_data_inner_done:
 l_main_data_done:
 
     ; ---- Write trampoline to physical frame 2 ----
-    ; Map data page 14 (SPR 94) -> frame 2.
-    ; Data pages 1 (SPR 81, from header staging) and 14 both map to frame 2;
-    ; writing to 0xE000 overwrites the now-unneeded header at frame 2's start.
+    ; Map data page 14 (SPR 94) -> frame 2 (write window at VA 0xE000).
+    ; After the data loading loop, SPR 94 maps to OS data frame 33;
+    ; remap it to frame 2 so writes to 0xE000 reach the trampoline frame.
     ldi r1, 94
     ldi r2, 2
     jal writeMMU
 
-    ; Write trampoline words to virtual data 0xE000..0xE00E
-    ; These instructions execute from virtual CODE 0xF000 (code page 15 -> frame 2):
-    ;   ldi r1, 3     0xA001, 0x80C9  (OS first code frame)
-    ;   ldi r2, 64    0xA00A, 0x8012  (SPR 64 = kernel code page 0)
-    ;   ssp r1, r2    0xFE91          (remap code page 0 -> frame 3)
-    ;   ldi r1, 0     0xA001, 0x8009  (jump target = VA 0)
-    ;   ji r1         0xFFF1          (jump to OS)
+    ; Write 13 trampoline words to virtual data 0xE000..0xE018.
+    ; These words execute from virtual CODE 0xF000 (code page 15 -> frame 2).
+    ; The trampoline is non-returning. It completes the two MMU writes
+    ; that Main cannot safely do (stack page and loader code page), then
+    ; jumps to the OS. The OS entry must remap code page 15 as its first act.
+    ;
+    ;   ldi r1, 34    0xA001, 0x8889  (frame 34 PP=00 = OS data frame 34)
+    ;   ldi r2, 95    0xA00A, 0x87D2  (SPR 95 = KERN DATAMMU[15])
+    ;   ssp r1, r2    0xFE91          (remap data page 15 -> frame 34; kills stack)
+    ;   ldi r1, 3     0xA001, 0x80C9  (frame 3 PP=00 = OS code frame 3)
+    ;   ldi r2, 64    0xA00A, 0x8012  (SPR 64 = KERN CODEMMU[0])
+    ;   ssp r1, r2    0xFE91          (remap code page 0 -> frame 3; kills loader)
+    ;   ldi r1, 0     0xA001, 0x8009  (jump target = VA 0x0000)
+    ;   ji r1         0xFFF1          (jump to OS entry)
     ldi r1, 0xE000
     ldi r2, 0xA001
     jal storeWord
     ldi r1, 0xE002
-    ldi r2, 0x80C9
+    ldi r2, 0x8889
     jal storeWord
     ldi r1, 0xE004
     ldi r2, 0xA00A
     jal storeWord
     ldi r1, 0xE006
-    ldi r2, 0x8012
+    ldi r2, 0x87D2
     jal storeWord
     ldi r1, 0xE008
     ldi r2, 0xFE91
@@ -761,9 +786,24 @@ l_main_data_done:
     ldi r2, 0xA001
     jal storeWord
     ldi r1, 0xE00C
-    ldi r2, 0x8009
+    ldi r2, 0x80C9
     jal storeWord
     ldi r1, 0xE00E
+    ldi r2, 0xA00A
+    jal storeWord
+    ldi r1, 0xE010
+    ldi r2, 0x8012
+    jal storeWord
+    ldi r1, 0xE012
+    ldi r2, 0xFE91
+    jal storeWord
+    ldi r1, 0xE014
+    ldi r2, 0xA001
+    jal storeWord
+    ldi r1, 0xE016
+    ldi r2, 0x8009
+    jal storeWord
+    ldi r1, 0xE018
     ldi r2, 0xFFF1
     jal storeWord
 
